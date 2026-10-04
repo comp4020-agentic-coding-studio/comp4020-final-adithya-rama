@@ -22,6 +22,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY src ./src
-COPY README.md ./
+COPY README.md PROCESS.md ./
 COPY docs ./docs
+COPY reflections ./reflections
 CMD ["node", "--max-old-space-size=160", "src/server/main.ts"]

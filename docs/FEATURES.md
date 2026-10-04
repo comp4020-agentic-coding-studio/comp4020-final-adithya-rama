@@ -1,149 +1,145 @@
 # Feature checklist
 
-Every agreed feature from [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), with
-its status. A menu option or icon does not count as a working feature.
+This records the full agreed scope. **Implemented** means the feature crosses its
+required simulation/server/client boundaries. **Tested locally** means a named
+check exercised it, with the limits below. **Verified live** is reserved for
+checks actually performed on Fly. Human playtesting is a separate requirement.
 
-| Status | Meaning |
-|---|---|
-| **pending** | not built |
-| **implemented** | built end to end (simulation, networking, rendering, HUD, persistence where relevant) |
-| **tested locally** | implemented, and covered by an automated test or a recorded local browser run |
-| **verified live** | tested locally, and checked on the deployed `*.fly.dev` app |
+## Current release boundary
 
-Nothing is **verified live** yet: the app has not been deployed (see
-[HANDOFF.md](HANDOFF.md)).
+P0–P5 implementation is present. P6 acceptance is in progress. The integrated
+local check passes 96 simulation tests, five touch-input tests and 32 server/storage/API/course tests.
+Browser arsenal acceptance passes all weapons and throwables. The deployment
+and long-soak status are recorded in [VALIDATION.md](VALIDATION.md), not inferred
+from these local checks. All four planned arenas are retained.
 
-## Movement and combat
+## Movement and inventory
 
-| Feature | Status | Evidence / note |
+| Feature | Status | Evidence |
 |---|---|---|
-| Running, jumping | tested locally | `test/movement.test.ts`, browser check |
-| Crouching (slower movement) | tested locally | `test/movement.test.ts` |
-| Dropping through marked platforms | tested locally | `test/movement.test.ts` |
-| Directional flight, fuel depletion and regeneration | tested locally | `test/movement.test.ts` |
-| Weapon-dependent zoom, right-click zoom | implemented | AK-47 has 1.25× zoom; right click / touch Zoom widens 1.35× |
-| Damage, death, respawning (3 s) | tested locally | `test/combat.test.ts` |
-| Spawn protection (2 s, ended by firing/throwing/melee) | tested locally | flag capture ending protection is P3 |
-| Environmental death (leaving the map) | tested locally | `test/movement.test.ts` |
-| Two weapon slots, select 1/2, swap Q | tested locally | `test/combat.test.ts` |
-| Dual wielding compatible one-handed weapons (F) | pending | P4; `F` is bound but does nothing yet |
-| Heavy weapons excluded from dual wield | pending | P4 |
-| Shield in one slot | pending | P4 |
-| Manual pickup / swap (E) | tested locally | `test/combat.test.ts` |
-| Dropping equipment (X) | tested locally | dropped weapons keep their ammo, expire after 20 s |
-| Auto-reload on empty, manual reload (R) | tested locally | `test/combat.test.ts` |
-| Melee (V) | implemented | fixed 40 damage, not the machete; no dedicated test |
-| Health / ammunition / fuel pickups | implemented | auto-collected; no dedicated test |
-| Remappable bindings | pending | bindings live in one table (`src/client/input.ts`); no UI to change them |
-| Keyboard aiming / fire alternative | implemented | arrow keys aim in 8 directions, J / Enter fire |
-| Touch controls covering the same actions | tested locally | twin sticks plus 8 buttons; phone browser check |
-| Losing focus clears held inputs | implemented | `blur` and `visibilitychange`; a neutral frame is sent when hidden |
+| Run, jump, crouch, drop through platforms | tested locally | movement tests; desktop/phone practice |
+| Directional flight, fuel use/recharge | tested locally | movement tests; browser practice |
+| Weapon-dependent zoom | tested locally | weapon range/HUD; rendering uses weapon data |
+| Health, damage, deaths, respawns | tested locally | combat/full-game tests; browser rounds |
+| Two-second spawn protection and early action/flag termination | tested locally | combat/full-game tests |
+| Two slots, direct selection, switching | tested locally | combat/full-game tests; arsenal browser |
+| Independent compatible dual wielding | tested locally | dual ammunition/reload tests |
+| Heavy exclusion, shield paired with one-handed equipment | tested locally | full-game tests; shield browser |
+| Manual pickups, swapping, dropping | tested locally | combat tests; browser range traversal |
+| Automatic and manual reload | tested locally | combat/full-game tests; browser ammunition |
+| Health, ammo, fuel pickups | tested locally | full-game tests |
+| Six-item throwable cap, two default frags | tested locally | full-game tests |
+| Remappable keys, keyboard aiming/fire | tested locally | eight-flow preferences browser check; persisted remapping and keyboard input |
+| All touch actions | implemented | two sticks, twelve action buttons, scoreboard/menu; practice movement/fire tested |
+| Focus loss clears held inputs | tested locally | input handlers; server stale-input test |
 
-## Arsenal (21 firearms, 4 throwables, 2 equipment)
+## Complete arsenal
 
-| Weapon | Status | Note |
+All values are authored tuning, not recovered Mini Militia balance values.
+[Browser arsenal evidence](browser-arsenal-note.md) covers visible equipment,
+input, ammunition and authoritative events. Damage, penetration and immunity
+assertions belong to simulation tests; an observed shot alone is not that proof.
+
+| Entry | Status | Behavior |
 |---|---|---|
-| Mini Eagle | tested locally | semi-auto sidearm, default slot 1 |
-| Uzi | tested locally | automatic SMG, default slot 2 |
-| AK-47 | tested locally | map pickup |
-| SPAS-12 | tested locally | 7-pellet shotgun, map pickup |
-| Golden Eagle, Magnum | pending | P4 |
-| Tec-9, MP5 | pending | P4 |
-| M4, Tavor X95, XM8 | pending | P4 |
-| M14, M93BA | pending | P4 |
-| AA-20 | pending | P4 |
-| Minigun, SMAW, RG6 grenade launcher, saw launcher | pending | P4 |
-| Flamethrower, PHASR beam, EMP gun | pending | P4 |
-| Machete, riot shield | pending | P4 |
-| Fragmentation grenade | tested locally | blast falloff and wall occlusion tested; 2 at spawn |
-| Gas, EMP, proximity mine | pending | P4 |
-| Six-throwable carrying limit | implemented | enforced on ammo pickups; only frags exist yet |
+| Mini Eagle | tested locally | semi-automatic sidearm |
+| Golden Eagle | tested locally | slower, stronger sidearm |
+| Magnum | tested locally | high-damage six-round sidearm |
+| Uzi | tested locally | fast, wide-spread one-handed SMG |
+| Tec-9 | tested locally | one-handed SMG with different cadence/range |
+| MP5 | tested locally | two-handed, tighter SMG |
+| AK-47 | tested locally | rifle, stronger individual shots |
+| M4 | tested locally | faster rifle |
+| Tavor X95 | tested locally | tighter precision-oriented rifle |
+| XM8 | tested locally | faster rifle with larger magazine |
+| M14 | tested locally | semi-automatic precision rifle |
+| M93BA | tested locally | long-range heavy precision rifle |
+| SPAS-12 | tested locally | seven-pellet pump shotgun |
+| AA-20 | tested locally | automatic six-pellet shotgun |
+| Minigun | tested locally | sustained high-rate fire |
+| SMAW | tested locally | swept rocket with blast falloff |
+| RG6 | tested locally | bouncing timed explosive projectile |
+| Saw launcher | tested locally | swept ricocheting disc |
+| Flamethrower | tested locally | short cone, one damage application per target per burst |
+| PHASR beam | tested locally | penetrates players, stops at walls |
+| EMP gun | tested locally | damage plus temporary flight disable |
+| Machete | tested locally | stronger, longer melee strike |
+| Riot shield | tested locally | directional direct-fire damage reduction |
+| Fragmentation | tested locally | blast falloff and wall occlusion |
+| Gas | tested locally | visible lingering damage area |
+| EMP grenade | tested locally | area flight disable |
+| Proximity mine | tested locally | terrain attachment, arming delay, enemy trigger |
 
-Weapon values are authored and untuned. None are claimed to match Mini Militia.
+Each entry has a pickup, original visual, HUD representation, replicated behavior
+and inventory handling. Equipment correctly avoids firearm ammunition/reload rules.
 
 ## Modes and results
 
-| Feature | Status | Note |
+| Feature | Status | Evidence |
 |---|---|---|
-| Team deathmatch (enemy kills score; suicides, environmental and friendly kills don't) | tested locally | `test/combat.test.ts`, `spec/alive.test.ts` |
-| Friendly fire off by default, room toggle | tested locally | |
-| Kill / score limit | tested locally | |
-| Draw on equal scores | tested locally | |
-| Free-for-all | tested locally | load probe, unit tests |
-| Training (one human, up to 3 bots) | tested locally | the "Practice against bots" button; results kept out of PvP profile stats |
-| Flag Delivery (all 12 rules) | pending | P3 (Codex) |
-| Survival | pending | P5 |
-| Scoreboard (Tab) with K/D/A | implemented | deliveries column waits for P3 |
-| Assists (20% max health in 8 s) | tested locally | |
-| Contribution score and MVP (fewer deaths, then shared) | tested locally | |
-| Scoring explanation on the results screen | tested locally | browser check |
+| FFA, enemy-kill TDM, optional limits, draws | tested locally | combat tests; two independent browsers |
+| Friendly-fire scoring excludes friendly kills/suicides/environment | tested locally | combat/full-game tests |
+| Own-flag collection and opposing-goal delivery | tested locally | simulation tests; actual browser delivery |
+| Exactly one flag per team; next-tick replacement | tested locally | full-game tests |
+| Dropped flag remains beyond 15 seconds | tested locally | 20-second test with no timer |
+| Enemy contact cannot collect/return | tested locally | full-game tests |
+| Death/disconnect drop, teammate recovery, same-flag OOB return | tested locally | simulation and room tests |
+| Normal weapons/flight while carrying; no voluntary flag toss | tested locally | core flag tests and unchanged action path |
+| Damage before delivery; simultaneous final-tick/limit scoring | tested locally | full-game tests |
+| Training: one human and zero–three bots | tested locally | all arsenal browser sessions; practice round |
+| Survival: one–four humans, waves, max eight active enemies | tested locally | full-game tests; two-browser survival |
+| Kills/deaths/assists/deliveries, team scores, MVP | tested locally | full-game tests; results browser |
+| Assist threshold/window, mode-specific contribution, shared MVP ties | tested locally | combat/full-game tests |
+| Results explain ranking and distinguish saving/failure/saved | tested locally | browser results; failure-injection room test |
+| Training/survival separate from human PvP aggregates | tested locally | storage tests |
 
-## Maps
+## Maps and rooms
 
-| Map | Status | Note |
+| Feature | Status | Evidence |
 |---|---|---|
-| Outpost Yard | tested locally | spawns stand on ground (unit test); goals and flag pedestals are placed for P3 but unused |
-| Test Range (developer map) | implemented | available in any mode's map list |
-| Cryptworks | pending | P5 |
-| Crosscurrent | pending | P5 (second to cut) |
-| Skyshaft | pending | P5 (first to cut) |
-| Bot navigation data | implemented (minimal) | a few nav nodes per map; bots steer directly, no pathfinding |
+| Cryptworks, Outpost Yard, Crosscurrent, Skyshaft | tested locally | authored geometry; map tests; browser modes |
+| Ground route to flags/goals with no flight, double gravity, half speed | tested locally | all four arenas in map tests |
+| Spawn collision checks and navigation nodes | tested locally | map tests; server bot routing |
+| Full-catalogue Test Range | tested locally | all arsenal browser sessions; restricted from Flag Delivery |
+| Public listings and quick join | tested locally | APIs and room admission |
+| Private codes/invites, optional passwords | tested locally | room/API checks |
+| Ready-up, team selection, host controls/transfer | tested locally | room/network checks |
+| Spectators, late join, rematches | tested locally | room checks; browser mode flows |
+| Live settings frozen; changes staged for next round | tested locally | room tests; two consecutive staged settings browser checks |
+| Named saved presets | tested locally | owner-scoped storage/API checks; preset save/apply browser check |
+| Map/mode/capacity/duration/score limit | implemented | validated settings + host UI |
+| Flight/thrust/fuel capacity/recharge/unlimited fuel | tested locally | shared settings/physics + UI |
+| Gravity/speed/health/damage/respawn delay | tested locally | shared settings/physics/combat + UI |
+| Weapon/throwable allowlists and two-slot loadouts | tested locally | validation/full-game tests + UI |
+| Map pickups/unlimited ammo/friendly fire | tested locally | simulation tests + UI |
+| Bot count and difficulty | tested locally | server bots; training/survival |
+| Default one active room, four waiting, 24 clients | tested locally | room admission and bounded queues; two-room override is acceptance-only |
 
-## Rooms
+## Supporting systems
 
-| Feature | Status | Note |
+| Feature | Status | Evidence |
 |---|---|---|
-| Public listing | tested locally | home screen polls every 4 s |
-| Quick join | implemented | joins the fullest open public room, or makes one |
-| Private invitation links / codes | tested locally | `/r/CODE` links, 5-character codes |
-| Optional passwords | pending | |
-| Readiness | implemented | shown in the lobby; the host may start regardless |
-| Team selection | tested locally | auto-balanced on join, switchable in the lobby |
-| Host controls (settings, start, end round, rematch) | tested locally | non-host attempts are rejected (spec) |
-| Host transfer to longest-connected | implemented (basic) | on leave or after the 30 s seat hold; P3 strengthens it |
-| Spectators | pending | P5; a full room refuses joins |
-| Late joining | implemented | joins a running match on the smaller team |
-| Rematches | implemented | back to the lobby with the same settings |
-| Settings frozen during a round | tested locally | |
-| Map, mode, capacity, duration, score limit | implemented | capacity is set from the API only, not the lobby UI |
-| Flight, thrust, fuel capacity, recharge, unlimited fuel | implemented | |
-| Gravity, movement speed, health, damage, respawn delay | implemented | |
-| Weapon / throwable allowlists, starting loadouts | implemented server-side | no lobby UI yet (P4) |
-| Map pickups toggle | implemented | |
-| Unlimited ammunition | implemented | |
-| Bot count and difficulty | implemented | |
-| Named saved presets | pending | table exists; no API or UI (P4) |
-| One active room, four waiting rooms, 24 clients | implemented | constants in `src/shared/constants.ts` |
+| Persistent guest identity, profile and preferences | tested locally | cookie/API and container recreation |
+| Colour, helmet, face and emblem customisation | implemented | original renderer + profile API; persistence checks |
+| History pagination, match details, weapon statistics | tested locally | storage/API/browser history |
+| Procedural audio, mute, volume, reduced shake | implemented | client controls; audible human assessment pending |
+| Team names/markers and readable identifiers | implemented | renderer/HUD/results |
+| Room chat and mute | tested locally | room test; escaped UI; mute/unmute browser check |
+| Complete server-rendered README | tested locally | preserved course invariant |
+| 60 Hz authority, 20 Hz snapshots, 30 Hz input batches | tested locally | shared loop/server/clients; load harness |
+| Movement prediction/reconciliation; 100 ms interpolation | implemented | shared movement/client; browser verification |
+| Server-validated hitscan history up to 150 ms | tested locally | rewind tests; room input validation |
+| Rate/size/queue bounds; compression off; origin/session checks | tested locally | authority/API tests |
+| Five-second checkpoints and idempotent finalization | tested locally | storage tests and restart acceptance |
+| Interrupted rounds preserve checkpoint without completed awards | tested locally | container restart/recreation acceptance |
+| Ten-second vulnerable body, thirty-second reserved seat | tested locally | room tests; actual 10.5-second reconnection |
+| Absent-team grace and abandonment | tested locally | room tests |
+| Lifecycle/timing/memory/storage logging | implemented | health endpoint and acceptance reports |
 
-## Supporting features
+## Still requires external evidence
 
-| Feature | Status | Note |
-|---|---|---|
-| Guest identity via opaque cookie | tested locally | `spec/alive.test.ts` |
-| Display name and colour customisation | tested locally | |
-| Character customisation beyond colour | pending | P5 |
-| Persistent preferences | implemented | reduced screen shake is stored on the profile |
-| Match history (paginated) and match details | tested locally | |
-| Weapon statistics | pending | P5 |
-| Sound and sound controls | pending | P5; the game is silent |
-| Readable team identifiers | implemented | Ember / Tide names plus colours |
-| Reduced screen shake | implemented | |
-| Room chat with mute | pending | P5 |
-| Server-rendered `/readme/` | tested locally | starter invariant |
+- Returning-player and newcomer playtests, observed problems and resulting tuning.
+- Physical desktop/device performance and subjective sound/feel assessment.
+- Repository visibility at the agreed cutoff, and final course ship/tag procedure.
 
-## Multiplayer and persistence
-
-| Feature | Status | Note |
-|---|---|---|
-| 60 Hz authoritative simulation, 20 Hz snapshots, 30 Hz input batches | tested locally | |
-| Client prediction and reconciliation (own movement) | implemented | shooting isn't predicted, so tracers arrive after one round trip |
-| 100 ms interpolation of other players | implemented | |
-| Hitscan lag compensation (≤150 ms) | implemented | no dedicated test |
-| One input frame per tick (no speed from extra messages) | tested locally | |
-| Compression off, bounded messages and queues, origin/session checks, stalled-socket cleanup | tested locally (origin, session) | |
-| Match row before play; 5 s checkpoints; idempotent finalisation | implemented | finalisation is idempotent by status check; no duplicate-finalise test yet |
-| "Saving" until committed; failure shown honestly | implemented | no failure-injection test yet |
-| Interrupted matches after restart | implemented | marked at boot; not yet tested across a container restart |
-| Disconnect: controls neutral, body vulnerable 10 s, seat held 30 s, rejoin same player | tested locally (rejoin) | flag drop on disconnect is P3 |
-| Absent team gets 30 s before abandonment | pending | the room only ends as abandoned when nobody is connected (P3) |
-| Logging (lifecycle, rejections, storage, timing, memory) | implemented | JSON lines; no credentials logged |
+These are not represented as completed by automated tests.

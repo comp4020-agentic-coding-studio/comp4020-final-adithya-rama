@@ -13,7 +13,13 @@
     "check": "pnpm typecheck && pnpm test:unit && pnpm test",
     "check:evidence": "node scripts/check-evidence.ts",
     "check:browser": "node scripts/browser-check.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:arsenal": "node scripts/browser-arsenal.ts",
+    "check:modes": "node scripts/browser-modes.ts",
+    "check:preferences": "node scripts/browser-preferences.ts",
+    "check:performance": "node scripts/browser-performance.ts",
+    "check:load": "node scripts/acceptance-load.ts",
+    "check:persistence": "node scripts/persistence-acceptance.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

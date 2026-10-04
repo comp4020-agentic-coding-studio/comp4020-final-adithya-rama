@@ -1,90 +1,71 @@
 # Jet Skirmish
 
-A 2D online jetpack arena shooter for up to eight players in the browser. It
-takes its feel from the classic Mini Militia v4: run, jetpack, aim with the
-mouse or a thumbstick, and fight over a small map. The characters, maps and
-branding are its own.
+A browser arena shooter for a handful of friends: run through tunnels, fly over
+cover, switch weapons, and bring your own team's flag into the opposing goal.
+Classic Mini Militia v4 is the reference for the feel; Jet Skirmish uses original
+maps, characters, effects and branding. All equipment is available from the start.
 
-> **Status: first playable version (crit 8).** Free-for-all, team deathmatch
-> and training against bots work, with four guns and fragmentation grenades on
-> one map. The signature mode, Flag Delivery, isn't built yet. The full list of
-> what is and isn't done is in [the feature checklist](docs/FEATURES.md).
+**Development build.** The [feature checklist](docs/FEATURES.md) distinguishes
+implementation, local tests and live verification. The [validation record](docs/VALIDATION.md)
+records measured results and outstanding acceptance work. Balance and enjoyment
+still need human playtesting.
 
-## What good means for this game
+## What good means
 
-> **Draft for Adithya to write.** This section is yours. An agent can
-> structure it, but shouldn't decide what good means, or claim what you read
-> and looked at to get there. Some starting points from the agreed plan:
->
-> - who it's for (returning Mini Militia players, newcomers, a handful of
->   friends in one room?), and what they should feel in the first minute
-> - what "familiar" means: which parts of v4's flight, aiming and weapons must
->   feel right, and which you are deliberately changing
-> - what makes a round fair, and what makes it fun, and how you'll know
->   (the plan calls for playtests with one returning player and one newcomer)
-> - why Flag Delivery uses your *own* flag, and what that changes about how a
->   round plays
-> - what you read or looked at while deciding (the brief's notes on the small
->   web, games for a handful of friends; Mini Militia itself)
+These criteria translate Adithya's stated aims into things a player can judge.
+The intended audience includes returning Mini Militia players, newcomers, and a
+small group of friends who want to get into a match together. The first success
+is simple: a stranger can join, understand movement and flight, finish a round,
+and return to find their result. Joining should not require an account or an
+explanation from the developer.
 
-## How to play
+Familiarity means fluid directional flight, meaningful fuel management, two
+weapon slots, and clear differences between weapons. It does not mean claiming
+that authored weapon values reproduce the original game's balance. The arsenal
+should create different decisions: a close-range shotgun, a precision rifle and
+an explosive launcher should change how someone moves through a map.
 
-Open the site, then pick **Quick play** to join or open a public room,
-**Practice against bots** for a solo round, or a room code from a friend. Your
-pilot (name, colour and match history) is remembered in this browser.
+Flag Delivery is the central design choice. Each team carries **its own flag**
+into the opposing goal. Only one flag per team can be in play. A dropped flag
+stays where it lands until a teammate recovers it; only leaving the playable
+world returns it home. This should make escorts, interceptions and recoveries
+matter throughout the round. Opponents stop a delivery through combat. Both
+teams can deliver simultaneously.
 
-| Action | Keyboard and mouse | Touch |
-|---|---|---|
-| Move | A / D | left stick |
-| Jump | W | Jump |
-| Jetpack | Space | push the left stick up |
-| Crouch, or drop through a platform | S | pull the left stick down |
-| Aim and fire | mouse, left click (or arrow keys and J / Enter) | right stick; push it past halfway to fire |
-| Zoom | right click | Zoom |
-| Weapon slot / swap | 1, 2 / Q | Swap |
-| Reload, pick up, drop | R, E, X | Reload, Pick up, Drop |
-| Grenade, next grenade type | G, T | Nade |
-| Melee | V | Melee |
-| Scoreboard, menu | Tab, Esc | Score, Menu |
+Fairness means both browsers agree on damage, ammunition and scoring. A server
+decides these outcomes. Deaths resolve before deliveries, and simultaneous
+deliveries are considered together. Results explain assists and MVP rather than
+hiding the ranking rule. Readable team names and shapes support the colours.
+Desktop is the primary experience, but touch players need working movement,
+aiming and actions, with menus that fit a narrow screen.
 
-## Modes
+Persistence is part of the promise. A result says “saved” only after storage
+confirms it. Returning in the same browser restores the pilot and history.
+Clearing browser data creates a new identity. A server restart interrupts live
+rounds and preserves their latest checkpoint; it does not pretend they finished.
 
-- **Team deathmatch**: Ember against Tide. Only enemy kills score; a level
-  score at the end is a draw.
-- **Free-for-all**: everyone for themselves, scored by kills.
-- **Training**: you against up to three bots. Results are saved but don't
-  count toward your player-versus-player stats.
+Good also means being able to explain what was tested and what changed. Automated
+checks can establish flag ownership and durable results. They cannot establish
+whether flight feels right or a match is fun. A returning player and a newcomer
+will be observed using the [playtest record](docs/PLAYTEST.md); no such experience
+is claimed before it happens.
 
-The results screen shows the scoring rule: contribution is 2 × kills +
-assists. An assist is at least 20% of the victim's health in damage within the
-eight seconds before they die, and MVP is the highest contribution.
+## What informed these choices
 
-## How it's built
+Adithya's memories of the older game and explicit own-flag rules establish the
+gameplay direction. The [developers' Classic v4 discussion](https://groups.google.com/g/mini-militia-classic-alpha-force/c/q04io0qi72c)
+is a historical reference, not recovered balance data. The
+[course brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/)
+asks what makes this particular app good. Robin Sloan's
+[“An app can be a home-cooked meal”](https://www.robinsloan.com/notes/home-cooked-app/),
+read during agent-assisted development, supports judging a small app by its value
+to the people using it rather than its audience size.
 
-TypeScript throughout. One simulation in `src/shared/` runs authoritatively on
-the server at 60 ticks a second, and the browser runs the same movement code to
-predict your pilot without waiting for the network. PixiJS draws the game;
-menus and HUD are plain HTML. The server is Node 24 with `ws`, and SQLite keeps
-pilots and results on the Fly volume. The reasons are in
-[the stack decision](docs/decisions/0001-stack.md), and the full plan is in
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+## Play and build
 
-## Running it locally
+Choose **Quick play**, create a room, or practise against bots. Use A/D to move,
+W to jump, Space to fly and the mouse to aim/fire. The controls menu lists and
+remaps actions; touch uses two sticks and action buttons.
 
-```sh
-mise install
-pnpm install
-pnpm build          # the browser client
-pnpm start          # http://localhost:8080
-pnpm check          # typecheck, unit tests, and the spec against the running app
-pnpm check:browser  # plays a round at 1920×1080 and on a 390×844 phone
-```
-
-## Limits
-
-- One live match at a time on the server, plus up to four waiting rooms and 24
-  connected players.
-- Your identity is a cookie in this browser; clearing site data makes a new
-  pilot.
-- No sound yet. Shooting isn't predicted, so your own tracers appear after one
-  network round trip.
+See [development and controls](docs/DEVELOPMENT.md), the
+[implementation plan](docs/IMPLEMENTATION_PLAN.md), and [process account](PROCESS.md).

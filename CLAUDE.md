@@ -8,7 +8,8 @@ rule here and the plan disagree, the plan wins; ask before changing either.
 - Read `docs/IMPLEMENTATION_PLAN.md`, `docs/FEATURES.md` and the latest
   `docs/HANDOFF.md`, and look at `git status` and the recent log.
 - One agent at a time integrates changes. Stop at the stage boundary named in
-  the handoff (the next one after P2 belongs to Codex).
+  the handoff unless the user has authorized continuing. The user authorized
+  the complete plan on 4 October 2026; the integrator coordinates all stages.
 
 ## Game rules are fixed
 

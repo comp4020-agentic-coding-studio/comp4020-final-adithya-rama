@@ -1,89 +1,65 @@
-# Handoff: P2 complete, over to Codex for review and P3
+# Integration handoff: complete scope implemented, release acceptance
 
-From: Claude Opus (Claude Code) · Date: 2026-10-04 · Code commit: `6f60466`
+Updated 5 October 2026 (Australia/Sydney). The user authorized implementing the
+whole plan after the original Claude P2 handoff. Do not restart P0 or remove the
+later work based on that older handoff.
 
-## What was built
+## Current implementation
 
-- **P0 foundation**: shared types and settings (`src/shared/`); a Node 24
-  server that runs its TypeScript directly (`src/server/main.ts`); SQLite on a
-  worker thread with migrations (`db-worker.ts`); opaque guest-session cookies;
-  `/readme/` rendered from `README.md` on the server; and a two-stage
-  Dockerfile.
-- **P1 movement**: Outpost Yard, plus the Test Range developer map;
-  deterministic movement with flight, fuel, crouch and one-way platforms
-  (`physics.ts`); mouse, keyboard and twin-stick touch input; and a Pixi
-  renderer whose camera follows the player and widens with zoom.
-- **P2 first match**: authoritative rooms (`rooms.ts`) at 60 Hz with 20 Hz
-  snapshots and 30 Hz batched input; one input frame consumed per tick; own
-  movement predicted and reconciled, other players interpolated 100 ms behind;
-  hitscan rewind of up to 150 ms; Mini Eagle, Uzi, AK-47 and SPAS-12; frag
-  grenades, melee and pickups; FFA, TDM and training with practice bots;
-  respawns, assists and MVP; match row before play, 5 s checkpoints and
-  idempotent finalisation; history; and reconnection to a seat held for 30 s.
+P0–P5 are implemented: shared authoritative simulation, all 21 firearms, both
+equipment entries, four throwables, four planned arenas, five modes, desktop and
+touch controls, room rules/presets, guest identity, preferences and saved history.
+Flag Delivery uses each team's own flag and permanent dropped flags.
 
-`docs/FEATURES.md` has the status of every agreed feature.
+Core integration is in commit `225a493`; `de9a5f0` fixes the final zero-score MVP
+tie rule. Subsequent client and acceptance work is recorded in Git history.
+[FEATURES.md](FEATURES.md) is the complete feature ledger; [VALIDATION.md](VALIDATION.md)
+separates automated, browser, container, live and outstanding human evidence.
 
-## Commands and results (run on 2026-10-04)
+## Running and checking
 
-| Command | Result |
-|---|---|
-| `pnpm typecheck` | clean |
-| `pnpm test:unit` | 30 passed |
-| `pnpm check` against `pnpm start` | 2 starter invariants + 8 contract specs passed |
-| `pnpm check` with `APP_URL` on the production image (`docker run --memory=256m`) | all passed |
-| `pnpm check:browser` | practice round played through at 1920×1080 and 390×844 touch; screenshots in `test-results/` |
-| `DURATION_S=90 node scripts/load-check.ts` against the container (1 scripted human + 7 hard bots, FFA) | RSS 121 → max 127 MB; step p95 ≈ 1.0 ms; cgroup memory 67 MiB of 256 |
-
-That load probe is not the plan's 30-minute soak, and none of the
-latency or jitter tests have been run.
-
-## Deployment
-
-**Not deployed.** The repo has no `mise.local.toml`, so there's no
-`FLY_API_TOKEN`. The token is in the course's Ed message for this repo. Once it
-is pasted in:
+See [DEVELOPMENT.md](DEVELOPMENT.md). Use Node 24.21.0 through mise.
+Build before starting the server. Use an isolated DB and port for destructive
+restart tests; the normal local database is under ignored `.data/`.
 
 ```sh
-flyctl status -a comp4020-final-adithya-rama
-flyctl deploy --remote-only --ha=false -a comp4020-final-adithya-rama
+mise exec -- pnpm build
+PORT=8081 DB_PATH=/tmp/jet-acceptance.sqlite mise exec -- pnpm start
+APP_URL=http://localhost:8081 mise exec -- pnpm check
+APP_URL=http://localhost:8081 mise exec -- pnpm check:browser
+mise exec -- pnpm check:evidence
 ```
 
-Then open `https://comp4020-final-adithya-rama.fly.dev/` and run
-`APP_URL=https://comp4020-final-adithya-rama.fly.dev pnpm check`.
+The current unit suite has 101 checks; the running-app/server/storage suite has
+32. The arsenal, independent browser modes, preferences, latency, persistence
+and constrained load harnesses live in `scripts/`. Read each script's isolation
+requirements before running it. Raw local reports belong in ignored
+`test-results/`; durable summaries belong in the validation records.
 
-## Running it
+## Release
+
+The Fly token is available through the course's configured mise environment.
+Never print it or commit `mise.local.toml`. Deploy only the existing application
+with the fixed one-CPU, 256 MB and persistent-volume shape.
 
 ```sh
-mise install && pnpm install
-pnpm build && pnpm start                 # http://localhost:8080, DB in .data/
-pnpm check                               # with the server running
-pnpm check:browser                       # with the server running
-docker build -t jet-skirmish . && docker run --rm -p 8080:8080 --memory=256m --tmpfs /data jet-skirmish
+mise exec -- flyctl deploy --remote-only --ha=false -a comp4020-final-adithya-rama
 ```
 
-## Known limitations for the reviewer
+The application URL is https://comp4020-final-adithya-rama.fly.dev/.
+Consult [VALIDATION.md](VALIDATION.md) for actual deployment status; the URL alone
+is not deployment evidence. Default admission remains one active room.
 
-- Shooting isn't predicted, so local tracers lag by one round trip.
-- When the server's input queue backs up, two frames are merged by OR-ing their
-  buttons. A press can therefore extend one tick, but a step is never skipped.
-- Host transfer happens only when the host leaves or their 30 s seat hold
-  expires, not as soon as they disconnect.
-- A match is abandoned only when no human is connected. The plan's rule that an
-  absent team gets 30 seconds isn't built.
-- No tests yet for duplicate finalisation, storage failure, or restart →
-  interrupted. The code paths exist (`finalize` checks the match status; boot
-  marks `live` matches as interrupted).
-- Bots steer straight at targets and jet over walls; there's no pathfinding.
-- Weapon numbers are authored guesses, not tuned.
-- The README's "What good means" section and `reflections/crit-8.md` are
-  Adithya's to write. `pnpm check:evidence` fails until the reflection exists.
+## Remaining evidence
 
-## Next: Codex, P3
+Human playtests with one returning Mini Militia player and one newcomer remain
+required. Do not invent observations, enjoyment, familiar feel or balance
+validation. Use [PLAYTEST.md](PLAYTEST.md), observe the listed tasks, then record
+and fix concrete problems.
 
-Audit P0–P2 independently (shared-simulation consistency, server authority,
-prediction and reconciliation, collisions, memory, persistence, desktop and
-touch use). Then implement Flag Delivery exactly as the plan's twelve rules
-say, using `FlagState` in `src/shared/types.ts` and the goals and flag homes
-already placed in Outpost Yard. Also build disconnect flag drops, the 30 s
-absent-team rule, faster host transfer, and the edge-case tests listed under
-"Required verification".
+Adithya supplied the Crit 8 reflection directly. His role is to think,
+brainstorm, define system behavior and quality, and direct agents' implementation.
+His group is Dàchī, Wednesday 10:30am; the cutoff is Wednesday 7 October 2026,
+08:30 Australia/Sydney. Repository instructions retain private visibility until
+that cutoff. Complete the course public ship/tag procedure then and retain public
+visibility; do not claim it has happened before checking.

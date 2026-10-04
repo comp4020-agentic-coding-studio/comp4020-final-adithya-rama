@@ -319,6 +319,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
       return res.end(renderReadme(README));
     }
+    if (url.pathname === "/readme/reflections/crit-8.md" && serveMarkdown(res, join(ROOT, "reflections/crit-8.md"), ROOT)) return;
     if (url.pathname === "/readme/PROCESS.md" && serveMarkdown(res, join(ROOT, "PROCESS.md"), ROOT)) return;
     if (url.pathname.startsWith("/readme/docs/") && url.pathname.endsWith(".md") &&
         serveMarkdown(res, normalize(join(DOCS_DIR, url.pathname.slice("/readme/docs/".length))), DOCS_DIR)) return;
