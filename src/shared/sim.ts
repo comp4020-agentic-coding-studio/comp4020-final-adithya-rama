@@ -1021,7 +1021,7 @@ export function computeResult(
     }
     const eligible = mode === "survival" ? participants.filter((p) => !p.bot) : participants;
     const bestScore = Math.max(0, ...eligible.map((p) => p.score));
-    if (bestScore > 0) {
+    if (eligible.length > 0) {
       const contenders = eligible.filter((p) => p.score === bestScore);
       const fewest = Math.min(...contenders.map((p) => p.deaths));
       for (const p of contenders) if (p.deaths === fewest) p.mvp = true;

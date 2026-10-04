@@ -238,6 +238,53 @@ describe("kills, scoring and results", () => {
     expect(ab.participants.some((p) => p.mvp)).toBe(false);
     expect(ab.winnerKeys).toEqual([]);
   });
+  it("zero-contribution completed rounds share MVP across teams when deaths are tied", () => {
+    for (const mode of ["tdm", "flag"] as const) {
+      const w = world({ mode });
+      const a = player(w, 0);
+      const b = player(w, 1);
+      const result = computeResult(w, "zero-tie", "time", (p) => p.key);
+      expect(result.draw).toBe(true);
+      expect(result.participants.every((p) => p.score === 0 && p.mvp)).toBe(true);
+      expect(result.participants.map((p) => p.key).sort()).toEqual([a.key, b.key].sort());
+    }
+  });
+
+  it("zero-contribution MVP goes only to the players tied on fewest deaths", () => {
+    for (const mode of ["tdm", "flag"] as const) {
+      const w = world({ mode });
+      const a = player(w, 0);
+      const b = player(w, 1);
+      const c = player(w, 0);
+      a.deaths = 2;
+      b.deaths = 1;
+      c.deaths = 1;
+      const result = computeResult(w, "zero-fewest-deaths", "time", (p) => p.key);
+      expect(result.draw).toBe(true);
+      expect(result.participants.filter((p) => p.mvp).map((p) => p.key).sort()).toEqual([b.key, c.key].sort());
+      expect(result.participants.every((p) => p.score === 0)).toBe(true);
+    }
+  });
+
+  it("zero-contribution abandoned rounds award no MVP or winner", () => {
+    const w = world({ mode: "tdm" });
+    player(w, 0);
+    player(w, 1);
+    const result = computeResult(w, "zero-abandoned", "abandoned", (p) => p.key);
+    expect(result.participants.some((p) => p.mvp)).toBe(false);
+    expect(result.winnerKeys).toEqual([]);
+    expect(result.winnerTeam).toBeNull();
+  });
+
+  it("empty completed results contain no participants or awards", () => {
+    const w = world({ mode: "tdm" });
+    const result = computeResult(w, "empty-completed", "time", () => null);
+    expect(result.participants).toEqual([]);
+    expect(result.winnerKeys).toEqual([]);
+    expect(result.winnerTeam).toBeNull();
+    expect(result.draw).toBe(true);
+  });
+
 });
 
 describe("pickups", () => {
