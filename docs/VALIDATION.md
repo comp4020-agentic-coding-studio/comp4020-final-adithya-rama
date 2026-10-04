@@ -138,8 +138,8 @@ The supplied group is Dàchī, Wednesday 10:30am. Its cutoff is Wednesday
 7 October 2026, 08:30 Canberra/Sydney. Public publication, successful course CI
 and the annotated `crit-8` tag remain pending; they have not been claimed.
 Starting /ship exactly at the cutoff would finish its CI/tagging afterward.
-The user has been asked to choose earlier scheduled publication or their own /ship.
-No publication automation has been created while that timing choice is pending.
+Adithya chose to run /ship himself. Keep the repository private until he does so;
+no publication automation has been created.
 
 
 ## Human evidence and limits

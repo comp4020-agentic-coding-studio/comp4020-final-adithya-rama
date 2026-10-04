@@ -63,4 +63,6 @@ brainstorm, define system behavior and quality, and direct agents' implementatio
 His group is Dàchī, Wednesday 10:30am; the cutoff is Wednesday 7 October 2026,
 08:30 Australia/Sydney. Repository instructions retain private visibility until
 that cutoff. Complete the course public ship/tag procedure then and retain public
-visibility; do not claim it has happened before checking.
+visibility; do not claim it has happened before checking. Adithya explicitly
+chose to run /ship himself. No publication schedule was created; leave visibility
+and the course tag for his manual ship action.
