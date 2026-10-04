@@ -1,18 +1,27 @@
 # syntax = docker/dockerfile:1
 
-# A placeholder, and yours to replace: it serves one page, plus README.md
-# verbatim at /readme/, which is enough to prove the deploy path end to end.
-# Whatever your app is built with, the image that replaces this one must serve
-# HTTP on 0.0.0.0:$PORT (fly.toml sets PORT) and publish README.md at /readme/
-# (spec/README.md says what's checked).
+# Builds the browser client with Vite, then runs the Node server, which serves
+# the client, the API and WebSocket, and README.md rendered at /readme/.
+# Node runs the server's TypeScript directly (type stripping), so only the
+# client needs a build step. SQLite lives on the /data volume.
 
-FROM docker.io/library/busybox:1.38.0
-COPY placeholder/ /src/
-COPY README.md /src/
-# README.md goes into the page as-is, HTML-escaped, in place of @README@;
-# rendering it properly is your app's job
-RUN mkdir -p /site/readme \
-    && cp /src/index.html /site/ \
-    && sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' /src/README.md > /src/body \
-    && sed -e '/@README@/{r /src/body' -e 'd}' /src/readme.html > /site/readme/index.html
-CMD ["sh", "-c", "exec httpd -f -p 0.0.0.0:${PORT:-8080} -h /site"]
+FROM docker.io/library/node:24.21.0-bookworm-slim AS build
+WORKDIR /app
+RUN npm install -g pnpm@11.9.0
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY tsconfig.json vite.config.ts ./
+COPY src ./src
+RUN pnpm build
+RUN pnpm install --frozen-lockfile --prod
+
+FROM docker.io/library/node:24.21.0-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
+COPY src ./src
+COPY README.md ./
+COPY docs ./docs
+CMD ["node", "--max-old-space-size=160", "src/server/main.ts"]

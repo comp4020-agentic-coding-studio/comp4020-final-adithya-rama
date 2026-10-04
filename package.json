@@ -4,19 +4,33 @@
   "type": "module",
   "scripts": {
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "dev:server": "node --watch src/server/main.ts",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "node --max-old-space-size=160 src/server/main.ts",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm test",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "check": "pnpm typecheck && pnpm test:unit && pnpm test",
     "check:evidence": "node scripts/check-evidence.ts",
+    "check:browser": "node scripts/browser-check.ts",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.2",
     "jsdom": "^30.1.0",
+    "pixi.js": "^8.22.0",
+    "playwright": "^1.63.0",
     "typescript": "^6.0.3",
+    "vite": "^8.3.2",
     "vitest": "^5.0.1"
   },
   "engines": {
     "pnpm": ">=11"
+  },
+  "dependencies": {
+    "marked": "^18.0.14",
+    "ws": "^8.22.0"
   }
 }
