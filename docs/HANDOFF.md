@@ -47,8 +47,9 @@ mise exec -- flyctl deploy --remote-only --ha=false -a comp4020-final-adithya-ra
 ```
 
 The application URL is https://comp4020-final-adithya-rama.fly.dev/.
-Consult [VALIDATION.md](VALIDATION.md) for actual deployment status; the URL alone
-is not deployment evidence. Default admission remains one active room.
+Deployment, all five live browser mode flows, and persistence across a Fly
+restart/cold start/redeployment have passed. See [VALIDATION.md](VALIDATION.md)
+for evidence and boundaries. Default admission remains one active room.
 
 ## Remaining evidence
 

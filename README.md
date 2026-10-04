@@ -5,6 +5,8 @@ cover, switch weapons, and bring your own team's flag into the opposing goal.
 Classic Mini Militia v4 is the reference for the feel; Jet Skirmish uses original
 maps, characters, effects and branding. All equipment is available from the start.
 
+**[Play Jet Skirmish](https://comp4020-final-adithya-rama.fly.dev/)**
+
 **Development build.** The [feature checklist](docs/FEATURES.md) distinguishes
 implementation, local tests and live verification. The [validation record](docs/VALIDATION.md)
 records measured results and outstanding acceptance work. Balance and enjoyment

@@ -92,8 +92,55 @@ not a claim about every PC or a physical phone.
 
 ## Live verification
 
-Pending first deployment and browser/persistence verification on Fly.
-Local success above is not described as live verification.
+Deployed at **https://comp4020-final-adithya-rama.fly.dev/** on 5 October 2026
+Australia/Sydney (4 October UTC), from release commit `5d05174`.
+
+- The full `pnpm check` command passes with APP_URL pointing at Fly: 101 local
+  unit checks plus the 32-test spec suite. HTTP/API/WS checks use Fly; isolated
+  storage/room tests remain local. This is not a claim that all 133 execute remotely.
+- Live Playwright sessions at 1920×1080 and 390×844 agree on saved results in all
+  five modes. The flag round ends naturally at the one-delivery limit with
+  scores 1–0. FFA/TDM/survival smoke rounds are ended by the host. Training uses
+  one human plus a separate touch spectator.
+- Both viewports independently complete Practice, see saved results and return
+  to their history. Zero failures were reported by the live mode harness.
+- A dedicated acceptance guest saved profile/customization, submitted actual
+  gameplay input, and completed a private training round. Exact profile,
+  history and match details were unchanged after an explicit machine restart,
+  a stopped-machine cold start, and a real redeployment. Each history query
+  found exactly one matching completed result.
+- Cold-start verification completed in 4.4 seconds, including the HTTP startup
+  and three authenticated checks. This is one observation, not a latency promise.
+- Fly status confirms one machine (`7811ed5a0e37e8`) in Sydney and one encrypted
+  1 GB volume (`vol_vgn9dwn2786d6qz4`) mounted at /data. The configured shape
+  remains shared CPU 1× / 256 MB, with one active room by default.
+- The initial deployed image was
+  `registry.fly.io/comp4020-final-adithya-rama:deployment-01M43H2HTN97NGDAYG02T59QBC`.
+  Its explicit redeployment advanced the machine to version 2. Later evidence-only
+  releases update these public documentation pages without changing gameplay.
+
+The private persistence session is kept only in ignored, owner-readable local
+state. Reports contain match identifiers and a detail digest, never the cookie.
+The first Fly CLI DNS probe timed out contacting 8.8.8.8 over UDP; real HTTPS,
+assets, WebSockets and browser checks succeeded. Subsequent deploys skip that
+blocked diagnostic and still run the normal machine checks.
+
+## Repository and cutoff
+
+Implementation and evidence were pushed to the existing private GitHub repository.
+A pre-publication scan checked seven reachable commits, 105 historical blobs and
+86 current files without finding credentials. The course hook also passed.
+Local credentials, database files and raw test reports are ignored and excluded
+from the Docker build context. This is bounded scan evidence, not a guarantee
+about every possible secret format.
+
+The supplied group is Dàchī, Wednesday 10:30am. Its cutoff is Wednesday
+7 October 2026, 08:30 Canberra/Sydney. Public publication, successful course CI
+and the annotated `crit-8` tag remain pending; they have not been claimed.
+Starting /ship exactly at the cutoff would finish its CI/tagging afterward.
+The user has been asked to choose earlier scheduled publication or their own /ship.
+No publication automation has been created while that timing choice is pending.
+
 
 ## Human evidence and limits
 

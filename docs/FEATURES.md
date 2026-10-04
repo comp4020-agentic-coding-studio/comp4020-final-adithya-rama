@@ -9,8 +9,9 @@ checks actually performed on Fly. Human playtesting is a separate requirement.
 
 P0–P5 implementation is present. P6 acceptance is in progress. The integrated
 local check passes 96 simulation tests, five touch-input tests and 32 server/storage/API/course tests.
-Browser arsenal acceptance passes all weapons and throwables. The deployment
-and long-soak status are recorded in [VALIDATION.md](VALIDATION.md), not inferred
+Browser arsenal acceptance passes all weapons and throwables. Live browser verification covers every mode, desktop/touch practice and saved
+history across Fly restart, cold start and redeployment. Two thirty-minute
+constrained server soaks passed. Detailed status and limits are recorded in [VALIDATION.md](VALIDATION.md), not inferred
 from these local checks. All four planned arenas are retained.
 
 ## Movement and inventory
@@ -139,7 +140,8 @@ and inventory handling. Equipment correctly avoids firearm ammunition/reload rul
 ## Still requires external evidence
 
 - Returning-player and newcomer playtests, observed problems and resulting tuning.
-- Physical desktop/device performance and subjective sound/feel assessment.
+- Physical phone performance and subjective sound/feel assessment. Native desktop
+  GPU measurements are recorded separately in RENDERING_EVIDENCE.md.
 - Repository visibility at the agreed cutoff, and final course ship/tag procedure.
 
 These are not represented as completed by automated tests.

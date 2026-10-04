@@ -120,7 +120,12 @@ then verified 24 completed training sessions in history. Separate browser
 identities agreed on match results, including an actual own-flag delivery.
 Container tests checked restart, recreation against the same volume, partial
 checkpoints, duplicate finalization and fabricated score/damage commands.
-Current performance and live results are kept in [VALIDATION.md](docs/VALIDATION.md).
+The release and reproducible acceptance tools were committed in
+[`5d05174`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/5d05174).
+The game was then deployed to the existing Fly app. Separate live browsers
+completed all five mode flows; a dedicated saved result survived an explicit
+restart, cold start and redeployment. Current measurements and limitations are
+kept in [VALIDATION.md](docs/VALIDATION.md).
 
 These checks do not establish fun or familiar feel. The returning-player and
 newcomer playtest record remains unfilled until people actually participate.
