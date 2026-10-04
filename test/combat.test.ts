@@ -10,7 +10,7 @@ const aimAt = (from: { x: number }, to: { x: number }) => (to.x > from.x ? 0 : M
 describe("weapons", () => {
   it("each implemented weapon behaves distinctly", () => {
     const ids = Object.keys(WEAPONS);
-    expect(ids.length).toBe(4);
+    expect(ids.length).toBe(23);
     const sig = (id: string) => {
       const d = WEAPONS[id];
       return `${d.damage}/${d.pellets}/${d.cooldownMs}/${d.auto}/${d.mag}/${d.range}`;

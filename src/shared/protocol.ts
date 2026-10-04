@@ -20,6 +20,7 @@ export interface MemberView {
   ready: boolean;
   host: boolean;
   connected: boolean;
+  spectator?: boolean;
 }
 
 export type RoomState = "lobby" | "playing" | "results";
@@ -31,6 +32,8 @@ export interface RoomView {
   isPublic: boolean;
   state: RoomState;
   settings: RoomSettings;
+  nextSettings?: RoomSettings;
+  hasPassword?: boolean;
   members: MemberView[];
   you: string;
 }
@@ -42,10 +45,22 @@ export interface RosterEntry {
   team: Team;
   color: number;
   bot: boolean;
+  avatar?: Avatar;
 }
 
+export interface Avatar {
+  helmet: "pilot" | "visor" | "cap" | "mohawk";
+  face: "light" | "medium" | "dark" | "robot";
+  emblem: "star" | "bolt" | "skull";
+}
+export interface RoomPreset { id: string; name: string; settings: RoomSettings; createdAt: string }
+export interface WeaponStats { weapon: string; shots: number; hits: number; damage: number; kills: number }
+
 export type ClientMessage =
-  | { t: "join"; code: string }
+  | { t: "join"; code: string; password?: string; spectate?: boolean }
+  | { t: "spectate"; spectate: boolean }
+  | { t: "chat"; text: string }
+  | { t: "retry-save" }
   | { t: "leave" }
   | { t: "ready"; ready: boolean }
   | { t: "team"; team: 0 | 1 }
@@ -57,6 +72,7 @@ export type ClientMessage =
   | { t: "ping"; c: number };
 
 export type ServerMessage =
+  | { t: "chat"; key: string; name: string; text: string; at: number }
   | { t: "welcome"; v: number; profile: Profile }
   | { t: "room"; room: RoomView }
   | { t: "left" }
@@ -76,6 +92,8 @@ export interface RoomListing {
   map: string;
   players: number;
   capacity: number;
+  hasPassword?: boolean;
+  spectators?: number;
 }
 
 export interface HistoryEntry {

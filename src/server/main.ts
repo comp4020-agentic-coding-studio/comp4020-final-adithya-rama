@@ -1,13 +1,14 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { WebSocketServer } from "ws";
 import { MAX_CONNECTED_CLIENTS, MAX_MESSAGE_BYTES, PROTOCOL_VERSION } from "../shared/constants.ts";
 import { MAPS } from "../shared/maps.ts";
 import type { ClientMessage, HistoryEntry, Profile } from "../shared/protocol.ts";
-import { AVAILABLE_MODES, defaultSettings, DURATIONS, MODE_NAMES, MULTIPLIERS } from "../shared/settings.ts";
+import { AVAILABLE_MODES, defaultSettings, DURATIONS, MODE_NAMES, MULTIPLIERS, sanitizeSettings } from "../shared/settings.ts";
 import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
+import { objectBody, sanitizePrefs } from "./validation.ts";
 import { Db } from "./db.ts";
 import { log } from "./log.ts";
 import { renderReadme } from "./readme.ts";
@@ -44,7 +45,7 @@ function cookieToken(req: IncomingMessage): string | null {
 function toProfile(row: Record<string, unknown>): Profile {
   let prefs: Record<string, unknown> = {};
   try {
-    prefs = JSON.parse(String(row.prefs ?? "{}"));
+    prefs = sanitizePrefs(JSON.parse(String(row.prefs ?? "{}")));
   } catch {
     // corrupt prefs fall back to defaults
   }
@@ -104,7 +105,8 @@ function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin;
   if (!origin) return true; // non-browser clients; browsers always send Origin on these requests
   try {
-    return new URL(origin).host === req.headers.host;
+    const parsed = new URL(origin);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.host === req.headers.host;
   } catch {
     return false;
   }
@@ -119,7 +121,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
     if (size > 16 * 1024) throw new Error("body too large");
     chunks.push(chunk as Buffer);
   }
-  return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
+  return objectBody(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {});
 }
 
 const MIME: Record<string, string> = {
@@ -141,9 +143,9 @@ const MIME: Record<string, string> = {
 
 function serveFile(res: ServerResponse, base: string, rel: string, immutable = false): boolean {
   const path = normalize(join(base, rel));
-  if (!path.startsWith(base)) return false;
+  if (!path.startsWith(base + sep)) return false;
   try {
-    if (!statSync(path).isFile()) return false;
+    if (!statSync(path).isFile() || !realpathSync(path).startsWith(realpathSync(base) + sep)) return false;
   } catch {
     return false;
   }
@@ -155,6 +157,15 @@ function serveFile(res: ServerResponse, base: string, rel: string, immutable = f
   return true;
 }
 
+function serveMarkdown(res: ServerResponse, path: string, base: string): boolean {
+  try {
+    if (!path.startsWith(base + sep) || !statSync(path).isFile() || !realpathSync(path).startsWith(realpathSync(base) + sep)) return false;
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+    res.end(renderReadme(path));
+    return true;
+  } catch { return false; }
+}
+
 function serveIndex(res: ServerResponse): void {
   if (serveFile(res, CLIENT_DIR, "index.html")) return;
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -163,9 +174,22 @@ function serveIndex(res: ServerResponse): void {
 
 // ---------- routes ----------
 
+const mutationWindows = new Map<string, { start: number; count: number }>();
+function allowMutation(req: IncomingMessage): boolean {
+  const key = req.headers["fly-client-ip"]?.toString() ?? req.socket.remoteAddress ?? "unknown";
+  const now = Date.now();
+  let entry = mutationWindows.get(key);
+  if (!entry || now - entry.start > 60_000) {
+    if (mutationWindows.size >= 1024) mutationWindows.delete(mutationWindows.keys().next().value!);
+    entry = { start: now, count: 0 }; mutationWindows.set(key, entry);
+  }
+  return ++entry.count <= 120;
+}
+
 async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   const method = req.method ?? "GET";
   const path = url.pathname;
+  if (method !== "GET" && !allowMutation(req)) return json(res, 429, { error: "Too many requests; try again shortly" });
   if (method !== "GET" && !sameOrigin(req)) return json(res, 403, { error: "cross-origin request refused" });
 
   if (path === "/api/session" && method === "POST") {
@@ -209,12 +233,29 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
       update.color = body.color as number;
     }
     if (body.prefs !== undefined) {
-      const s = JSON.stringify(body.prefs);
-      if (typeof body.prefs !== "object" || s.length > 4000) return json(res, 400, { error: "prefs must be a small object" });
-      update.prefs = s;
+      try { update.prefs = JSON.stringify(sanitizePrefs(body.prefs, profile.prefs)); }
+      catch (e) { return json(res, 400, { error: (e as Error).message }); }
     }
     const row = await db.call<Record<string, unknown>>("updateProfile", update);
-    return json(res, 200, { profile: toProfile(row) });
+    const updated = toProfile(row);
+    for (const room of rooms.rooms.values()) room.updateProfile(updated);
+    return json(res, 200, { profile: updated });
+  }
+  if (path === "/api/me/weapons" && method === "GET") return json(res, 200, { weapons: await db.call("weaponStats", { profileId: profile.id }) });
+  if (path === "/api/presets" && method === "GET") return json(res, 200, { presets: await db.call("presets", { profileId: profile.id }) });
+  if (path === "/api/presets" && method === "POST") {
+    try {
+      const body = objectBody(await readJson(req));
+      const name = typeof body.name === "string" ? body.name.replace(/[<>]/g, "").trim().slice(0, 32) : "";
+      if (!name) return json(res, 400, { error: "Preset name is required" });
+      const preset = await db.call("savePreset", { id: randomUUID(), profileId: profile.id, name, settings: JSON.stringify(sanitizeSettings(body.settings)) });
+      return json(res, 201, { preset });
+    } catch (e) { return json(res, 400, { error: (e as Error).message }); }
+  }
+  const presetRoute = path.match(/^\/api\/presets\/([0-9a-f-]{36})$/);
+  if (presetRoute && method === "DELETE") {
+    const deleted = await db.call("deletePreset", { id: presetRoute[1], profileId: profile.id });
+    return json(res, deleted ? 200 : 404, { deleted });
   }
   if (path === "/api/me/matches" && method === "GET") {
     const before = url.searchParams.get("before");
@@ -225,7 +266,7 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
   }
   const matchRoute = path.match(/^\/api\/matches\/([0-9a-f-]{36})$/);
   if (matchRoute && method === "GET") {
-    const match = await db.call("match", { id: matchRoute[1] });
+    const match = await db.call("match", { id: matchRoute[1], profileId: profile.id });
     return match ? json(res, 200, { match }) : json(res, 404, { error: "no such match" });
   }
   if (path === "/api/rooms" && method === "POST") {
@@ -235,7 +276,8 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
     } catch (e) {
       return json(res, 400, { error: (e as Error).message });
     }
-    const room = rooms.create({ name: body.name as string | undefined, isPublic: body.isPublic !== false, settings: body.settings });
+    if (body.password !== undefined && (typeof body.password !== "string" || body.password.length > 64)) return json(res, 400, { error: "Password must be at most 64 characters" });
+    const room = rooms.create({ name: body.name as string | undefined, isPublic: body.isPublic !== false, settings: body.settings, password: body.password as string | undefined });
     if (typeof room === "string") return json(res, 503, { error: room });
     return json(res, 201, { code: room.code });
   }
@@ -253,6 +295,8 @@ const server = createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) return await api(req, res, url);
     if (url.pathname === "/healthz") {
       const mem = process.memoryUsage();
+      const activeWorlds = [...rooms.rooms.values()].filter((r) => r.state === "playing" && r.world).map((r) => r.world!);
+      const actors = activeWorlds.flatMap((w) => [...w.players.values()]).filter((p) => p.alive);
       return json(res, 200, {
         ok: true,
         rooms: rooms.rooms.size,
@@ -260,6 +304,11 @@ const server = createServer(async (req, res) => {
         clients: wss.clients.size,
         rssMb: Math.round(mem.rss / 1048576),
         stepP95Ms: rooms.stepP95(),
+        dbQueueDepth: db.queueDepth,
+        activeRoomLimit: rooms.activeRoomLimit,
+        livingHumans: actors.filter((p) => !p.bot).length,
+        livingBots: actors.filter((p) => p.bot).length,
+        maxSurvivalWave: Math.max(0, ...activeWorlds.map((w) => w.survival?.wave ?? 0)),
       });
     }
     if (url.pathname === "/readme") {
@@ -270,6 +319,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
       return res.end(renderReadme(README));
     }
+    if (url.pathname === "/readme/PROCESS.md" && serveMarkdown(res, join(ROOT, "PROCESS.md"), ROOT)) return;
+    if (url.pathname.startsWith("/readme/docs/") && url.pathname.endsWith(".md") &&
+        serveMarkdown(res, normalize(join(DOCS_DIR, url.pathname.slice("/readme/docs/".length))), DOCS_DIR)) return;
     if (url.pathname.startsWith("/readme/docs/") && serveFile(res, DOCS_DIR, url.pathname.slice("/readme/docs/".length))) return;
     if (url.pathname === "/" || /^\/r\/[A-Z0-9]{5}$/.test(url.pathname)) return serveIndex(res);
     if (serveFile(res, CLIENT_DIR, url.pathname.slice(1), url.pathname.startsWith("/assets/"))) return;
@@ -301,6 +353,7 @@ server.on("upgrade", async (req, socket, head) => {
     return refuse(503, "Service Unavailable");
   }
   if (!profile) return refuse(401, "Unauthorized");
+  if (wss.clients.size >= MAX_CONNECTED_CLIENTS || socket.destroyed) return refuse(503, "Service Unavailable");
   const p = profile;
   wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, p));
 });
@@ -308,7 +361,8 @@ server.on("upgrade", async (req, socket, head) => {
 function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
   const client: Client = { ws, profile, room: null, windowStart: Date.now(), windowCount: 0, strikes: 0 };
   let alive = true;
-  ws.on("pong", () => (alive = true));
+  let pingAt = 0;
+  ws.on("pong", () => { alive = true; if (pingAt) client.roundTripMs = Math.min(1000, Date.now() - pingAt); });
   const heartbeat = setInterval(() => {
     if (!alive) {
       log("stalled", { profile: profile.id });
@@ -316,6 +370,7 @@ function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
       return;
     }
     alive = false;
+    pingAt = Date.now();
     ws.ping();
   }, 10_000);
 
@@ -343,11 +398,12 @@ function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
       return;
     }
     if (msg.t === "join") {
-      const code = String(msg.code ?? "").toUpperCase();
+      if (typeof msg.code !== "string" || !/^[A-Z0-9]{5}$/i.test(msg.code) || (msg.password !== undefined && (typeof msg.password !== "string" || msg.password.length > 64))) return;
+      const code = msg.code.toUpperCase();
       if (client.room && client.room.code !== code) client.room.leave(client);
       const room = rooms.rooms.get(code);
       if (!room || room.closed) return send(ws, { t: "error", message: "That room doesn't exist any more." });
-      const err = room.join(client);
+      const err = room.join(client, msg.password, msg.spectate === true);
       if (err) send(ws, { t: "error", message: err });
       return;
     }

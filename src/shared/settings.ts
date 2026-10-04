@@ -5,7 +5,7 @@ import { IMPLEMENTED_THROWABLES, IMPLEMENTED_WEAPONS, WEAPONS } from "./weapons.
 
 export const MULTIPLIERS: readonly Multiplier[] = [0.5, 1, 1.5, 2];
 export const DURATIONS = [2, 5, 10, 15] as const;
-export const AVAILABLE_MODES: readonly Mode[] = ["ffa", "tdm", "training"];
+export const AVAILABLE_MODES: readonly Mode[] = ["ffa", "tdm", "training", "flag", "survival"];
 export const MODE_NAMES: Record<Mode, string> = {
   ffa: "Free-for-all",
   tdm: "Team deathmatch",
@@ -54,23 +54,28 @@ const int = (v: unknown, lo: number, hi: number, fallback: number): number =>
 export function sanitizeSettings(input: unknown, base: RoomSettings = defaultSettings()): RoomSettings {
   const o = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
   const mode = AVAILABLE_MODES.includes(o.mode as Mode) ? (o.mode as Mode) : base.mode;
-  const map = typeof o.map === "string" && MAPS[o.map] ? o.map : base.map;
+  let map = typeof o.map === "string" && Object.hasOwn(MAPS, o.map) ? o.map : base.map;
+  if (mode === "flag" && ([0, 1] as const).some((team) =>
+    !MAPS[map].goals.some((goal) => goal.team === team) || !MAPS[map].flagHomes.some((home) => home.team === team))) map = "outpost-yard";
   const weapons = Array.isArray(o.weapons)
-    ? o.weapons.filter((w): w is string => typeof w === "string" && w in WEAPONS)
+    ? o.weapons.filter((w): w is string => typeof w === "string" && Object.hasOwn(WEAPONS, w))
     : base.weapons;
   const throwables = Array.isArray(o.throwables)
     ? o.throwables.filter((t): t is string => typeof t === "string" && IMPLEMENTED_THROWABLES.includes(t))
     : base.throwables;
   let loadout = base.loadout;
-  if (Array.isArray(o.loadout) && typeof o.loadout[0] === "string" && o.loadout[0] in WEAPONS) {
-    const second = typeof o.loadout[1] === "string" && o.loadout[1] in WEAPONS ? o.loadout[1] : null;
+  if (Array.isArray(o.loadout) && typeof o.loadout[0] === "string" && Object.hasOwn(WEAPONS, o.loadout[0])) {
+    const second = typeof o.loadout[1] === "string" && Object.hasOwn(WEAPONS, o.loadout[1]) ? o.loadout[1] : null;
     loadout = [o.loadout[0], second];
   }
-  const maxBots = mode === "training" ? 3 : MAX_ROOM_PLAYERS - 1;
+  const maxBots = mode === "survival" ? 0 : mode === "training" ? 3 : MAX_ROOM_PLAYERS - 1;
+  const legalWeapons = [...new Set(weapons.length > 0 ? weapons : base.weapons)];
+  if (!legalWeapons.includes(loadout[0])) loadout = [legalWeapons[0], loadout[1]];
+  if (loadout[1] && !legalWeapons.includes(loadout[1])) loadout = [loadout[0], null];
   return {
     map,
     mode,
-    capacity: mode === "training" ? 1 : int(o.capacity, 2, MAX_ROOM_PLAYERS, base.capacity),
+    capacity: mode === "training" ? 1 : mode === "survival" ? int(o.capacity, 1, 4, Math.min(4, base.capacity)) : int(o.capacity, 2, MAX_ROOM_PLAYERS, Math.max(2, Math.min(MAX_ROOM_PLAYERS, base.capacity))),
     durationMin: DURATIONS.includes(o.durationMin as 2) ? (o.durationMin as 2 | 5 | 10 | 15) : base.durationMin,
     scoreLimit: int(o.scoreLimit, 0, 200, base.scoreLimit),
     flight: bool(o.flight, base.flight),
@@ -83,8 +88,8 @@ export function sanitizeSettings(input: unknown, base: RoomSettings = defaultSet
     health: mult(o.health, base.health),
     damage: mult(o.damage, base.damage),
     respawnSec: int(o.respawnSec, 1, 10, base.respawnSec),
-    weapons: weapons.length > 0 ? weapons : base.weapons,
-    throwables,
+    weapons: legalWeapons,
+    throwables: [...new Set(throwables)],
     loadout,
     mapPickups: bool(o.mapPickups, base.mapPickups),
     unlimitedAmmo: bool(o.unlimitedAmmo, base.unlimitedAmmo),

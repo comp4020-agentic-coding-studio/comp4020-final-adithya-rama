@@ -10,7 +10,7 @@ import type { MatchResult } from "../shared/types.ts";
 const path: string = workerData.path;
 if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 const db = new DatabaseSync(path);
-db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 2000;");
+db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 2000;");
 
 const MIGRATIONS: string[] = [
   `CREATE TABLE profiles (
@@ -67,6 +67,16 @@ const MIGRATIONS: string[] = [
      settings TEXT NOT NULL,
      created_at TEXT NOT NULL
    );`,
+  `ALTER TABLE participants ADD COLUMN weapon_stats TEXT NOT NULL DEFAULT '{}';
+   CREATE TABLE weapon_stats (
+     profile_id TEXT NOT NULL REFERENCES profiles(id),
+     weapon TEXT NOT NULL,
+     shots INTEGER NOT NULL DEFAULT 0,
+     hits INTEGER NOT NULL DEFAULT 0,
+     damage REAL NOT NULL DEFAULT 0,
+     kills INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (profile_id, weapon)
+   );`,
 ];
 
 function migrate(): void {
@@ -107,6 +117,7 @@ interface ParticipantRow {
   assists: number;
   deliveries: number;
   score: number;
+  weaponStats?: Record<string, { shots: number; hits: number; damage: number; kills: number }>;
 }
 
 migrate();
@@ -129,7 +140,7 @@ const ops: Record<string, (args: any) => unknown> = {
     const row = db
       .prepare("SELECT p.* FROM sessions s JOIN profiles p ON p.id = s.profile_id WHERE s.token_hash = ?")
       .get(tokenHash);
-    if (row) db.prepare("UPDATE sessions SET last_seen = ? WHERE token_hash = ?").run(new Date().toISOString(), tokenHash);
+
     return row ?? null;
   },
   createGuest({ tokenHash, id, name, color }: { tokenHash: string; id: string; name: string; color: number }) {
@@ -157,12 +168,16 @@ const ops: Record<string, (args: any) => unknown> = {
     );
     return true;
   },
+  abandonUnstarted({ matchId }: { matchId: string }) {
+    return db.prepare("UPDATE matches SET status = 'abandoned', ended_at = ? WHERE id = ? AND status = 'live'").run(new Date().toISOString(), matchId).changes;
+  },
   checkpoint({ matchId, participants }: { matchId: string; participants: ParticipantRow[] }) {
     return tx(() => {
       const m = db.prepare("SELECT status FROM matches WHERE id = ?").get(matchId) as { status: string } | undefined;
       if (!m || m.status !== "live") return false;
       for (const p of participants) {
         upsertParticipant.run(matchId, p.key, p.profileId, p.name, p.team, p.bot ? 1 : 0, p.kills, p.deaths, p.assists, p.deliveries, p.score, 0, 0);
+        db.prepare("UPDATE participants SET weapon_stats = ? WHERE match_id = ? AND key = ?").run(JSON.stringify(p.weaponStats ?? {}), matchId, p.key);
       }
       db.prepare("UPDATE matches SET checkpoint_at = ? WHERE id = ?").run(new Date().toISOString(), matchId);
       return true;
@@ -173,14 +188,24 @@ const ops: Record<string, (args: any) => unknown> = {
     return tx(() => {
       const m = db.prepare("SELECT status FROM matches WHERE id = ?").get(result.matchId) as { status: string } | undefined;
       if (!m) throw new Error("unknown match");
-      if (m.status !== "live") return { duplicate: true };
+      if (m.status !== "live") {
+        if (m.status === "interrupted") throw new Error("Match was interrupted; final result was not recorded");
+        return { duplicate: true };
+      }
       const status = result.reason === "abandoned" ? "abandoned" : "completed";
       db.prepare("UPDATE matches SET status = ?, ended_at = ?, result = ? WHERE id = ?").run(status, result.endedAt, JSON.stringify(result), result.matchId);
       const counts = PVP.has(result.mode) && status === "completed";
       for (const p of result.participants) {
-        const won = result.winnerKeys.includes(p.key);
-        upsertParticipant.run(result.matchId, p.key, p.profileId, p.name, p.team, p.bot ? 1 : 0, p.kills, p.deaths, p.assists, p.deliveries, p.score, p.mvp ? 1 : 0, won ? 1 : 0);
-        if (counts && p.profileId) {
+        const won = status === "completed" && result.winnerKeys.includes(p.key);
+        upsertParticipant.run(result.matchId, p.key, p.profileId, p.name, p.team, p.bot ? 1 : 0, p.kills, p.deaths, p.assists, p.deliveries, p.score, status === "completed" && p.mvp ? 1 : 0, won ? 1 : 0);
+        db.prepare("UPDATE participants SET weapon_stats = ? WHERE match_id = ? AND key = ?").run(JSON.stringify(p.weaponStats ?? {}), result.matchId, p.key);
+        if (counts && p.profileId && !p.bot) {
+          for (const [weapon, stat] of Object.entries(p.weaponStats ?? {})) {
+            db.prepare(`INSERT INTO weapon_stats (profile_id, weapon, shots, hits, damage, kills) VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT (profile_id, weapon) DO UPDATE SET shots = shots + excluded.shots,
+              hits = hits + excluded.hits, damage = damage + excluded.damage, kills = kills + excluded.kills`)
+              .run(p.profileId, weapon, stat.shots, stat.hits, stat.damage, stat.kills);
+          }
           db.prepare(
             "UPDATE profiles SET matches = matches + 1, wins = wins + ?, kills = kills + ?, deaths = deaths + ?, mvps = mvps + ? WHERE id = ?",
           ).run(won ? 1 : 0, p.kills, p.deaths, p.mvp ? 1 : 0, p.profileId);
@@ -189,6 +214,24 @@ const ops: Record<string, (args: any) => unknown> = {
       return { duplicate: false };
     });
   },
+  presets({ profileId }: { profileId: string }) {
+    return (db.prepare("SELECT id, name, settings, created_at AS createdAt FROM presets WHERE profile_id = ? ORDER BY created_at DESC").all(profileId) as { settings: string }[])
+      .map((r) => ({ ...r, settings: JSON.parse(r.settings) }));
+  },
+  savePreset({ id, profileId, name, settings }: { id: string; profileId: string; name: string; settings: string }) {
+    const count = db.prepare("SELECT COUNT(*) AS n FROM presets WHERE profile_id = ?").get(profileId) as { n: number };
+    if (count.n >= 20) throw new Error("At most 20 saved presets");
+    const createdAt = new Date().toISOString();
+    db.prepare("INSERT INTO presets (id, profile_id, name, settings, created_at) VALUES (?, ?, ?, ?, ?)").run(id, profileId, name, settings, createdAt);
+    return { id, name, settings: JSON.parse(settings), createdAt };
+  },
+  deletePreset({ id, profileId }: { id: string; profileId: string }) {
+    return db.prepare("DELETE FROM presets WHERE id = ? AND profile_id = ?").run(id, profileId).changes > 0;
+  },
+  weaponStats({ profileId }: { profileId: string }) {
+    return db.prepare("SELECT weapon, shots, hits, damage, kills FROM weapon_stats WHERE profile_id = ? ORDER BY kills DESC, weapon").all(profileId);
+  },
+  close() { db.close(); return true; },
   history({ profileId, before, limit }: { profileId: string; before: string | null; limit: number }) {
     return db
       .prepare(
@@ -200,7 +243,8 @@ const ops: Record<string, (args: any) => unknown> = {
       )
       .all(profileId, before, before, limit);
   },
-  match({ id }: { id: string }) {
+  match({ id, profileId }: { id: string; profileId?: string }) {
+    if (profileId && !db.prepare("SELECT 1 FROM participants WHERE match_id = ? AND profile_id = ?").get(id, profileId)) return null;
     const m = db.prepare("SELECT id, room_code AS roomCode, mode, map, status, started_at AS startedAt, ended_at AS endedAt, result FROM matches WHERE id = ?").get(id) as
       | Record<string, unknown>
       | undefined;

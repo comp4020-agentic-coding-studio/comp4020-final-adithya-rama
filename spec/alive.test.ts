@@ -111,6 +111,8 @@ describe("proof of life", () => {
     guest.send({ t: "start" });
     expect((await guest.waitFor("error")).message).toMatch(/host/);
 
+    guest.send({ t: "ready", ready: true });
+    await guest.waitFor("room", (m) => m.room.members.some((member) => !member.host && member.ready));
     host.send({ t: "start" });
     const [mh, mg] = await Promise.all([host.waitFor("match"), guest.waitFor("match")]);
     expect(mh.matchId).toBe(mg.matchId);

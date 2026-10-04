@@ -21,8 +21,8 @@ export const FLAT: MapDefinition = {
     { x: 1900, y: 900, team: 1 },
   ],
   pickups: [],
-  goals: [],
-  flagHomes: [],
+  goals: [{ team: 0, rect: { x: 40, y: 800, w: 110, h: 100 } }, { team: 1, rect: { x: 1850, y: 800, w: 110, h: 100 } }],
+  flagHomes: [{ team: 0, x: 100, y: 900 }, { team: 1, x: 1900, y: 900 }],
   navNodes: [],
 };
 MAPS[FLAT.id] = FLAT;

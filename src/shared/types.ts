@@ -70,7 +70,7 @@ export interface SpawnPoint {
   team: Team;
 }
 
-export type PickupKind = "weapon" | "health" | "ammo" | "fuel";
+export type PickupKind = "weapon" | "health" | "ammo" | "fuel" | "throwable";
 
 export interface MapPickup {
   x: number;
@@ -122,6 +122,12 @@ export interface WeaponDefinition {
   oneHanded: boolean;
   heavy: boolean;
   color: number;
+  behavior: "hitscan" | "projectile" | "beam" | "flame" | "emp" | "melee" | "shield";
+  projectileSpeed?: number;
+  projectileGravity?: number;
+  blastRadius?: number;
+  bounce?: number;
+  empMs?: number;
 }
 
 export interface ThrowableDefinition {
@@ -133,15 +139,21 @@ export interface ThrowableDefinition {
   minDamage: number;
   throwSpeed: number;
   bounce: number;
+  effect: "blast" | "gas" | "emp" | "mine";
+  durationMs?: number;
+  armMs?: number;
 }
 
 export interface FlagState {
   owner: 0 | 1;
-  state: "home" | "carried" | "dropped";
+  state: "home" | "carried" | "dropped" | "respawning";
   carrier: number | null;
   x: number;
   y: number;
   generation: number;
+  vx: number;
+  vy: number;
+  availableTick: number;
 }
 
 export interface SlotState {
@@ -149,7 +161,19 @@ export interface SlotState {
   mag: number;
   reserve: number;
   reloadEnd: number;
+  cooldownUntil: number;
 }
+
+export interface WeaponStats { shots: number; hits: number; damage: number; kills: number }
+export interface SurvivalState {
+  wave: number;
+  remaining: number;
+  toSpawn: number;
+  nextSpawnTick: number;
+  nextWaveTick: number;
+  cleared: number;
+}
+export interface AreaSnap { id: number; k: "gas"; x: number; y: number; r: number; until: number }
 
 export interface ParticipantResult {
   key: string;
@@ -163,13 +187,14 @@ export interface ParticipantResult {
   deliveries: number;
   score: number;
   mvp: boolean;
+  weaponStats?: Record<string, WeaponStats>;
 }
 
 export interface MatchResult {
   matchId: string;
   mode: Mode;
   map: string;
-  reason: "time" | "limit" | "host" | "abandoned";
+  reason: "time" | "limit" | "host" | "abandoned" | "defeat";
   draw: boolean;
   winnerTeam: Team | null;
   winnerKeys: string[];
@@ -178,6 +203,7 @@ export interface MatchResult {
   durationSec: number;
   endedAt: string;
   scoringNote: string;
+  wavesCleared?: number;
 }
 
 export interface PlayerSnap {
@@ -189,6 +215,7 @@ export interface PlayerSnap {
   aim: number;
   f: number;
   hp: number;
+  maxHp: number;
   fuel: number;
   jc: number;
   dt: number;
@@ -202,6 +229,12 @@ export interface PlayerSnap {
   d: number;
   as: number;
   rs: number;
+  slots: [SlotState | null, SlotState | null];
+  dual: boolean;
+  throwable: string;
+  throwables: Record<string, number>;
+  emp: number;
+  deliveries: number;
 }
 
 export interface ProjectileSnap {
@@ -209,6 +242,9 @@ export interface ProjectileSnap {
   k: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
+  armed: boolean;
 }
 
 export interface PickupSnap {
@@ -227,7 +263,11 @@ export type GameEvent =
   | { t: "hurt"; id: number; amount: number }
   | { t: "spawn"; id: number }
   | { t: "pickup"; id: number; item: string }
-  | { t: "reload"; id: number };
+  | { t: "reload"; id: number }
+  | { t: "flag"; owner: 0 | 1; action: "pickup" | "drop" | "return" | "delivery"; by: number | null }
+  | { t: "wave"; wave: number }
+  | { t: "emp"; id: number; until: number }
+  | { t: "shield"; id: number };
 
 export interface WorldSnapshot {
   tick: number;
@@ -238,6 +278,9 @@ export interface WorldSnapshot {
   projectiles: ProjectileSnap[];
   pickups: PickupSnap[];
   events: GameEvent[];
+  flags: FlagState[];
+  areas: AreaSnap[];
+  survival: SurvivalState | null;
 }
 
 // player flag bits in PlayerSnap.f
