@@ -11,6 +11,8 @@ export class Net {
   private attempt = 0;
   private stopped = false;
   roomCode: string | null = null;
+  roomPassword="";
+  spectating=false;
 
   connect(): void {
     this.stopped = false;
@@ -21,7 +23,7 @@ export class Net {
     ws.onopen = () => {
       this.attempt = 0;
       this.emitStatus("open");
-      if (this.roomCode) this.send({ t: "join", code: this.roomCode });
+      if (this.roomCode) this.send({ t: "join", code: this.roomCode,password:this.roomPassword,spectate:this.spectating });
     };
     ws.onmessage = (e) => {
       let msg: ServerMessage;

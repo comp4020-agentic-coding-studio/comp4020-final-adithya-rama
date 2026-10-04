@@ -4,10 +4,12 @@ import { heightOf, type MoveState, stepMovement } from "../shared/physics.ts";
 import type { RosterEntry, ServerMessage } from "../shared/protocol.ts";
 import { MODE_NAMES, TEAM_MODES } from "../shared/settings.ts";
 import { maxHealth } from "../shared/sim.ts";
-import { type GameEvent, type InputFrame, type MapDefinition, PF, type PlayerSnap, type RoomSettings, type WorldSnapshot } from "../shared/types.ts";
+import { Btn, type GameEvent, type InputFrame, type MapDefinition, PF, type PlayerSnap, type RoomSettings, type WorldSnapshot } from "../shared/types.ts";
 import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
 import { esc } from "./dom.ts";
-import { Input } from "./input.ts";
+import { GameAudio } from "./audio.ts";
+import { avatarOf, weaponIcon } from "./art.ts";
+import { bindingsOf, Input } from "./input.ts";
 import type { Net } from "./net.ts";
 import { type RenderPlayer, Renderer, TEAM_COLORS, TEAM_NAMES } from "./render.ts";
 import { TouchControls } from "./touch.ts";
@@ -22,10 +24,17 @@ export interface GameHooks {
   leave(): void;
   endRound(): void;
   reducedShake(): boolean;
+  prefs(): Record<string,unknown>;
+  savePrefs(patch:Record<string,unknown>):Promise<void>;
+  editRules():void;
 }
 
 export class GameSession {
   private renderer = new Renderer();
+  private audio = new GameAudio();
+  private spectatorIndex = 0;
+  private chat: {name:string;text:string}[] = [];
+  private unlockAudio = () => { void this.audio.unlock().catch(()=>{}); };
   private input!: Input;
   private touch: TouchControls | null = null;
   private settings: RoomSettings;
@@ -61,6 +70,10 @@ export class GameSession {
     this.net = net;
     this.hooks = hooks;
     this.settings = start.settings;
+    this.audio.muted=hooks.prefs().muted===true;
+    this.audio.volume=Number(hooks.prefs().volume ?? .35);
+    window.addEventListener("pointerdown",this.unlockAudio);
+    window.addEventListener("keydown",this.unlockAudio);
     this.map = MAPS[start.settings.map];
     this.you = start.you;
     for (const r of start.roster) this.roster.set(r.id, r);
@@ -72,6 +85,8 @@ export class GameSession {
         <span class="timer" data-el="timer">--:--</span>
         <span class="team-score t1" data-el="s1"></span>
       </div>
+      <div class="objective" data-el="objective"></div>
+      <div class="spectator-controls" data-el="spectate" hidden><button data-follow="-1" aria-label="Follow previous pilot">←</button><span data-el="following"></span><button data-follow="1" aria-label="Follow next pilot">→</button></div>
       <div class="hud-bars">
         <div class="bar hp" title="Health"><i data-el="hp"></i><span data-el="hpText"></span></div>
         <div class="bar fuel" title="Jet fuel"><i data-el="fuel"></i></div>
@@ -81,8 +96,11 @@ export class GameSession {
       <div class="center-msg" data-el="center"></div>
       <div class="scoreboard hidden" data-el="board"></div>
       <div class="menu hidden" data-el="menu"></div>
-      <div class="conn-msg hidden" data-el="conn"></div>`;
+      <div class="conn-msg hidden" data-el="conn"></div>
+      <button class="desktop-menu" data-el="menuButton">Menu / Esc</button>`;
     for (const el of this.hud.querySelectorAll<HTMLElement>("[data-el]")) this.els[el.dataset.el!] = el;
+    this.els.menuButton.addEventListener("click",()=>this.toggleMenu());
+    for(const b of this.hud.querySelectorAll<HTMLButtonElement>("[data-follow]")) b.addEventListener("click",()=>{this.spectatorIndex+=Number(b.dataset.follow);});
     this.unsub = this.net.on((m) => this.onMessage(m));
     void this.init();
   }
@@ -96,15 +114,15 @@ export class GameSession {
       this.renderer.destroy();
       return;
     }
-    this.renderer.setMap(this.map);
+    this.renderer.setMap(this.map,this.settings.mode==="flag");
     this.renderer.reducedShake = this.hooks.reducedShake();
     this.input = new Input(this.renderer.canvas, {
-      onScoreboard: (show) => this.els.board.classList.toggle("hidden", !show),
+      onScoreboard: (show) => { this.els.board.classList.toggle("hidden", !show); if(show)this.renderBoard(); },
       onMenu: () => this.toggleMenu(),
-    });
+    },bindingsOf(this.hooks.prefs().bindings));
     if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window) {
       this.touch = new TouchControls(this.root, this.input, {
-        scoreboard: () => this.els.board.classList.toggle("hidden"),
+        scoreboard: () => { this.els.board.classList.toggle("hidden"); this.renderBoard(); },
         menu: () => this.toggleMenu(),
         zoom: (on) => (this.touchZoom = on),
       });
@@ -115,6 +133,9 @@ export class GameSession {
 
   private onMessage(m: ServerMessage): void {
     if (m.t === "snap") this.onSnap(m);
+    else if(m.t==="chat" && this.hooks.prefs().chatMuted!==true) {
+      this.chat.push({name:m.name,text:m.text});if(this.chat.length>40)this.chat.shift();this.renderChat();
+    }
     else if (m.t === "roster") {
       this.roster.clear();
       for (const r of m.roster) this.roster.set(r.id, r);
@@ -123,6 +144,7 @@ export class GameSession {
 
   private onSnap(s: WorldSnapshot): void {
     const now = performance.now();
+    if(!this.latest)this.seq=Math.max(this.seq,s.ack);
     const sample = s.tick - now / TICK_MS;
     if (this.clockOffset === null || Math.abs(sample - this.clockOffset) > 30) this.clockOffset = sample;
     else this.clockOffset += (sample - this.clockOffset) * 0.05;
@@ -148,7 +170,7 @@ export class GameSession {
         jetCooldown: me.jc,
         dropTicks: me.dt,
       };
-      for (const f of this.pending) stepMovement(p, f.b, this.map, this.settings);
+      for (let i=0;i<this.pending.length;i++) { const f=this.pending[i]; stepMovement(p, me.emp>i ? f.b & ~Btn.JET : f.b, this.map, this.settings); }
       this.pred = p;
       if (before) {
         const dx = before.x - p.x;
@@ -170,6 +192,7 @@ export class GameSession {
 
   private onEvent(e: GameEvent): void {
     const r = this.renderer;
+    this.audio.event(e,this.you);
     switch (e.t) {
       case "shot":
         r.addTracer(e.x1, e.y1, e.x2, e.y2, e.w, e.hit);
@@ -190,6 +213,12 @@ export class GameSession {
         if (this.killfeed.length > 5) this.killfeed.shift();
         break;
       }
+      case "flag": {
+        const text=e.action==="delivery"?`${TEAM_NAMES[e.owner]} delivered a flag!`:e.action==="pickup"?`${this.nameOf(e.by)} carries the ${TEAM_NAMES[e.owner]} flag`:e.action==="drop"?`${TEAM_NAMES[e.owner]} flag dropped — teammates can recover it`:`${TEAM_NAMES[e.owner]} flag returned home`;
+        this.killfeed.push({html:`<b>${text}</b>`,at:performance.now()});if(this.killfeed.length>5)this.killfeed.shift();
+        break;
+      }
+      case "wave": this.killfeed.push({html:`<b>Wave ${e.wave}</b> — hold your ground`,at:performance.now()});break;
       case "hurt":
         if (e.id === this.you && !this.hooks.reducedShake()) r.shake = Math.max(r.shake, 4);
         break;
@@ -210,7 +239,11 @@ export class GameSession {
   }
 
   private localTick(): void {
-    const b = this.input.buttons();
+    if(this.you===null)return;
+    this.input.enabled=this.els.menu.classList.contains("hidden");
+    let b = this.input.buttons();
+    const me=this.latest?.players.find(p=>p.id===this.you);
+    if(me && me.emp>0)b &= ~Btn.JET;
     const f: InputFrame = { seq: ++this.seq, b, aim: this.input.aim, view: Math.floor(this.renderTick()) };
     this.outbox.push(f);
     this.pending.push(f);
@@ -282,7 +315,11 @@ export class GameSession {
         color: r?.color ?? 0x888888,
         name: r?.name ?? "?",
         hp: s.hp,
-        maxHp,
+        maxHp:s.maxHp ?? maxHp,
+        dual:s.dual,
+        otherWeapon:s.s[s.a===0?1:0],
+        emp:s.emp,
+        avatar:avatarOf(r?.avatar),
         weapon: s.s[s.a],
         local,
       };
@@ -299,6 +336,11 @@ export class GameSession {
       players.push(base);
     }
 
+    if(this.you===null) {
+      const followable=players.filter(p=>p.alive);
+      if(followable.length) { const index=((this.spectatorIndex%followable.length)+followable.length)%followable.length;const p=followable[index];camera={x:p.x,y:p.y-PLAYER_H/2};this.els.following.textContent=`Following ${p.name}`; }
+      this.els.spectate.hidden=false;
+    }
     const local = players.find((p) => p.local);
     const origin = local
       ? this.renderer.worldToScreen(local.x, local.y - heightOf(local) * 0.68)
@@ -308,7 +350,7 @@ export class GameSession {
 
     const weaponZoom = latestMe ? (WEAPONS[latestMe.s[latestMe.a] ?? ""]?.zoom ?? 1) : 1;
     const zoom = weaponZoom * (this.input.zoom || this.touchZoom ? 1.35 : 1);
-    this.renderer.frame(camera, zoom, players, this.latest.projectiles, this.latest.pickups);
+    this.renderer.frame(camera, zoom, players, this.latest.projectiles, this.latest.pickups, this.settings.mode==="flag"?this.latest.flags:[],this.latest.areas);
 
     if (this.pred) this.els.fuel.style.width = `${(this.pred.fuel / (100 * this.settings.fuelCapacity)) * 100}%`;
     const now = performance.now();
@@ -329,23 +371,29 @@ export class GameSession {
       this.els.s0.textContent = MODE_NAMES[this.settings.mode];
       this.els.s1.textContent = best ? `Lead: ${this.roster.get(best.id)?.name ?? "?"} ${best.k}` : "";
     }
+    if(this.settings.mode==="flag") {
+      const mine=this.roster.get(this.you ?? -1)?.team;
+      this.els.objective.innerHTML=s.flags.map(f=>`<span class="flag-status team-${f.owner}">${TEAM_NAMES[f.owner]}: ${f.state==="carried"?esc(this.roster.get(f.carrier!)?.name ?? "carried"):f.state==="respawning"?"new flag arriving":f.state==="dropped"?"recover dropped flag":"flag at home"}</span>`).join("")+`<small>${mine===0||mine===1?`Take your own flag to the ${TEAM_NAMES[mine===0?1:0]} goal.`:"Teams carry their own flag to the opposing goal."}</small>`;
+    } else if(s.survival) this.els.objective.innerHTML=`<b>Wave ${s.survival.wave} · ${s.survival.remaining} enemies left</b><small>${s.survival.toSpawn} reinforcements · ${s.survival.cleared} waves cleared</small>`;
+    else this.els.objective.textContent="";
     if (me) {
-      const maxHp = maxHealth(this.settings);
+      const maxHp = me.maxHp ?? maxHealth(this.settings);
       this.els.hp.style.width = `${Math.max(0, (me.hp / maxHp) * 100)}%`;
       this.els.hpText.textContent = String(me.hp);
       const slot = (i: 0 | 1) => {
         const w = me.s[i];
-        return `<div class="slot ${me.a === i ? "on" : ""}"><small>${i + 1}</small> ${w ? esc(WEAPONS[w]?.name ?? w) : "—"}</div>`;
+        return `<div class="slot ${me.a === i || me.dual ? "on" : ""}"><small>${i + 1}</small> ${w ? weaponIcon(w)+esc(WEAPONS[w]?.name ?? w) : "—"} ${me.dual&&me.slots[i]?`<small>${me.slots[i]!.mag}</small>`:""}</div>`;
       };
       const ammo = me.s[me.a] ? (me.rl > 0 ? "Reloading…" : `${me.mag} / ${this.settings.unlimitedAmmo ? "∞" : me.res}`) : "Melee only";
-      this.els.weapon.innerHTML = `${slot(0)}${slot(1)}<div class="ammo">${ammo}</div><div class="nades">Grenades ${me.g}</div>`;
+      const nade=me.throwable;
+      this.els.weapon.innerHTML = `${slot(0)}${slot(1)}<div class="ammo">${ammo}${me.dual?" · DUAL":""}</div><div class="nades">${esc(THROWABLES[nade]?.name ?? nade)} ${me.throwables[nade] ?? 0} <small>(${Object.values(me.throwables).reduce((a,b)=>a+b,0)}/6 total)</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}`;
       const alive = (me.f & PF.ALIVE) !== 0;
-      this.els.center.textContent = alive ? "" : s.endTick <= s.tick ? "" : `Respawning in ${Math.ceil(me.rs / TICK_RATE)}…`;
+      this.els.center.textContent = alive ? "" : s.endTick <= s.tick ? "" : this.settings.mode==="survival" ? "Waiting for the next wave…" : `Respawning in ${Math.ceil(me.rs / TICK_RATE)}…`;
     } else {
       this.els.center.textContent = "Spectating";
     }
+    this.boardSnap = s;
     if (!this.els.board.classList.contains("hidden")) this.renderBoard(s);
-    else this.boardSnap = s;
   }
 
   private boardSnap: WorldSnapshot | null = null;
@@ -354,34 +402,38 @@ export class GameSession {
     if (!s) return;
     const team = TEAM_MODES.includes(this.settings.mode);
     const rows = [...s.players]
-      .sort((a, b) => b.k - a.k || a.d - b.d)
+      .sort((a, b) => (b.deliveries-a.deliveries)*10+(b.k-a.k)*2+b.as-a.as || a.d-b.d)
       .map((p) => {
         const r = this.roster.get(p.id);
         const color = r && r.team !== -1 ? TEAM_COLORS[r.team] : (r?.color ?? 0x888888);
         const dot = `<i class="dot" style="background:#${color.toString(16).padStart(6, "0")}"></i>`;
         const conn = p.f & PF.CONNECTED ? "" : " <small>(away)</small>";
-        return `<tr class="${p.id === this.you ? "me" : ""}"><td>${dot}${esc(r?.name ?? "?")}${conn}</td>${team ? `<td>${r && r.team !== -1 ? TEAM_NAMES[r.team] : ""}</td>` : ""}<td>${p.k}</td><td>${p.d}</td><td>${p.as}</td></tr>`;
+        return `<tr class="${p.id === this.you ? "me" : ""}"><td>${dot}${esc(r?.name ?? "?")}${conn}</td>${team ? `<td>${r && r.team !== -1 ? TEAM_NAMES[r.team] : ""}</td>` : ""}<td>${p.k}</td><td>${p.d}</td><td>${p.as}</td><td>${p.deliveries}</td><td>${2*p.k+p.as+(this.settings.mode==="flag"?10*p.deliveries:0)}</td></tr>`;
       })
       .join("");
     this.els.board.innerHTML = `<h2>${esc(MODE_NAMES[this.settings.mode])}${team ? ` — ${TEAM_NAMES[0]} ${s.ts[0]} : ${s.ts[1]} ${TEAM_NAMES[1]}` : ""}</h2>
-      <table><thead><tr><th>Player</th>${team ? "<th>Team</th>" : ""}<th>K</th><th>D</th><th>A</th></tr></thead><tbody>${rows}</tbody></table>`;
+      <table><thead><tr><th>Player</th>${team ? "<th>Team</th>" : ""}<th>K</th><th>D</th><th>A</th><th>Flags</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   private toggleMenu(): void {
     const menu = this.els.menu;
     if (!menu.classList.contains("hidden")) {
       menu.classList.add("hidden");
+      this.input.enabled=true;
       return;
     }
     this.input.clear();
     menu.innerHTML = `
-      <h2>Paused menu</h2>
+      <h2>Field menu</h2>
       <p class="muted">The match keeps running while this is open.</p>
       <div class="menu-actions">
         <button data-act="resume" class="primary">Resume</button>
-        ${this.hooks.isHost() ? `<button data-act="end">End round now</button>` : ""}
+        ${this.hooks.isHost() ? `<button data-act="rules">Next-round rules</button><button data-act="end">End round now</button>` : ""}
         <button data-act="leave" class="danger">Leave room</button>
       </div>
+      <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
+      <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
+      <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
       <details><summary>Controls</summary>
         <ul class="controls">
           <li><b>A / D</b> move, <b>W</b> jump, <b>Space</b> jetpack, <b>S</b> crouch or drop through a platform</li>
@@ -392,12 +444,25 @@ export class GameSession {
         </ul>
       </details>`;
     menu.classList.remove("hidden");
+    this.input.enabled=false;
+    menu.querySelector<HTMLInputElement>("[data-audio]")!.addEventListener("change",e=>{this.audio.muted=!(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({muted:this.audio.muted});this.unlockAudio();});
+    menu.querySelector<HTMLInputElement>("[data-volume]")!.addEventListener("change",e=>{this.audio.volume=Number((e.target as HTMLInputElement).value);void this.hooks.savePrefs({volume:this.audio.volume});});
+    menu.querySelector<HTMLInputElement>("[data-shake]")!.addEventListener("change",e=>{this.renderer.reducedShake=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedShake:this.renderer.reducedShake});});
+    menu.querySelector<HTMLInputElement>("[data-chat-mute]")!.addEventListener("change",e=>{void this.hooks.savePrefs({chatMuted:(e.target as HTMLInputElement).checked});});
+    menu.querySelector<HTMLFormElement>("[data-chat-form]")!.addEventListener("submit",e=>{e.preventDefault();const el=menu.querySelector<HTMLInputElement>('input[name="message"]')!;if(el.value.trim())this.net.send({t:"chat",text:el.value.trim()});el.value="";});
+    this.renderChat();
     menu.querySelector('[data-act="resume"]')!.addEventListener("click", () => menu.classList.add("hidden"));
+    menu.querySelector('[data-act="rules"]')?.addEventListener("click",()=>this.hooks.editRules());
     menu.querySelector('[data-act="end"]')?.addEventListener("click", () => {
       menu.classList.add("hidden");
       this.hooks.endRound();
     });
     menu.querySelector('[data-act="leave"]')!.addEventListener("click", () => this.hooks.leave());
+  }
+
+  private renderChat():void {
+    const log=this.els.menu.querySelector("[data-chat-log]");if(!log)return;
+    log.innerHTML=this.hooks.prefs().chatMuted===true?"<li>Chat muted</li>":this.chat.map(m=>`<li><b>${esc(m.name)}</b> ${esc(m.text)}</li>`).join("")||"<li class=\"muted\">No messages yet.</li>";log.scrollTop=log.scrollHeight;
   }
 
   setConnection(text: string | null): void {
@@ -408,6 +473,9 @@ export class GameSession {
   destroy(): void {
     this.destroyed = true;
     this.unsub();
+    window.removeEventListener("pointerdown",this.unlockAudio);
+    window.removeEventListener("keydown",this.unlockAudio);
+    this.audio.destroy();
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.input?.destroy();
     this.touch?.destroy();
