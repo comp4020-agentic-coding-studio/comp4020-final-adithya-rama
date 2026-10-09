@@ -13,7 +13,7 @@ The integrated local check passes 142 unit tests and 33 server/storage/API/cours
 checks. Current evidence is in [OCTOBER_VALIDATION.md](OCTOBER_VALIDATION.md).
 The earlier release's live and thirty-minute soak results in
 [VALIDATION.md](VALIDATION.md) are historical; they are not substituted for
-verification of changed code. Human balance/playtest evidence remains pending.
+verification of changed code. Live revision flows, all five modes and post-deployment saved data passed; see the October record. Human balance/playtest evidence remains pending.
 All four arenas are retained.
 
 ## Movement and inventory

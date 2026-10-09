@@ -99,9 +99,31 @@ bottlenecks. Raw records are under test-results/browser-performance-oct10-*.json
 
 ### Release status
 
-Local implementation and acceptance are complete for this revision's requested
-changes. Deployment and post-deployment browser/persistence verification will be
-recorded after the existing main-branch workflow completes.
+Revision f518792 deployed successfully through the existing public main-branch
+[check and deploy workflow](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/37952997738)
+on 10 October 2026 (Australia/Sydney).
+
+- The full revision browser harness passed against Fly with zero failures:
+  movement-facing, numpad directions/diagonals, held fire through reload,
+  three-slot/Tab selection, gradual healing, flash exposure/expiry, poison damage,
+  two independent identities, readiness gating, touch slot selection, saved
+  results and all four maps. Live screenshots were inspected at both viewports.
+- Five live mode flows agreed on identical saved results. Flag Delivery completed
+  a real own-flag delivery and ended naturally 1–0. Other smoke rounds ended by
+  host control; training included a separate touch spectator.
+- A pre-existing acceptance profile, preferences, aggregates, personal history
+  entry and exact match-detail digest were unchanged before and after deployment.
+  Those persistence checks used authenticated GETs and did not alter the profile.
+- Fly reports the existing machine 7811ed5a0e37e8, Sydney, version 5, started, image
+  deployment-01M4GMZXNFN9EFP6DVNHY8W9B4. Resource settings remain unchanged.
+- The repository is public. The crit-8 tag still resolves to
+  e6b4df425c06d822c13578559610160be6bfe4f7.
+
+The user explicitly authorized publishing and deploying this later revision.
+Raw local records: test-results/oct10-live-refresh/report.json,
+test-results/browser-modes-report.json, and live-persistence-verify-before-oct10.json
+/ live-persistence-verify-after-oct10.json. A later documentation-only commit
+records this evidence without changing gameplay.
 
 ### Rendering follow-up
 

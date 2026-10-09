@@ -64,3 +64,7 @@ observations. No claims of fun, balance or historical parity should be invented.
 Adithya's preferred role is to think, brainstorm, define system behavior and
 quality, and direct agents. Preserve his supplied Crit 8 reflection; later
 technical work is not a new personal reflection.
+
+The October update is deployed and verified live: keyboard/touch revision flows,
+all five mode results, and existing saved profile/history after deployment.
+See [October validation](OCTOBER_VALIDATION.md) for the exact scope and limits.

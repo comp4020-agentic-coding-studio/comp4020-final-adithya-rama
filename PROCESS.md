@@ -183,3 +183,10 @@ the software background into one moving layer, at unchanged 1280×720. Hardware
 keeps its separate parallax layers. The phone viewport remained about 60 FPS.
 This tradeoff preserves live actors, pickups, flags and effects; it does not
 claim 60 FPS for software desktop or every machine.
+
+Adithya explicitly approved publishing and deploying the October update. The
+public workflow passed and deployed f518792. Independent live desktop/touch
+sessions then passed the revised mechanics and all five modes, and the saved
+acceptance profile/result remained unchanged after deployment. The original
+crit-8 tag was preserved. [October validation](docs/OCTOBER_VALIDATION.md) records
+this evidence separately from the earlier release and remaining human playtests.
