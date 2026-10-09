@@ -35,7 +35,7 @@ export function sanitizePrefs(value: unknown, previous: Record<string, unknown> 
     const clean: Record<string, number> = {};
     for (const [key, value] of Object.entries(bindings)) {
       if (!/^[A-Za-z][A-Za-z0-9]{1,24}$/.test(key) || typeof value !== "number" || !Number.isInteger(value) ||
-        ((value < -7 || value === 0 || value > ALL_BUTTONS) || (value > 0 && (value & (value - 1)) !== 0))) throw new Error("Invalid key binding");
+        ((value < -11 || value === 0 || value > ALL_BUTTONS) || (value > 0 && (value & (value - 1)) !== 0))) throw new Error("Invalid key binding");
       clean[key] = value;
     }
     output.bindings = clean;

@@ -19,6 +19,27 @@ describe("authored map validity", () => {
     }
   });
 
+  it("snow forts have working side entrances and an unobstructed interior", () => {
+    const map=MAPS.skyshaft;
+    for(const fort of map.scenery!.filter(p=>p.kind==="bunker")) {
+      const w=createWorld(sanitizeSettings({...defaultSettings(),map:"skyshaft",mode:"training",flight:false,mapPickups:false,bots:0}));
+      const p=player(w,-1,{x:fort.x-35,y:fort.y});
+      for(let tick=0;tick<200&&p.x<fort.x+fort.w!+35;tick++) {
+        stepWorld(w,hold(p.id,Btn.RIGHT|Btn.JUMP));
+        expect(map.solids.some(r=>overlaps(boxOf(p),r)),"fort traversal intersects collision").toBe(false);
+      }
+      expect(p.x,"pilot cannot pass through fort "+fort.x+","+fort.y).toBeGreaterThan(fort.x+fort.w!+24);
+    }
+  });
+
+  it.each(arenas.map(map=>map.id))("%s has supported, accessible pickup positions", id=>{
+    const map=MAPS[id];
+    for(const pk of map.pickups) {
+      expect([...map.solids,...map.platforms].some(r=>Math.abs(r.y-pk.y)<.1&&pk.x>=r.x&&pk.x<=r.x+r.w),id+" unsupported pickup "+pk.x+","+pk.y).toBe(true);
+      expect(map.solids.some(r=>overlaps({x:pk.x-7,y:pk.y-25,w:14,h:24},r)),id+" embedded pickup "+pk.x+","+pk.y).toBe(false);
+    }
+  });
+
   it.each(arenas.filter((map) => map.flagHomes.length === 2).map((map) => map.id))(
     "%s permits both flag deliveries with flight off, double gravity and half running speed", (id) => {
       for (const team of [0, 1] as const) {

@@ -62,7 +62,9 @@ export const WEAPONS: Record<string, WeaponDefinition> = {
 export const THROWABLES: Record<string, ThrowableDefinition> = {
   frag: { id: "frag", name: "Fragmentation grenade", fuseMs: 2200, radius: 135,
     maxDamage: 110, minDamage: 15, throwSpeed: 640, bounce: .42, effect: "blast" },
-  gas: { id: "gas", name: "Gas grenade", fuseMs: 1600, radius: 135,
+  flash: { id: "flash", name: "Flashbang", fuseMs: 1400, radius: 360,
+    maxDamage: 0, minDamage: 0, throwSpeed: 620, bounce: .38, effect: "flash", durationMs: 3000 },
+  gas: { id: "gas", name: "Poison smoke", fuseMs: 1600, radius: 135,
     maxDamage: 6, minDamage: 6, throwSpeed: 600, bounce: .3, effect: "gas", durationMs: 6000 },
   emp: { id: "emp", name: "EMP grenade", fuseMs: 1500, radius: 180,
     maxDamage: 10, minDamage: 0, throwSpeed: 630, bounce: .4, effect: "emp", durationMs: 4000 },

@@ -7,7 +7,7 @@ import { api, esc, hex, toast } from "./dom.ts";
 import { GameSession } from "./game.ts";
 import { Net } from "./net.ts";
 import { WEAPONS, THROWABLES } from "../shared/weapons.ts";
-import { ACTION_LABELS, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
+import { ACTION_LABELS, BINDABLE_CODE, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
 import { avatarOf, avatarSvg, weaponIcon, weaponName } from "./art.ts";
 import { TEAM_COLORS, TEAM_NAMES } from "./render.ts";
 
@@ -56,30 +56,56 @@ function setPath(path: string): void {
 
 // ---------- home ----------
 
+function previewScenery(map:typeof MAPS[string]):string {
+  return (map.scenery??[]).map(s=>{
+    const x=s.x,y=s.y,h=s.h??170,w=s.w??120;
+    if(s.kind==="palm")return '<g transform="translate('+x+' '+y+')"><path d="M0 0Q-20 -'+h*.55+' 15 -'+h+'" fill="none" stroke="#253d3e" stroke-width="26"/><path d="M0 0Q-20 -'+h*.55+' 15 -'+h+'" fill="none" stroke="#9f8963" stroke-width="17"/>'+[-1,1].map(dir=>'<path d="M15 -'+h+'Q'+(dir*w*.7)+' -'+(h+w*.35)+' '+(dir*w)+' -'+(h-w*.2)+'Q'+(dir*w*.3)+' -'+(h+w*.1)+' 15 -'+h+'M15 -'+h+'Q'+(dir*w*.2)+' -'+(h+w*.65)+' '+(dir*w*.55)+' -'+(h+w*.45)+'Q'+(dir*w*.4)+' -'+(h+w*.1)+' 15 -'+h+'" fill="#658d54" stroke="#254537" stroke-width="6"/>').join("")+'</g>';
+    if(s.kind==="pine")return '<g transform="translate('+x+' '+y+')"><path d="M0 0v-'+h+'" stroke="#8b8066" stroke-width="17"/><path d="M0 -'+h+'l-'+w*.45+' '+h*.42+'h'+w*.18+'l-'+w*.3+' '+h*.32+'h'+w*.26+'l-'+w*.3+' '+h*.2+'h'+w*1.22+'l-'+w*.3+' -'+h*.2+'h'+w*.26+'l-'+w*.3+' -'+h*.32+'h'+w*.18+'Z" fill="#527c74" stroke="#243e47" stroke-width="7"/></g>';
+    if(s.kind==="fern")return '<g transform="translate('+x+' '+y+')"><path d="M0 0Q-40 -75 -85 -60Q-45 -30 0 0Q-25 -80 -5 -105Q20 -60 0 0Q35 -85 85 -70Q45 -25 0 0" fill="#7fa061" stroke="#36553d" stroke-width="5"/></g>';
+    if(s.kind==="crate")return '<g transform="translate('+(x-w/2)+' '+(y-h)+')"><rect width="'+w+'" height="'+h+'" rx="5" fill="#9c8158" stroke="#35463c" stroke-width="8"/><path d="M10 10L'+(w-10)+' '+(h-10)+'M'+(w-10)+' 10L10 '+(h-10)+'" stroke="#c4a273" stroke-width="12"/></g>';
+    if(s.kind==="bunker")return '<g transform="translate('+(x-w/2)+' '+(y-h)+')"><rect width="'+w+'" height="'+h+'" fill="#52675e" stroke="#293f40" stroke-width="9"/><path d="M-15 0h'+(w+30)+'M8 '+h*.25+'h'+(w-16)+'M8 '+h*.5+'h'+(w-16)+'M8 '+h*.75+'h'+(w-16)+'" stroke="#718374" stroke-width="14"/><rect x="'+w*.28+'" y="'+h*.36+'" width="'+w*.44+'" height="'+h*.3+'" fill="#1c343b" stroke="#324944" stroke-width="7"/></g>';
+    return "";
+  }).join("");
+}
+
+function arenaPreview(mapId:string):string {
+  const map=MAPS[mapId]??MAPS["outpost-yard"];
+  const rock=hex(map.theme.rock),accent=hex(map.theme.accent);
+  return '<svg class="arena-preview" viewBox="0 0 '+map.width+' '+map.height+'" preserveAspectRatio="xMidYMid slice" role="img" aria-label="'+esc(map.name)+' arena preview">'+
+    '<rect width="100%" height="100%" fill="'+hex(map.theme.sky)+'"/><circle cx="'+map.width*.73+'" cy="'+map.height*.2+'" r="'+map.height*.13+'" fill="#f6deb0" opacity=".8"/>'+
+    '<path d="M0 '+map.height*.62+' Q'+map.width*.2+' '+map.height*.15+' '+map.width*.4+' '+map.height*.58+' T'+map.width+' '+map.height*.4+' V'+map.height+' H0Z" fill="#263f42" opacity=".3"/>'+
+    map.solids.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" fill="'+rock+'" stroke="#20313a" stroke-width="8"/><path d="M'+r.x+' '+r.y+'h'+r.w+'" stroke="'+accent+'" stroke-width="12"/>').join("")+
+    map.platforms.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+Math.max(10,r.h)+'" rx="4" fill="'+hex(map.theme.platform)+'" stroke="#20313a" stroke-width="6"/>').join("")+
+    previewScenery(map)+
+    map.flagHomes.map(f=>'<path d="M'+f.x+' '+f.y+'v-85h55l-14 17 14 17h-55" fill="'+(f.team===0?"#ee8653":"#71c5e1")+'" stroke="#20313a" stroke-width="5"/>').join("")+'</svg>';
+}
+
 function renderHome(): void {
   setScreen("home");
   setPath("/");
   const kd = profile.deaths > 0 ? (profile.kills / profile.deaths).toFixed(2) : String(profile.kills);
   app.innerHTML = `
-    <header class="brand"><div class="brand-copy"><span class="eyebrow">UP TO 8 PILOTS · ONLINE ARENA COMBAT</span>
-      <h1>Jet <em>Skirmish</em></h1>
-      <p>Boots off the ground.<br>Everything to play for.</p>
-      <div class="brand-tags"><span>21 firearms</span><span>4 arenas</span><span>Your flag. Their goal.</span></div></div>
-      <div class="hero-pilot" aria-hidden="true">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
-    </header>
+    <nav class="home-nav"><a class="wordmark" href="/" aria-label="Jet Skirmish home">JET <span>SKIRMISH</span><small>THE ARENA IS YOURS</small></a><button id="profile-button" class="pilot-chip" aria-haspopup="dialog"><span class="pilot-chip-art">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</span><span><small>YOUR PILOT</small><b>${esc(profile.name)}</b></span><span aria-hidden="true">⚙</span></button></nav>
     <main class="home">
+      <section class="hero-stage">
+        <div class="hero-landscape">${arenaPreview("outpost-yard")}</div>
+        <div class="hero-copy"><span class="eyebrow">2D JETPACK COMBAT · UP TO 8 PILOTS</span><h1>Small squads.<br><em>Big air.</em></h1><p>Find your crew. Pick your arsenal.<br>Make the whole arena your playground.</p></div>
+        <div class="hero-pilot" aria-hidden="true">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
+        <div class="arena-caption"><span class="live-dot"></span><b>OUTPOST YARD</b><span>One of four original arenas</span></div>
+        <div class="hero-mission"><span>FLAG DELIVERY</span><b>Your flag. Their goal.</b><p>Carry your team's flag across the arena. Keep flying. Score for your squad.</p></div>
+      </section>
       <section class="card play">
-        <h2>Play</h2>
-        <button id="quick" class="primary big">Quick play</button>
-        <button id="practice" class="big">Practice against bots</button>
-        <button id="survival">Survival · hold out together</button><button id="range">Weapon test range</button>
-        <p class="muted small">A / D move · Space flies · Mouse aims & fires.<br>On touch, use the two sticks and action buttons.</p>
-        <form id="join-form" class="row">
-          <label class="grow">Room code <input name="code" required minlength="5" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="ABCDE"></label>
-          <label class="grow">Password <input name="password" type="password" maxlength="64" placeholder="If required" autocomplete="off"></label><button>Join</button>
-        </form>
+        <div class="section-heading"><span class="eyebrow">READY FOR TAKEOFF?</span><h2>Let’s play.</h2></div>
+        <button id="quick" class="primary big action-tile"><span>Quick play<small>Find a public room or open one</small></span><b aria-hidden="true">↗</b></button>
+        <div class="practice-block"><button id="practice" class="big action-tile"><span>Practice against bots<small>Start flying at your own pace</small></span><b aria-hidden="true">◎</b></button><label class="practice-level">Bot level <select id="practice-difficulty"><option value="easy">Easy · learn the ropes</option><option value="normal">Normal · stay moving</option><option value="hard">Hard · keep your guard up</option></select></label></div>
+        <div class="extra-modes"><button id="survival">Survival squad<small>Waves of enemies</small></button><button id="range">Weapon test range<small>Try the whole arsenal</small></button></div>
+        <p class="muted small"><kbd>A</kbd><kbd>D</kbd> move · <kbd>Space</kbd> fly<br>Mouse or <kbd>Num 2/4/6/8</kbd> aim & fire</p>
+        <details id="join"><summary>Join with code <span>→</span></summary><form id="join-form" class="stack">
+          <label class="grow">Room code <input id="code" name="code" required minlength="5" maxlength="5" autocomplete="off" autocapitalize="characters" placeholder="ABCDE"></label>
+          <label class="grow">Password <input name="password" type="password" maxlength="64" placeholder="If required" autocomplete="off"></label><button class="primary">Join room</button>
+        </form></details>
         <details id="create">
-          <summary>Create a room</summary>
+          <summary>Create a room <span>＋</span></summary>
           <form id="create-form" class="stack">
             <label>Room name <input name="name" maxlength="24" placeholder="Optional"></label>
             <label>Mode <select name="mode">${AVAILABLE_MODES.filter((m) => m !== "training")
@@ -89,12 +115,12 @@ function renderHome(): void {
               .map((m) => `<option value="${m.id}">${esc(m.name)}</option>`)
               .join("")}</select></label>
             <label>Password <input name="password" type="password" maxlength="64" placeholder="Optional" autocomplete="new-password"></label>
-            <label class="check"><input type="checkbox" name="isPublic" checked> List publicly</label>
+            <label class="check"><input type="checkbox" name="isPublic" checked> Show in public room list</label><p class="muted small">You are the host. Invite friends, choose teams and set the rules before starting.</p>
             <button class="primary">Create room</button>
           </form>
         </details>
       </section>
-      <section class="card profile">
+      <dialog id="profile-drawer" class="app-dialog profile-drawer"><section class="profile"><button type="button" data-close-profile class="drawer-close" aria-label="Close pilot profile">×</button>
         <h2>Your pilot</h2><div id="avatar-preview" class="avatar-preview">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
         <form id="profile-form" class="stack">
           <label>Name <input name="name" required maxlength="16" value="${esc(profile.name)}"></label>
@@ -119,19 +145,24 @@ function renderHome(): void {
         <p class="stats"><span><b>${profile.matches}</b> matches</span><span><b>${profile.wins}</b> wins</span><span><b>${kd}</b> K/D</span><span><b>${profile.mvps}</b> MVPs</span></p>
         <p class="muted small">Stats count player-versus-player matches. Your pilot is remembered in this browser.</p>
       </section>
-      <section class="card rooms">
-        <h2>Open rooms</h2>
+      </dialog><section class="card rooms">
+        <div class="section-heading row"><div><span class="eyebrow">FIND YOUR CREW</span><h2>Open rooms</h2></div><button id="refresh-rooms" class="quiet">Refresh</button></div>
         <ul id="room-list" class="list"><li class="muted">Looking…</li></ul>
       </section>
-      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${w.category} · ${w.mag} rounds</small></div>`).join("")}</div><p>${Object.values(THROWABLES).map(t=>esc(t.name)).join(" · ")}</p></details></section>
+      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${w.category} · ${w.mag} rounds</small></div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. EMP and proximity mines are advanced room options.</p></details></section>
       <section class="card history">
-        <h2>Your matches</h2>
+        <div class="section-heading"><span class="eyebrow">YOUR FLIGHT LOG</span><h2>Recent matches</h2></div>
         <ul id="history" class="list"><li class="muted">Loading…</li></ul>
         <button id="more" hidden>Load more</button>
       </section>
     </main>
-    <footer class="foot"><a href="/readme/">About this game</a></footer>`;
+    <footer class="foot"><span>Original arenas. No unlock grind.</span><a href="/readme/">About this game</a><button id="home-controls" class="quiet">Keyboard controls</button></footer>`;
 
+  const drawer=app.querySelector<HTMLDialogElement>("#profile-drawer")!;
+  app.querySelector("#profile-button")!.addEventListener("click",()=>drawer.showModal());
+  app.querySelector("[data-close-profile]")!.addEventListener("click",()=>drawer.close());
+  app.querySelector("#home-controls")!.addEventListener("click",openBindings);
+  app.querySelector("#refresh-rooms")!.addEventListener("click",()=>void loadRooms());
   app.querySelector("#quick")!.addEventListener("click", async () => {
     try {
       const { code } = await api<{ code: string }>("/api/quickjoin", { method: "POST" });
@@ -144,7 +175,7 @@ function renderHome(): void {
     try {
       const { code } = await api<{ code: string }>("/api/rooms", {
         method: "POST",
-        body: { name: "Practice", isPublic: false, settings: { mode: "training", bots: 2, botDifficulty: "easy" } },
+        body: { name: "Practice", isPublic: false, settings: { mode: "training", bots: 2, botDifficulty: app.querySelector<HTMLSelectElement>("#practice-difficulty")!.value } },
       });
       autoStart = true;
       joinRoom(code);
@@ -180,7 +211,7 @@ function renderHome(): void {
         body: { name: fd.get("name"), color: Number(fd.get("color") ?? profile.color), prefs: { ...profile.prefs, reducedShake: fd.get("reducedShake") === "on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} } },
       });
       profile = p;
-      toast("Saved.");
+      drawer.close();renderHome();toast("Pilot saved. Ready for takeoff.");
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -193,6 +224,7 @@ function renderHome(): void {
   app.querySelector("#more")!.addEventListener("click", () => void loadHistory(false));
 
   void loadRooms();
+  if(roomPoll!==undefined)clearInterval(roomPoll);
   roomPoll = window.setInterval(() => void loadRooms(), 4000);
   historyCursor = null;
   void loadHistory(true);
@@ -205,12 +237,12 @@ async function loadRooms(): Promise<void> {
     const { rooms } = await api<{ rooms: RoomListing[] }>("/api/rooms");
     list.innerHTML =
       rooms.length === 0
-        ? `<li class="muted">No open rooms. Quick play makes one.</li>`
+        ? `<li class="room-empty"><b>The runway is clear.</b><span>No public rooms yet. Quick play opens one for other pilots to join.</span></li>`
         : rooms
             .map(
-              (r) => `<li class="room-row">
-                <span><b>${esc(r.name)} ${r.hasPassword?"🔒":""}</b><small>${MODE_NAMES[r.mode]} · ${esc(mapName(r.map))} · ${r.state === "playing" ? "in a match" : r.state}</small></span>
-                <span class="count">${r.players}/${r.capacity}</span>
+              (r) => `<li class="room-row room-card">
+                <span><b>${esc(r.name)} <span class="room-status ${r.state}">${r.players>=r.capacity?"FULL":r.state==="playing"?"LIVE":r.state==="results"?"REMATCH":"LOBBY"}</span></b><small>${MODE_NAMES[r.mode]} · ${esc(mapName(r.map))} · ${r.hasPassword?"Password required":"Open entry"}</small></span>
+                <span class="count"><b>${r.players}/${r.capacity}</b><small>pilots</small></span>
                 <span class="room-join"><button data-code="${r.code}" data-password="${!!r.hasPassword}" ${r.players >= r.capacity ? "disabled" : ""}>Join</button><button data-watch="${r.code}" data-password="${!!r.hasPassword}">Watch</button></span>
               </li>`,
             )
@@ -323,18 +355,27 @@ function renderLobby(): void {
   const me = r.members.find((m) => m.key === r.you);
   const s = r.settings;
   const teamMode = TEAM_MODES.includes(s.mode);
+  const pilots=r.members.filter(m=>m.connected&&!m.spectator);
+  const waiting=pilots.filter(m=>!m.host&&!m.ready);
+  let startReason="";
+  if(!pilots.length)startReason="At least one pilot must join the squad.";
+  else if(waiting.length)startReason="Waiting for "+waiting.map(m=>m.name).join(", ")+" to get ready.";
+  else if(s.mode!=="training"&&s.mode!=="survival"&&pilots.length+s.bots<2)startReason="Invite another pilot or add a bot to start.";
+  else if(pilots.length+s.bots>s.capacity&&s.mode!=="training"&&s.mode!=="survival")startReason="Reduce bots or increase capacity to fit the squad.";
+  else if(teamMode&&s.bots===0&&(!pilots.some(m=>m.team===0)||!pilots.some(m=>m.team===1)))startReason="Both teams need a pilot. Choose a team below.";
+  const readyCount=pilots.filter(m=>m.host||m.ready).length;
   const member = (m: RoomView["members"][number]) =>
     `<li class="${m.key === r.you ? "me" : ""}"><i class="dot" style="background:${hex(m.color)}"></i>${esc(m.name)}${m.host ? ' <span class="tag">host</span>' : ""}${
       m.spectator?' <span class="tag">spectator</span>':""}${
       m.connected ? "" : ' <span class="tag away">reconnecting</span>'
-    }${m.ready ? ' <span class="tag ready">ready</span>' : ""}</li>`;
+    }${m.spectator?'':m.host?' <span class="tag ready">host ready</span>':m.ready?' <span class="tag ready">ready</span>':' <span class="tag not-ready">not ready</span>'}</li>`;
   const membersHtml = teamMode
     ? `<div class="teams">${[0, 1]
         .map(
           (t) => `<div class="team" style="--team:${hex(TEAM_COLORS[t])}">
             <h3>${TEAM_NAMES[t]}</h3>
             <ul class="list">${r.members.filter((m) => m.team === t && !m.spectator).map(member).join("") || '<li class="muted">Nobody yet</li>'}</ul>
-            ${me && me.team !== t ? `<button data-team="${t}">Join ${TEAM_NAMES[t]}</button>` : ""}
+            ${me && !me.spectator && me.team !== t ? `<button data-team="${t}">Join ${TEAM_NAMES[t]}</button>` : ""}
           </div>`,
         )
         .join("")}</div>`
@@ -345,26 +386,27 @@ function renderLobby(): void {
   app.innerHTML = `
     <header class="lobby-head">
       <div>
-        <h1>${esc(r.name)}</h1>
+        <span class="eyebrow">SQUAD LOBBY · ${host?"YOU ARE THE HOST":"CHOOSE A TEAM & GET READY"}</span><h1>${esc(r.name)}</h1>
         <p class="muted">${MODE_NAMES[s.mode]} on ${esc(mapName(s.map))} · ${r.isPublic ? "listed publicly" : "private"}</p>
       </div>
       <div class="invite">
         <span>Room code <b class="code">${r.code}</b></span>
-        <button id="copy">Copy invite link</button>
+        <button id="copy">Copy invite link</button><small>${r.hasPassword?"Password protected · share the password separately":"Share this code or link with your crew"}</small>
       </div>
     </header>
     <main class="lobby">
       <section class="card members">
-        <h2>Pilots <small>${r.members.filter(m=>!m.spectator).length}/${s.capacity}${s.bots ? ` + ${s.bots} bot${s.bots > 1 ? "s" : ""}` : ""}</small></h2>
+        <div class="lobby-readiness" role="status"><b>${readyCount}/${pilots.length} pilots ready</b><span>${startReason?esc(startReason):host?"Your squad is ready. Start when you are.":"Ready for takeoff. Waiting for the host."}</span></div><h2>Pilots <small>${r.members.filter(m=>!m.spectator).length}/${s.capacity}${s.bots ? ` + ${s.bots} bot${s.bots > 1 ? "s" : ""}` : ""}</small></h2>
         ${membersHtml}
         ${teamMode?`<ul class="list">${r.members.filter(m=>m.spectator).map(member).join("")}</ul>`:""}
+        ${s.bots?'<p class="bot-summary">＋ '+s.bots+' '+s.botDifficulty+' bot'+(s.bots===1?'':'s')+' will join when the round starts.</p>':""}
         <div class="row">
           <button id="spectate">${me?.spectator?"Join as pilot":"Spectate"}</button>
-          <button id="ready" ${me?.spectator?"disabled":""} class="${me?.ready ? "on" : ""}" aria-pressed="${me?.ready ? "true" : "false"}">${me?.ready ? "Ready ✓" : "I'm ready"}</button>
+          <button id="ready" ${me?.spectator||host?"disabled":""} class="${me?.ready ? "on" : ""}" aria-pressed="${me?.ready ? "true" : "false"}">${host?"Host is ready":me?.ready ? "Ready ✓ · click to unready" : "I'm ready"}</button>
         </div>
       </section>
       <section class="card settings">
-        <h2>Room settings ${host ? "" : '<small>(set by the host)</small>'}</h2>
+        <div class="section-heading"><span class="eyebrow">${host?"YOUR ROOM, YOUR RULES":"HOST’S ROOM RULES"}</span><h2>Mission briefing</h2></div><div class="lobby-map-preview">${arenaPreview(s.map)}<b>${esc(mapName(s.map))}</b></div><p class="mode-brief">${s.mode==="flag"?"Carry your own team’s flag to the opposing goal. Dropped flags stay where they land.":s.mode==="survival"?"Hold out together. Defeat each wave to revive fallen teammates.":s.mode==="training"?"Explore, practise flight and try equipment against bots.":s.mode==="tdm"?"Two teams. Most enemy eliminations wins.":"Every pilot for themselves. Most eliminations wins."}</p>
         <div class="settings-grid">
           ${settingSelect("mode", AVAILABLE_MODES.map((m) => [m, MODE_NAMES[m]]), s.mode, dis)}
           ${settingSelect("map", Object.values(MAPS).filter(m=>s.mode==="training"||m.id!=="test-range").map((m) => [m.id, m.name]), s.map, dis)}
@@ -373,6 +415,8 @@ function renderLobby(): void {
           ${settingSelect("scoreLimit", [0, 10, 20, 30, 50].map((n) => [n, n === 0 ? "None" : `${n}`]), s.scoreLimit, dis)}
           ${settingSelect("bots", Array.from({ length: s.mode === "training" ? 4 : 8 }, (_, i) => [i, `${i}`]), s.bots, dis)}
           ${settingSelect("botDifficulty", [["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"]], s.botDifficulty, dis)}
+        </div><p class="bot-explainer">Easy gives you breathing room. Normal reacts faster; Hard is a sharper challenge.</p>
+        <details class="advanced-rules"><summary>Advanced movement & combat</summary><div class="settings-grid">
           ${settingSelect("respawnSec", [1, 2, 3, 5, 10].map((n) => [n, `${n} s`]), s.respawnSec, dis)}
           ${settingSelect("gravity", multOpts, s.gravity, dis)}
           ${settingSelect("moveSpeed", multOpts, s.moveSpeed, dis)}
@@ -389,14 +433,15 @@ function renderLobby(): void {
           ${settingCheck("friendlyFire", s.friendlyFire, dis || !teamMode)}
           ${settingCheck("mapPickups", s.mapPickups, dis)}
         </div>
+        </details>
         ${arsenalSettings(s,dis)}
-        <div class="preset-controls"><label>Saved preset <select id="presets"><option value="">Choose a preset</option>${presets.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select></label><div class="row"><button id="apply-preset" ${dis?"disabled":""}>Apply preset</button><button id="save-preset">Save current rules</button><button id="delete-preset">Delete preset</button></div></div>
+        <details class="preset-controls"><summary>Saved rule presets</summary><label>Saved preset <select id="presets"><option value="">Choose a preset</option>${presets.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select></label><div class="row"><button id="apply-preset" ${dis?"disabled":""}>Apply preset</button><button id="save-preset">Save current rules</button><button id="delete-preset">Delete preset</button></div></details>
       </section>
       <section class="card room-chat"><h2>Room chat</h2>${chatMarkup()}</section>
     </main>
-    <div class="lobby-actions">
-      <button id="leave" class="danger">Leave</button>
-      ${host ? `<button id="start" class="primary big">Start round</button>` : `<span class="muted">Waiting for the host to start…</span>`}
+    <div class="lobby-actions lobby-launch">
+      <button id="leave" class="danger">Leave room</button><p id="start-status" role="status">${startReason?esc(startReason):host?"Squad ready. The arena is waiting.":"Ready? The host will launch the round."}</p>
+      ${host ? `<button id="start" class="primary big" ${startReason?"disabled":""} aria-describedby="start-status">Start round ↗</button>` : `<span class="tag">Host starts the round</span>`}
     </div>`;
 
   for(const d of app.querySelectorAll<HTMLDetailsElement>("details"))if(openDetails.includes(d.querySelector("summary")?.textContent))d.open=true;
@@ -589,7 +634,8 @@ function avatarSelect(name:"helmet"|"face"|"emblem",values:string[]):string {
   return '<label>'+name[0].toUpperCase()+name.slice(1)+'<select name="'+name+'">'+values.map(v=>'<option value="'+v+'" '+(v===chosen?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join("")+'</select></label>';
 }
 function dialog(title:string,body:string):HTMLDialogElement {
-  document.querySelector("dialog")?.remove();
+  for(const existing of document.querySelectorAll<HTMLDialogElement>("dialog[open]"))existing.close();
+  document.querySelector("dialog:not(#profile-drawer)")?.remove();
   const d=document.createElement("dialog");d.className="app-dialog";
   d.innerHTML='<div class="dialog-head"><h2>'+esc(title)+'</h2><button data-close aria-label="Close dialog">×</button></div>'+body;
   document.body.append(d);d.querySelector("[data-close]")!.addEventListener("click",()=>d.close());
@@ -601,15 +647,15 @@ function openJoinDialog(code:string,spectate:boolean):void {
 }
 function openBindings():void {
   let current=bindingsOf(profile.prefs.bindings);
-  const d=dialog("Keyboard controls",'<p class="muted">Select an action, then press its new key. Mouse aiming and mouse buttons stay available.</p><div class="bindings-grid"></div><div class="row"><button data-reset>Restore defaults</button><button data-save class="primary">Save controls</button></div><p class="muted small">Keyboard-only: arrow keys aim, J fires, Z zooms. Every key can be reassigned below.</p>');
+  const d=dialog("Keyboard controls",'<p class="muted">Select an action, then press its new key. Mouse aiming and mouse buttons stay available.</p><div class="bindings-grid"></div><div class="row"><button data-reset>Restore defaults</button><button data-save class="primary">Save controls</button></div><p class="muted small">Hold Num 2/4/6/8 to aim and fire. Arrow keys aim without firing. Combine directions for diagonals. 1/2/3 select, Tab cycles, B shows scores. Mouse remains available.</p>');
   let capture:((e:KeyboardEvent)=>void)|null=null;
   const cancelCapture=()=>{if(capture)d.removeEventListener("keydown",capture,true);capture=null;};
   d.addEventListener("close",cancelCapture);
   const paint=()=>{
     cancelCapture();
     d.querySelector(".bindings-grid")!.innerHTML=Object.entries(ACTION_LABELS).map(([n,name])=>{
-      const key=Object.entries(current).find(([,bit])=>bit===Number(n))?.[0];
-      return '<div><span>'+name+'</span><button data-action="'+n+'">'+(key?keyLabel(key):"Unbound")+'</button></div>';
+      const key=Object.entries(current).filter(([,bit])=>bit===Number(n)).map(([key])=>keyLabel(key)).join(" / ");
+      return '<div><span>'+name+'</span><button data-action="'+n+'">'+(key||"Unbound")+'</button></div>';
     }).join("");
     for(const b of d.querySelectorAll<HTMLButtonElement>("[data-action]"))b.onclick=()=>{
       cancelCapture();
@@ -617,7 +663,7 @@ function openBindings():void {
       b.textContent="Press a key…";
       const handler=(e:KeyboardEvent)=>{
         e.preventDefault();e.stopPropagation();
-        if(!/^(Key[A-Z]|Digit[0-9]|Arrow(Left|Right|Up|Down)|Space|Enter|Tab|Escape|ShiftLeft|ShiftRight|ControlLeft|ControlRight|AltLeft|AltRight|Backspace|BracketLeft|BracketRight|Comma|Period|Slash|Semicolon|Quote|Minus|Equal)$/.test(e.code)) {b.textContent="Choose a letter / action key";return;}
+        if(!BINDABLE_CODE.test(e.code)) {b.textContent="Choose a letter / action key";return;}
         const action=Number(b.dataset.action);
         const previous=Object.entries(current).find(([,n])=>n===action)?.[0];
         const replaced=current[e.code];
@@ -650,27 +696,28 @@ async function showMatch(id:string):Promise<void> {
 }
 function arsenalSettings(s:RoomSettings,disabled:boolean):string {
   const disabledAttr=disabled?"disabled":"";
-  return '<details class="arsenal-settings"><summary>Arsenal & starting loadout</summary><div class="settings-grid">'+[0,1].map(i=>'<label>Starting slot '+(i+1)+'<select data-loadout="'+i+'" '+disabledAttr+'>'+(i===1?'<option value="">Empty</option>':'')+s.weapons.map(id=>'<option value="'+id+'" '+(s.loadout[i]===id?'selected':'')+'>'+esc(weaponName(id))+'</option>').join("")+'</select></label>').join("")+'</div><h3 class="small">Allowed weapons</h3><div class="allowlist">'+Object.values(WEAPONS).map(w=>'<label class="check"><input type="checkbox" data-weapon="'+w.id+'" '+(s.weapons.includes(w.id)?"checked":"")+' '+disabledAttr+'>'+weaponIcon(w.id)+esc(w.name)+'</label>').join("")+'</div><h3 class="small">Allowed throwables</h3><div class="checks">'+Object.values(THROWABLES).map(t=>'<label class="check"><input type="checkbox" data-throwable="'+t.id+'" '+(s.throwables.includes(t.id)?"checked":"")+' '+disabledAttr+'>'+esc(t.name)+'</label>').join("")+'</div></details>';
+  return '<details class="arsenal-settings"><summary>Arsenal & starting loadout</summary><div class="settings-grid">'+[0,1,2].map(i=>'<label>Starting slot '+(i+1)+'<select data-loadout="'+i+'" '+disabledAttr+'>'+(i>0?'<option value="">Empty</option>':'')+s.weapons.map(id=>'<option value="'+id+'" '+(s.loadout[i]===id?'selected':'')+'>'+esc(weaponName(id))+'</option>').join("")+'</select></label>').join("")+'</div><h3 class="small">Allowed weapons</h3><div class="allowlist">'+Object.values(WEAPONS).map(w=>'<label class="check"><input type="checkbox" data-weapon="'+w.id+'" '+(s.weapons.includes(w.id)?"checked":"")+' '+disabledAttr+'>'+weaponIcon(w.id)+esc(w.name)+'</label>').join("")+'</div><h3 class="small">Allowed throwables</h3><div class="checks">'+Object.values(THROWABLES).map(t=>'<label class="check"><input type="checkbox" data-throwable="'+t.id+'" '+(s.throwables.includes(t.id)?"checked":"")+' '+disabledAttr+'>'+esc(t.name)+'</label>').join("")+'</div></details>';
 }
 function bindArsenal(root:ParentNode,initial:RoomSettings):void {
   const current=()=>room?.nextSettings??room?.settings??initial;
-  // Read both displayed slots, so rapid edits are retained even before the
+  // Read all three displayed slots, so rapid edits are retained even before the
   // server acknowledges the previous field. Never reuse the modal's opening
   // loadout for a later change.
-  const selectedLoadout=():[string,string|null]=>{
+  const selectedLoadout=():RoomSettings["loadout"]=>{
     const first=root.querySelector<HTMLSelectElement>('[data-loadout="0"]');
     const second=root.querySelector<HTMLSelectElement>('[data-loadout="1"]');
-    return [first?.value??current().loadout[0],second?second.value||null:current().loadout[1]];
+    const third=root.querySelector<HTMLSelectElement>('[data-loadout="2"]');
+    return [first?.value??current().loadout[0],second?second.value||null:current().loadout[1],third?third.value||null:current().loadout[2]];
   };
   for(const input of root.querySelectorAll<HTMLInputElement>("[data-weapon],[data-throwable]"))input.addEventListener("change",()=>{
     const weapons=[...root.querySelectorAll<HTMLInputElement>("[data-weapon]:checked")].map(e=>e.dataset.weapon!);
     const throwables=[...root.querySelectorAll<HTMLInputElement>("[data-throwable]:checked")].map(e=>e.dataset.throwable!);
     if(!weapons.length){input.checked=true;toast("Keep at least one weapon available.");return;}
     const previous=selectedLoadout();
-    const loadout:[string,string|null]=[weapons.includes(previous[0])?previous[0]:weapons[0],previous[1]&&weapons.includes(previous[1])?previous[1]:null];
+    const loadout:RoomSettings["loadout"]=[weapons.includes(previous[0])?previous[0]:weapons[0],previous[1]&&weapons.includes(previous[1])?previous[1]:null,previous[2]&&weapons.includes(previous[2])?previous[2]:null];
     for(const select of root.querySelectorAll<HTMLSelectElement>("[data-loadout]")) {
-      const i=Number(select.dataset.loadout) as 0|1;
-      select.innerHTML=(i===1?'<option value="">Empty</option>':'')+weapons.map(id=>'<option value="'+id+'">'+esc(weaponName(id))+'</option>').join("");
+      const i=Number(select.dataset.loadout) as 0|1|2;
+      select.innerHTML=(i>0?'<option value="">Empty</option>':'')+weapons.map(id=>'<option value="'+id+'">'+esc(weaponName(id))+'</option>').join("");
       select.value=loadout[i]??"";
     }
     net.send({t:"settings",settings:{weapons,throwables,loadout}});

@@ -39,6 +39,22 @@ describe("profile and saved room API", () => {
     expect((await p.http("/api/presets/" + id, { method: "DELETE" })).status).toBe(200);
     expect((await p.http<any>("/api/me/weapons")).body.weapons).toEqual([]);
   });
+  it("round-trips legacy loadouts as three slots and accepts the third-slot keyboard binding", async () => {
+    const p = new TestPlayer(baseUrl); await p.visit();
+    const saved = await p.http<any>("/api/presets", { method: "POST", body: {
+      name: "Older two-slot preset", settings: { loadout: ["magnum", "m4"] },
+    } });
+    expect(saved.status).toBe(201);
+    expect(saved.body.preset.settings.loadout).toEqual(["magnum", "m4", null]);
+    const loaded = await p.http<any>("/api/presets");
+    expect(loaded.body.presets[0].settings.loadout).toEqual(["magnum", "m4", null]);
+    expect((await p.http("/api/me", { method: "PATCH", body: {
+      prefs: { bindings: { Numpad6: -9, Digit3: 65536, Backquote: -2 } },
+    } })).status).toBe(200);
+    const profile = await p.http<any>("/api/me");
+    expect(profile.body.profile.prefs.bindings.Digit3).toBe(65536);
+    await p.http("/api/presets/" + saved.body.preset.id, { method: "DELETE" });
+  });
   it("protects password rooms and lets a spectator watch without occupying a fighter slot", async () => {
     const host = new TestPlayer(baseUrl), watcher = new TestPlayer(baseUrl);
     await host.visit(); await watcher.visit();

@@ -59,14 +59,14 @@ describe("touch input cleanup", () => {
     expect(input.buttons()).toBe(0);
     expect([...captures.values()].every((set) => set.size === 0)).toBe(true);
     pointer(".stick.right", "pointerdown", 2);
-    expect(input.buttons()).toBe(Btn.FIRE);
+    expect(input.buttons()).toBe((Btn.FIRE | Btn.CONTINUOUS_FIRE));
   });
 
   it("menu-style input clearing resets grenade buttons, sticks and latched zoom", () => {
     pointer(`[data-b="${Btn.THROW}"]`, "pointerdown", 1);
     pointer(".stick.right", "pointerdown", 2);
     root.querySelector<HTMLButtonElement>("[data-zoom]")!.click();
-    expect(input.buttons()).toBe(Btn.THROW | Btn.FIRE);
+    expect(input.buttons()).toBe(Btn.THROW | (Btn.FIRE | Btn.CONTINUOUS_FIRE));
     expect(zoom).toHaveBeenLastCalledWith(true);
     input.clear();
     expect(input.buttons()).toBe(0);
@@ -80,9 +80,9 @@ describe("touch input cleanup", () => {
   it("losing one stick's capture clears that stick while preserving the other", () => {
     pointer(".stick.left", "pointerdown", 1);
     pointer(".stick.right", "pointerdown", 2);
-    expect(input.buttons()).toBe(Btn.RIGHT | Btn.FIRE);
+    expect(input.buttons()).toBe(Btn.RIGHT | (Btn.FIRE | Btn.CONTINUOUS_FIRE));
     root.querySelector<HTMLElement>(".stick.left")!.releasePointerCapture(1);
-    expect(input.buttons()).toBe(Btn.FIRE);
+    expect(input.buttons()).toBe((Btn.FIRE | Btn.CONTINUOUS_FIRE));
     root.querySelector<HTMLElement>(".stick.right")!.releasePointerCapture(2);
     expect(input.buttons()).toBe(0);
   });
@@ -94,7 +94,18 @@ describe("touch input cleanup", () => {
     document.dispatchEvent(new dom.window.Event("visibilitychange"));
     expect(input.buttons()).toBe(0);
     pointer(".stick.right", "pointerdown", 3);
-    expect(input.buttons()).toBe(Btn.FIRE);
+    expect(input.buttons()).toBe((Btn.FIRE | Btn.CONTINUOUS_FIRE));
+  });
+
+  it("retains short action taps until a simulation sample, then releases them", () => {
+    for(const bit of [Btn.SLOT1,Btn.SLOT2,Btn.SLOT3,Btn.RELOAD,Btn.THROW,Btn.NEXT_THROWABLE,Btn.SWITCH,Btn.DUAL,Btn.PICKUP,Btn.DROP,Btn.MELEE,Btn.JUMP]) {
+      pointer(`[data-b="${bit}"]`,"pointerdown",1);
+      pointer(`[data-b="${bit}"]`,"pointerup",1);
+      // Render-time aim reads must not consume an action before the fixed tick.
+      input.updateAim({x:0,y:0});
+      expect(input.sampleButtons()).toBe(bit);
+      expect(input.sampleButtons()).toBe(0);
+    }
   });
 
   it("destroy unsubscribes the control reset listener", () => {

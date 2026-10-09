@@ -1,7 +1,8 @@
 # Agent rules for Jet Skirmish
 
 These rules come from the agreed plan in `docs/IMPLEMENTATION_PLAN.md`. If a
-rule here and the plan disagree, the plan wins; ask before changing either.
+rule here and the plan disagree, the plan wins. Later direct user instructions
+take precedence; the current authorized amendment is docs/REVISION_2026_10_10.md.
 
 ## Before working
 
@@ -57,5 +58,6 @@ rule here and the plan disagree, the plan wins; ask before changing either.
 
 - The Fly token lives in `mise.local.toml` (gitignored). Never print it,
   commit it, or put it in a command line that gets logged.
-- Commit as you go, with descriptive messages. The repo stays private until the
-  crit cutoff.
+- Commit as you go, with descriptive messages. The user already published the
+  repository and created crit-8 at e6b4df4. Preserve visibility and that immutable
+  cutoff tag; later work must not be represented as the Crit 8 state.

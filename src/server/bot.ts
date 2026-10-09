@@ -4,8 +4,15 @@ import { isTeamMode, muzzleOf, type Player, rng, type World } from "../shared/si
 import { Btn, type BotDifficulty, type InputFrame } from "../shared/types.ts";
 import { WEAPONS } from "../shared/weapons.ts";
 
-const AIM_ERROR: Record<BotDifficulty, number> = { easy: 0.3, normal: 0.14, hard: 0.06 };
-const REACTION_TICKS: Record<BotDifficulty, number> = { easy: 40, normal: 22, hard: 10 };
+// Errors persist across a burst instead of averaging away every tick. Values
+// are authored practice tuning, with limited sight and turning at every level.
+export const BOT_TUNING: Record<BotDifficulty, {
+  reaction: number; turn: number; error: number; burst: number; pause: number; sight: number;
+}> = {
+  easy: { reaction: 60, turn: 1.4, error: .34, burst: 24, pause: 84, sight: 650 },
+  normal: { reaction: 42, turn: 2.3, error: .19, burst: 39, pause: 57, sight: 850 },
+  hard: { reaction: 24, turn: 3.3, error: .09, burst: 57, pause: 36, sight: 1100 },
+};
 
 // A simple practice opponent. It reads the authoritative world directly and
 // produces the same InputFrame a human client would, so it obeys every rule.
@@ -13,9 +20,12 @@ export class Bot {
   private seq = 0;
   private aim = 0;
   private seenSince = -1;
+  private targetId: number | null = null;
+  private burstEnd = 0;
+  private nextBurst = 0;
+  private aimError = 0;
   private wanderTarget = 0;
   private strafe = 1;
-  private prev = 0;
   private route: { x: number; y: number }[] = [];
   private nextPlan = 0;
   private lastX = 0;
@@ -32,9 +42,16 @@ export class Bot {
   think(w: World): InputFrame {
     const me = w.players.get(this.playerId);
     const frame: InputFrame = { seq: ++this.seq, b: 0, aim: this.aim };
-    if (!me || !me.alive) return frame;
+    if (!me || !me.alive) {
+      this.targetId = null;
+      this.seenSince = -1;
+      this.burstEnd = 0;
+      return frame;
+    }
 
-    const target = this.pickTarget(w, me);
+    const tuning = BOT_TUNING[this.difficulty];
+    const blinded = w.tick < me.flashUntil;
+    const target = blinded ? null : this.pickTarget(w, me);
     let b = 0;
     let goalX: number;
     let goalY: number;
@@ -42,30 +59,39 @@ export class Bot {
 
     if (target) {
       const ty = target.y - 26;
-      const visible = lineOfSight(w.map, muzzle.x, muzzle.y, target.x, ty);
+      if (this.targetId !== target.id) {
+        this.targetId = target.id;
+        this.seenSince = w.tick;
+        this.nextBurst = w.tick + tuning.reaction;
+        this.burstEnd = 0;
+        this.aimError = (rng(w) < .5 ? -1 : 1) * tuning.error * (.6 + rng(w) * .4);
+      }
+      const reacted = w.tick - this.seenSince >= tuning.reaction;
+      if (reacted && w.tick >= this.nextBurst) {
+        this.burstEnd = w.tick + tuning.burst;
+        this.nextBurst = this.burstEnd + tuning.pause;
+        this.aimError = (rng(w) < .5 ? -1 : 1) * tuning.error * (.6 + rng(w) * .4);
+      }
       const want = Math.atan2(ty - muzzle.y, target.x - muzzle.x);
-      const err = (rng(w) - 0.5) * AIM_ERROR[this.difficulty];
-      this.aim = lerpAngle(this.aim, want + err, 0.25);
+      this.aim = turnTowards(this.aim, want + this.aimError, tuning.turn / 60);
       goalX = target.x + this.strafe * 160;
       goalY = target.y;
-      if (w.tick % 120 === 0) this.strafe = rng(w) < 0.5 ? -1 : 1;
-
-      if (visible) {
-        if (this.seenSince < 0) this.seenSince = w.tick;
-      } else this.seenSince = -1;
+      if (w.tick % 120 === 0) this.strafe = rng(w) < .5 ? -1 : 1;
 
       const slot = me.slots[me.active];
       const dist = Math.hypot(target.x - me.x, target.y - me.y);
-      const reacted = this.seenSince >= 0 && w.tick - this.seenSince >= REACTION_TICKS[this.difficulty];
-      if (slot && reacted && dist < WEAPONS[slot.weapon].range * 0.9) {
-        const def = WEAPONS[slot.weapon];
-        // semi-automatic weapons need a fresh press each shot
-        if (def.auto || !(this.prev & Btn.FIRE)) b |= Btn.FIRE;
+      const aligned = Math.abs(angleDelta(this.aim, want)) < .5;
+      if (slot && reacted && aligned && w.tick < this.burstEnd && dist < WEAPONS[slot.weapon].range * .9) {
+        b |= Btn.FIRE | Btn.CONTINUOUS_FIRE;
       }
       if (slot && slot.mag === 0) b |= Btn.RELOAD;
-      if (reacted && dist < 320 && dist > 120 && (me.throwables.frag ?? 0) > 0 && rng(w) < 0.004) b |= Btn.THROW;
-      if (slot && slot.mag === 0 && slot.reserve === 0 && me.slots[1 - me.active]) b |= Btn.SWITCH;
+      if (reacted && dist < 320 && dist > 120 && (me.throwables.frag ?? 0) > 0 &&
+          rng(w) < (this.difficulty === "easy" ? .0005 : this.difficulty === "normal" ? .001 : .002)) b |= Btn.THROW;
+      if (slot && slot.mag === 0 && slot.reserve === 0 && me.slots.some((other, i) => i !== me.active && other && (other.mag > 0 || other.reserve > 0))) b |= Btn.SWITCH;
     } else {
+      this.seenSince = -1;
+      this.targetId = null;
+      this.burstEnd = 0;
       const nodes = w.map.navNodes;
       if (nodes.length === 0) return frame;
       let node = nodes[this.wanderTarget % nodes.length];
@@ -75,8 +101,8 @@ export class Bot {
       }
       goalX = node.x;
       goalY = node.y;
-      this.aim = lerpAngle(this.aim, node.x > me.x ? 0 : Math.PI, 0.1);
-      this.seenSince = -1;
+      // With no visible target, turn only toward navigation, never its hidden position.
+      this.aim = turnTowards(this.aim, node.x > me.x ? 0 : Math.PI, tuning.turn / 60);
     }
 
     if (w.settings.mode === "flag" && me.team !== -1) {
@@ -110,7 +136,6 @@ export class Bot {
 
     frame.b = b;
     frame.aim = this.aim;
-    this.prev = b;
     return frame;
   }
 
@@ -158,6 +183,8 @@ export class Bot {
       if (o === me || !o.alive) continue;
       if ((isTeamMode(w.settings) || w.settings.mode === "survival") && o.team === me.team) continue;
       const d = Math.hypot(o.x - me.x, o.y - me.y);
+      const muzzle = muzzleOf(me);
+      if (d > BOT_TUNING[this.difficulty].sight || !lineOfSight(w.map, muzzle.x, muzzle.y, o.x, o.y - 26)) continue;
       if (d < bestD) {
         bestD = d;
         best = o;
@@ -167,7 +194,8 @@ export class Bot {
   }
 }
 
-function lerpAngle(a: number, b: number, t: number): number {
-  const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
-  return a + d * t;
+function angleDelta(a: number, b: number): number { return Math.atan2(Math.sin(b - a), Math.cos(b - a)); }
+function turnTowards(a: number, b: number, maximum: number): number {
+  const d = angleDelta(a, b);
+  return a + Math.max(-maximum, Math.min(maximum, d));
 }

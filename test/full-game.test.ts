@@ -144,14 +144,14 @@ describe("complete arsenal", () => {
   const guns = Object.values(WEAPONS).filter((d) => d.category !== "equipment");
   it("contains all twenty-one firearms and both equipment items", () => {
     expect(guns).toHaveLength(21);
-    expect(Object.keys(THROWABLES)).toEqual(["frag", "gas", "emp", "mine"]);
+    expect(Object.keys(THROWABLES)).toEqual(["frag", "flash", "gas", "emp", "mine"]);
   });
 
   it.each(guns.map((d) => d.id))("%s fires, spends its own ammunition and damages an enemy", (id) => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
     const b = player(w, -1, { x: 350, y: 900 });
-    a.slots = [freshSlot(id), null];
+    a.slots = [freshSlot(id), null, null];
     run(w, 1, () => hold(a.id, Btn.FIRE));
     expect(a.slots[0]!.mag).toBe(WEAPONS[id].mag - 1);
     run(w, 150);
@@ -166,7 +166,7 @@ describe("complete arsenal", () => {
     const b = player(w, -1, { x: 400, y: 900 });
     const c = player(w, -1, { x: 600, y: 900 });
     const behindWall = player(w, -1, { x: 1100, y: 900 });
-    a.slots = [freshSlot("phasr"), null];
+    a.slots = [freshSlot("phasr"), null, null];
     run(w, 1, () => hold(a.id, Btn.FIRE));
     expect(b.hp).toBe(82);
     expect(c.hp).toBe(82);
@@ -178,7 +178,7 @@ describe("complete arsenal", () => {
       const w = world({ mode: "ffa" });
       const a = player(w, -1, { x: 200, y: 900 });
       const b = player(w, -1, { x: 400, y: 900 });
-      a.slots = [freshSlot(weapon), null];
+      a.slots = [freshSlot(weapon), null, null];
       run(w, 1);
       const view = w.tick;
       b.y = 500;
@@ -192,7 +192,7 @@ describe("complete arsenal", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
     const b = player(w, -1, { x: 400, y: 900 });
-    a.slots = [freshSlot("phasr"), null];
+    a.slots = [freshSlot("phasr"), null, null];
     run(w, 1);
     b.y = 500;
     run(w, 12);
@@ -228,7 +228,7 @@ describe("complete arsenal", () => {
   it("dual slots have independent firing cooldowns and reload state", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
-    a.slots = [{ ...freshSlot("mini-eagle"), mag: 1 }, freshSlot("uzi")];
+    a.slots = [{ ...freshSlot("mini-eagle"), mag: 1 }, freshSlot("uzi"), null];
     run(w, 1, () => hold(a.id, Btn.DUAL | Btn.FIRE, -Math.PI / 2));
     expect(a.dual).toBe(true);
     expect(a.slots[0]!.reloadEnd).toBeGreaterThan(w.tick);
@@ -243,7 +243,7 @@ describe("complete arsenal", () => {
   it("switching never resets a weapon's firing cooldown and heavy weapons cannot dual wield", () => {
     const w = world({ mode: "ffa" });
     const a = player(w);
-    a.slots = [freshSlot("mini-eagle"), freshSlot("uzi")];
+    a.slots = [freshSlot("mini-eagle"), freshSlot("uzi"), null];
     stepWorld(w, hold(a.id, Btn.FIRE, -Math.PI / 2));
     stepWorld(w, hold(a.id, Btn.SLOT2));
     stepWorld(w, hold(a.id, Btn.SLOT1 | Btn.FIRE, -Math.PI / 2));
@@ -258,7 +258,7 @@ describe("complete arsenal", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
     const b = player(w, -1, { x: 400, y: 900 });
-    b.slots = [freshSlot("riot-shield"), freshSlot("mini-eagle")];
+    b.slots = [freshSlot("riot-shield"), freshSlot("mini-eagle"), null];
     b.dual = true; b.aim = Math.PI;
     expect(applyDamage(w, b, a.id, 20, "ak47")).toBeCloseTo(3);
     b.aim = 0;
@@ -271,7 +271,7 @@ describe("complete arsenal", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
     const b = player(w, -1, { x: 245, y: 900 });
-    a.slots = [freshSlot("machete"), null];
+    a.slots = [freshSlot("machete"), null, null];
     run(w, 1, () => hold(a.id, Btn.FIRE));
     expect(b.hp).toBe(30);
     expect(a.slots[0]!.mag).toBe(0);
@@ -303,7 +303,7 @@ describe("throwable effects", () => {
     const a = player(w, 0, { x: 200, y: 900 });
     const b = player(w, 1, { x: 400, y: 900 });
     const mate = player(w, 0, { x: 420, y: 900 });
-    a.slots = [freshSlot("emp-gun"), null];
+    a.slots = [freshSlot("emp-gun"), null, null];
     run(w, 1, () => hold(a.id, Btn.FIRE));
     expect(b.empUntil).toBeGreaterThan(w.tick);
     run(w, 30, () => hold(b.id, Btn.JET));
@@ -418,12 +418,12 @@ describe("survival and replicated state", () => {
     expect(disconnected.over).toBe(false);
   });
 
-  it("snapshots carry both slots, grenade selection, effects, flags and survival without aliases", () => {
+  it("snapshots carry all three slots, grenade selection, effects, flags and survival without aliases", () => {
     const w = flagWorld();
     const a = player(w);
     a.empUntil = 99;
     const snap = snapshot(w, []);
-    expect(snap.players[0].slots).toHaveLength(2);
+    expect(snap.players[0].slots).toHaveLength(3);
     expect(snap.players[0].throwable).toBe("frag");
     expect(snap.players[0].emp).toBe(99);
     expect(snap.flags).toHaveLength(2);
@@ -437,7 +437,7 @@ describe("survival and replicated state", () => {
     const a = world({ mode: "ffa" }), b = world({ mode: "ffa" });
     for (const w of [a, b]) {
       addPlayer(w, { id: 20, key: "same", name: "Same", team: -1, color: 0, bot: false });
-      const p = w.players.get(20)!; p.slots = [freshSlot("rg6"), freshSlot("phasr")];
+      const p = w.players.get(20)!; p.slots = [freshSlot("rg6"), freshSlot("phasr"), null];
       run(w, 180, (tick) => hold(20, Btn.RIGHT | (tick % 60 === 0 ? Btn.FIRE | Btn.THROW : 0), -.4));
     }
     expect(snapshot(a, [])).toEqual(snapshot(b, []));
@@ -453,6 +453,6 @@ describe("survival and replicated state", () => {
   it("rejects prototype keys and keeps loadouts inside the weapon allowlist", () => {
     const settings = sanitizeSettings({ weapons: ["constructor", "smaw"], loadout: ["mini-eagle", "uzi"] });
     expect(settings.weapons).toEqual(["smaw"]);
-    expect(settings.loadout).toEqual(["smaw", null]);
+    expect(settings.loadout).toEqual(["smaw", null, null]);
   });
 });

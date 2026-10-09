@@ -1,5 +1,8 @@
 export type Mode = "ffa" | "tdm" | "training" | "flag" | "survival";
 export type Multiplier = 0.5 | 1 | 1.5 | 2;
+export type SlotIndex = 0 | 1 | 2;
+export type Loadout = [string, string | null, string | null];
+export type Inventory = [SlotState | null, SlotState | null, SlotState | null];
 export type Team = 0 | 1 | -1;
 export type BotDifficulty = "easy" | "normal" | "hard";
 
@@ -21,7 +24,7 @@ export interface RoomSettings {
   respawnSec: number;
   weapons: string[];
   throwables: string[];
-  loadout: [string, string | null];
+  loadout: Loadout;
   mapPickups: boolean;
   unlimitedAmmo: boolean;
   friendlyFire: boolean;
@@ -46,8 +49,11 @@ export const Btn = {
   SLOT2: 8192,
   NEXT_THROWABLE: 16384,
   DUAL: 32768,
+  SLOT3: 65536,
+  // Combined with FIRE by held keyboard aim-fire; mouse retains press-to-fire.
+  CONTINUOUS_FIRE: 131072,
 } as const;
-export const ALL_BUTTONS = 65535;
+export const ALL_BUTTONS = 262143;
 
 export interface InputFrame {
   seq: number;
@@ -85,6 +91,8 @@ export interface MapDefinition {
   name: string;
   width: number;
   height: number;
+  biome?: "jungle" | "snow" | "cavern" | "coast" | "range";
+  scenery?: Array<{ kind: "palm" | "pine" | "fern" | "bunker" | "crate" | "lantern" | "crystal" | "bones" | "bridge"; x: number; y: number; w?: number; h?: number; flip?: boolean }>;
   theme: { sky: number; rock: number; platform: number; accent: number };
   solids: Rect[];
   platforms: Rect[];
@@ -139,7 +147,7 @@ export interface ThrowableDefinition {
   minDamage: number;
   throwSpeed: number;
   bounce: number;
-  effect: "blast" | "gas" | "emp" | "mine";
+  effect: "blast" | "gas" | "emp" | "mine" | "flash";
   durationMs?: number;
   armMs?: number;
 }
@@ -219,8 +227,8 @@ export interface PlayerSnap {
   fuel: number;
   jc: number;
   dt: number;
-  s: [string | null, string | null];
-  a: 0 | 1;
+  s: [string | null, string | null, string | null];
+  a: SlotIndex;
   mag: number;
   res: number;
   rl: number;
@@ -229,8 +237,11 @@ export interface PlayerSnap {
   d: number;
   as: number;
   rs: number;
-  slots: [SlotState | null, SlotState | null];
+  slots: Inventory;
   dual: boolean;
+  dualSlot: SlotIndex | null;
+  flash: number;
+  flashStrength: number;
   throwable: string;
   throwables: Record<string, number>;
   emp: number;
@@ -266,6 +277,8 @@ export type GameEvent =
   | { t: "reload"; id: number }
   | { t: "flag"; owner: 0 | 1; action: "pickup" | "drop" | "return" | "delivery"; by: number | null }
   | { t: "wave"; wave: number }
+  | { t: "flash"; id: number; until: number; strength: number }
+  | { t: "flashbang"; x: number; y: number; r: number }
   | { t: "emp"; id: number; until: number }
   | { t: "shield"; id: number };
 

@@ -6,6 +6,8 @@ import {
   DROPPED_WEAPON_TTL_TICKS,
   DT,
   GRAVITY,
+  HEALTH_REGEN_DELAY_TICKS,
+  HEALTH_REGEN_INTERVAL_TICKS,
   LAG_COMP_MAX_TICKS,
   MAX_THROWABLES,
   MELEE_COOLDOWN_TICKS,
@@ -47,6 +49,8 @@ import {
   type Rect,
   type RoomSettings,
   type SlotState,
+  type SlotIndex,
+  type Inventory,
   type Team,
   type WorldSnapshot,
 } from "./types.ts";
@@ -65,8 +69,8 @@ export interface Player extends MoveState {
   alive: boolean;
   respawnTick: number;
   protectUntil: number;
-  slots: [SlotState | null, SlotState | null];
-  active: 0 | 1;
+  slots: Inventory;
+  active: SlotIndex;
   throwables: Record<string, number>;
   throwable: string;
   cooldownUntil: number;
@@ -82,6 +86,9 @@ export interface Player extends MoveState {
   reserved?: boolean;
   dual: boolean;
   empUntil: number;
+  flashUntil: number;
+  flashStrength: number;
+  regenAt: number;
   weaponStats: Record<string, WeaponStats>;
 }
 
@@ -234,7 +241,7 @@ export function addPlayer(
     alive: false,
     respawnTick: w.tick,
     protectUntil: 0,
-    slots: [null, null],
+    slots: [null, null, null],
     active: 0,
     throwables: {},
     throwable: "frag",
@@ -250,6 +257,9 @@ export function addPlayer(
     connected: true,
     dual: false,
     empUntil: 0,
+    flashUntil: 0,
+    flashStrength: 0,
+    regenAt: w.tick + HEALTH_REGEN_DELAY_TICKS,
     weaponStats: {},
   };
   if (w.settings.mode === "survival") p.team = p.bot ? 1 : 0;
@@ -301,10 +311,18 @@ export function respawn(w: World, p: Player): void {
     damageLog: [],
     dual: false,
     empUntil: 0,
+    flashUntil: 0,
+    flashStrength: 0,
+    regenAt: w.tick + HEALTH_REGEN_DELAY_TICKS,
     prevButtons: 0,
   });
-  p.slots = [freshSlot(s.loadout[0]), s.loadout[1] ? freshSlot(s.loadout[1]) : null];
-  p.throwables = s.throwables.includes("frag") ? { frag: DEFAULT_FRAGS } : {};
+  p.slots = [freshSlot(s.loadout[0]), s.loadout[1] ? freshSlot(s.loadout[1]) : null, s.loadout[2] ? freshSlot(s.loadout[2]) : null];
+  p.throwables = {};
+  // Give every enabled type a turn before granting a second; at most six total.
+  let remaining = MAX_THROWABLES;
+  for (let round = 0; round < 2; round++) for (const id of s.throwables) {
+    if (remaining > 0) { p.throwables[id] = (p.throwables[id] ?? 0) + 1; remaining--; }
+  }
   p.throwable = s.throwables.includes("frag") ? "frag" : (s.throwables[0] ?? "frag");
   w.events.push({ t: "spawn", id: p.id });
 }
@@ -314,7 +332,8 @@ function statsFor(p: Player, weapon: string): WeaponStats {
 }
 
 function shieldRaised(p: Player): boolean {
-  return p.slots.some((s, i) => s?.weapon === "riot-shield" && (i === p.active || p.dual));
+  const partner = p.dual ? dualPartner(p) : null;
+  return p.slots.some((s, i) => s?.weapon === "riot-shield" && (i === p.active || i === partner));
 }
 
 export function applyDamage(w: World, victim: Player, attackerId: number | null, amount: number, weapon: string): number {
@@ -334,6 +353,8 @@ export function applyDamage(w: World, victim: Player, attackerId: number | null,
   }
   const dealt = Math.min(victim.hp, amount);
   victim.hp -= dealt;
+  combat(w, victim);
+  if (attacker) combat(w, attacker);
   if (attacker && attacker !== victim) {
     victim.damageLog.push({ from: attacker.id, amount: dealt, tick: w.tick });
     const stats = statsFor(attacker, weapon);
@@ -424,17 +445,53 @@ function finishReload(w: World, slot: SlotState): void {
   slot.reloadEnd = 0;
 }
 
-function switchTo(p: Player, idx: 0 | 1): void {
+function switchTo(p: Player, idx: SlotIndex): void {
   if (idx === p.active || !p.slots[idx]) return;
-  // Single-weapon switching keeps its established reload cancellation; dual
-  // slots reload concurrently and never reset the other slot's cooldown.
   const cur = p.slots[p.active];
   if (cur && !p.dual) cur.reloadEnd = 0;
   p.active = idx;
+  if (!canDual(p)) p.dual = false;
 }
-export function canDual(p: Player): boolean {
-  return p.slots.every((slot) => slot !== null && WEAPONS[slot.weapon].oneHanded && !WEAPONS[slot.weapon].heavy)
-    && !p.slots.every((slot) => slot?.weapon === "riot-shield");
+function cycleSlot(p: Player): void {
+  for (let offset = 1; offset <= 3; offset++) {
+    const index = ((p.active + offset) % 3) as SlotIndex;
+    if (p.slots[index]) { switchTo(p, index); return; }
+  }
+}
+export function dualPartner(p: Player): SlotIndex | null {
+  const selected = p.slots[p.active];
+  const compatible = (slot: SlotState | null): boolean =>
+    !!slot && WEAPONS[slot.weapon].oneHanded && !WEAPONS[slot.weapon].heavy;
+  if (!compatible(selected)) return null;
+  for (const index of [0, 1, 2] as const) {
+    const slot = p.slots[index];
+    if (index !== p.active && compatible(slot) &&
+        !(selected?.weapon === "riot-shield" && slot?.weapon === "riot-shield")) return index;
+  }
+  return null;
+}
+export function canDual(p: Player): boolean { return dualPartner(p) !== null; }
+
+function combat(w: World, p: Player): void {
+  p.regenAt = w.tick + HEALTH_REGEN_DELAY_TICKS;
+}
+// Only enemy fire that passes near the player on a visible segment suppresses healing.
+function suppressNearShot(w: World, shooter: Player, x: number, y: number, ex: number, ey: number, radius = 96): void {
+  const dx = ex - x, dy = ey - y, length2 = dx * dx + dy * dy;
+  for (const p of w.players.values()) {
+    if (!p.alive || !p.connected || !enemies(w, shooter, p)) continue;
+    const cy = p.y - heightOf(p) / 2;
+    const t = length2 ? Math.max(0, Math.min(1, ((p.x - x) * dx + (cy - y) * dy) / length2)) : 0;
+    const px = x + dx * t, py = y + dy * t;
+    if (Math.hypot(p.x - px, cy - py) <= radius && lineOfSight(w.map, px, py, p.x, cy)) combat(w, p);
+  }
+}
+function regenerate(w: World): void {
+  for (const p of w.players.values()) {
+    if (!p.alive || !p.connected || p.reserved || p.hp >= p.maxHp || w.tick < p.regenAt) continue;
+    p.hp = Math.min(p.maxHp, p.hp + 1);
+    p.regenAt = w.tick + HEALTH_REGEN_INTERVAL_TICKS;
+  }
 }
 
 function boxesAt(w: World, viewTick: number | undefined): Map<number, Rect> | null {
@@ -463,6 +520,7 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
   p.cooldownUntil = slot.cooldownUntil;
   p.protectUntil = 0;
   statsFor(p, def.id).shots++;
+  combat(w, p);
   if (def.behavior === "melee") { melee(w, p, def.damage, def.range, def.id); return; }
   slot.mag--;
   const { x: ox, y: oy } = muzzleOf(p);
@@ -493,6 +551,7 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
         if (def.behavior === "emp") disableFlight(w, hit.p, def.empMs!, p.id);
         applyDamage(w, hit.p, p.id, def.damage * w.settings.damage, def.id);
       }
+      suppressNearShot(w, p, ox, oy, ox + dx * dist, oy + dy * dist);
       w.events.push({ t: "shot", by: p.id, w: def.id, x1: Math.round(ox), y1: Math.round(oy),
         x2: Math.round(ox + dx * dist), y2: Math.round(oy + dy * dist), hit: selected.length > 0 });
     }
@@ -502,6 +561,8 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
 
 function melee(w: World, p: Player, damage = MELEE_DAMAGE, range = MELEE_RANGE, weapon = "melee"): void {
   p.meleeUntil = w.tick + MELEE_COOLDOWN_TICKS;
+  combat(w, p);
+  suppressNearShot(w, p, p.x, p.y - heightOf(p) / 2, p.x + Math.cos(p.aim) * range, p.y - heightOf(p) / 2, 60);
   p.protectUntil = 0;
   const dir = Math.cos(p.aim) >= 0 ? 1 : -1;
   const reach: Rect = {
@@ -525,6 +586,7 @@ function throwGrenade(w: World, p: Player): void {
   if (!def || (p.throwables[p.throwable] ?? 0) <= 0) return;
   p.throwables[p.throwable]--;
   statsFor(p, def.id).shots++;
+  combat(w, p);
   p.throwUntil = w.tick + 24;
   p.protectUntil = 0;
   const m = muzzleOf(p);
@@ -565,7 +627,7 @@ function tryPickupWeapon(w: World, p: Player): void {
     const empty = p.slots.findIndex((s) => s === null);
     if (empty >= 0) {
       p.slots[empty] = incoming;
-      switchTo(p, empty as 0 | 1);
+      switchTo(p, empty as SlotIndex);
     } else {
       const old = p.slots[p.active]!;
       dropWeapon(w, p.x, p.y - 10, { ...old, reloadEnd: 0 });
@@ -583,8 +645,7 @@ function dropActive(w: World, p: Player): void {
   dropWeapon(w, p.x, p.y - 10, { ...slot, reloadEnd: 0 });
   p.slots[p.active] = null;
   p.dual = false;
-  const other = (1 - p.active) as 0 | 1;
-  if (p.slots[other]) p.active = other;
+  cycleSlot(p);
 }
 
 function autoPickups(w: World, p: Player): void {
@@ -676,6 +737,8 @@ function stepProjectiles(w: World): void {
     let wall = false, playerHit: Player | null = null;
     if (!pr.stuck) {
       const step = advanceProjectile(w, pr);
+      const shooter = w.players.get(pr.owner);
+      if (shooter && wd) suppressNearShot(w, shooter, ox, oy, step.x, step.y, 110);
       wall = step.wall;
       if (wd) {
         const distance = Math.hypot(step.x - ox, step.y - oy);
@@ -722,6 +785,25 @@ function stepProjectiles(w: World): void {
 function explode(w: World, pr: Projectile): void {
   const td = THROWABLES[pr.kind], wd = pr.weapon ? WEAPONS[pr.weapon] : undefined;
   const radius = wd?.blastRadius ?? td?.radius ?? 0;
+  if (td?.effect === "flash") {
+    w.events.push({ t: "flashbang", x: Math.round(pr.x), y: Math.round(pr.y), r: radius });
+    const owner = w.players.get(pr.owner);
+    for (const p of w.players.values()) {
+      if (!p.alive || !p.connected || p.reserved || w.tick < p.protectUntil ||
+          (owner && owner !== p && sameTeam(w, owner, p) && !w.settings.friendlyFire)) continue;
+      const cy = p.y - heightOf(p) / 2;
+      const distance = Math.hypot(p.x - pr.x, cy - pr.y);
+      if (distance >= radius) continue;
+      const visible = lineOfSight(w.map, pr.x, pr.y - 2, p.x, cy);
+      const strength = Math.max(0, (1 - distance / radius) * (visible ? 1 : .2));
+      const duration = Math.max(1, Math.round(ticks(td.durationMs!) * strength));
+      p.flashStrength = Math.max(w.tick < p.flashUntil ? p.flashStrength : 0, strength);
+      p.flashUntil = Math.max(p.flashUntil, w.tick + duration);
+      combat(w, p);
+      w.events.push({ t: "flash", id: p.id, until: p.flashUntil, strength });
+    }
+    return;
+  }
   if (td?.effect === "gas") {
     w.areas.push({ id: pr.id, owner: pr.owner, x: pr.x, y: pr.y - 2, radius,
       until: w.tick + ticks(td.durationMs!), nextDamageTick: w.tick });
@@ -862,7 +944,7 @@ function stepSurvival(w: World): void {
     bot.hp = bot.maxHp;
     const pool = w.settings.weapons.filter((id) => WEAPONS[id].category !== "equipment");
     const weapon = pool[(survival.wave + bots.length) % pool.length] ?? w.settings.loadout[0];
-    bot.slots = [freshSlot(weapon), null];
+    bot.slots = [freshSlot(weapon), null, null];
     bot.throwables = {};
     survival.toSpawn--; alive++;
     survival.nextSpawnTick = w.tick + Math.max(15, 60 - survival.wave * 3);
@@ -906,19 +988,21 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
     const action = actions.get(p.id);
     if (!p.alive || !action) continue;
     const { b, pressed, inp } = action;
-    if (pressed & Btn.SWITCH) switchTo(p, (1 - p.active) as 0 | 1);
+    if (pressed & Btn.SWITCH) cycleSlot(p);
     if (pressed & Btn.SLOT1) switchTo(p, 0);
     if (pressed & Btn.SLOT2) switchTo(p, 1);
+    if (pressed & Btn.SLOT3) switchTo(p, 2);
     if (pressed & Btn.DUAL) p.dual = !p.dual && canDual(p);
     if (p.dual && !canDual(p)) p.dual = false;
     // Every slot owns its timer. Reloading one dual weapon never stalls its partner.
     for (const slot of p.slots) if (slot && slot.reloadEnd > 0 && w.tick >= slot.reloadEnd) finishReload(w, slot);
-    const activeSlots = p.dual ? p.slots : [p.slots[p.active]];
+    const partner = p.dual ? dualPartner(p) : null;
+    const activeSlots = partner === null ? [p.slots[p.active]] : [p.slots[p.active], p.slots[partner]];
     for (const slot of activeSlots) {
       if (!slot) continue;
       if (pressed & Btn.RELOAD) startReload(w, p, slot);
       const def = WEAPONS[slot.weapon];
-      const wantFire = def.auto ? (b & Btn.FIRE) !== 0 : (pressed & Btn.FIRE) !== 0;
+      const wantFire = def.auto || (b & Btn.CONTINUOUS_FIRE) !== 0 ? (b & Btn.FIRE) !== 0 : (pressed & Btn.FIRE) !== 0;
       if (wantFire && w.tick >= slot.cooldownUntil && slot.reloadEnd === 0) {
         if (slot.mag > 0 || def.category === "equipment") fire(w, p, slot, inp?.view);
         else startReload(w, p, slot);
@@ -943,6 +1027,7 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
   }
   stepProjectiles(w);
   stepAreas(w);
+  regenerate(w);
   // All attacks and environmental damage resolve before either team's deliveries.
   resolveFlags(w);
   stepSurvival(w);
@@ -1069,7 +1154,7 @@ export function snapPlayer(w: World, p: Player): PlayerSnap {
     fuel: r2(p.fuel),
     jc: p.jetCooldown,
     dt: p.dropTicks,
-    s: [p.slots[0]?.weapon ?? null, p.slots[1]?.weapon ?? null],
+    s: [p.slots[0]?.weapon ?? null, p.slots[1]?.weapon ?? null, p.slots[2]?.weapon ?? null],
     a: p.active,
     mag: slot?.mag ?? 0,
     res: slot?.reserve ?? 0,
@@ -1079,8 +1164,11 @@ export function snapPlayer(w: World, p: Player): PlayerSnap {
     d: p.deaths,
     as: p.assists,
     rs: p.alive || w.survival ? 0 : Math.max(0, p.respawnTick - w.tick),
-    slots: p.slots.map((slot) => slot ? { ...slot } : null) as [SlotState | null, SlotState | null],
+    slots: p.slots.map((slot) => slot ? { ...slot } : null) as Inventory,
     dual: p.dual,
+    dualSlot: p.dual ? dualPartner(p) : null,
+    flash: Math.max(0, p.flashUntil - w.tick),
+    flashStrength: w.tick < p.flashUntil ? p.flashStrength * Math.min(1, (p.flashUntil - w.tick) / 30) : 0,
     throwable: p.throwable,
     throwables: { ...p.throwables },
     emp: Math.max(0, p.empUntil - w.tick),

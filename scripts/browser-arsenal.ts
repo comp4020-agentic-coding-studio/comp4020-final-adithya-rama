@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, type Page } from "playwright";
-import { Btn, type GameEvent, type PlayerSnap, type WorldSnapshot } from "../src/shared/types.ts";
+import { Btn, type GameEvent, type PlayerSnap, type WorldSnapshot, type RoomSettings } from "../src/shared/types.ts";
 import { WEAPONS, THROWABLES } from "../src/shared/weapons.ts";
 import { MAPS } from "../src/shared/maps.ts";
 
@@ -73,21 +73,21 @@ async function tap(page: Page, key: string, ms = 110): Promise<void> {
   await page.keyboard.up(key);
   await page.waitForTimeout(80);
 }
-async function begin(page: Page, label: string, loadout: [string, string | null], bots = 0): Promise<void> {
+async function begin(page: Page, label: string, loadout: RoomSettings["loadout"], bots = 0, settings: Partial<RoomSettings> = {}): Promise<void> {
   current = freshCapture(label);
   console.log("BEGIN browser " + label);
   const response = await page.request.post(`${base}/api/rooms`, {
     data: { name: `Arsenal ${label}`, isPublic: false, settings: {
       mode: "training", map: "test-range", bots, botDifficulty: "hard",
-      durationMin: 2, loadout, health: 2, flight: false, respawnSec: 1,
+      durationMin: 2, loadout, health: 2, flight: false, respawnSec: 1, ...settings,
     } },
   });
   check(response.status() === 201, `create ${label}: HTTP ${response.status()} ${await response.text()}`);
   const { code } = await response.json() as { code: string };
   await page.goto(`${base}/r/${code}`);
   await page.getByRole("button", { name: "Join room", exact: true }).click();
-  await page.getByRole("button", { name: "Start round", exact: true }).waitFor({ timeout: 10000 });
-  await page.getByRole("button", { name: "Start round", exact: true }).click();
+  await page.locator("#start").waitFor({ timeout: 10000 });
+  await page.locator("#start").click();
   await page.locator("canvas").waitFor({ timeout: 10000 });
   await until(() => current.you !== null && current.latest !== null, "first authoritative snapshot");
   await page.locator(".hud-weapon").waitFor();
@@ -102,7 +102,7 @@ async function finish(page: Page, label: string): Promise<void> {
   current.saved = true;
   await page.screenshot({ path: `${out}/${label}-results.png`, fullPage: true });
   await page.getByRole("button", { name: "Leave room", exact: true }).click();
-  await page.getByRole("heading", { name: "Your matches", exact: true }).waitFor();
+  await page.locator("#practice").waitFor();
   await until(() => current.saved, "saved result");
   check(current.errors.length === 0, current.errors.join("; "));
 }
@@ -177,12 +177,12 @@ try {
     });
   });
   await page.goto(base);
-  await page.getByRole("button", { name: "Practice against bots", exact: true }).waitFor();
+  await page.locator("#practice").waitFor();
 
   const guns = Object.values(WEAPONS).filter((w) => w.category !== "equipment");
   for (const weapon of [...guns, WEAPONS.machete]) {
     try {
-      await begin(page, weapon.id, [weapon.id, null]);
+      await begin(page, weapon.id, [weapon.id, null, null]);
       const hudBefore = await page.locator(".hud-weapon").innerText();
       check(hudBefore.includes(weapon.name), `${weapon.id}: missing weapon name in HUD`);
       const before = own().slots[0]!.mag;
@@ -217,21 +217,19 @@ try {
   }
 
   try {
-    await begin(page, "riot-shield", ["riot-shield", "mini-eagle"], 1);
+    await begin(page, "riot-shield", ["riot-shield", "mini-eagle", null], 1);
     await tap(page, "KeyF");
     check(own().dual, "shield: compatible sidearm did not enter dual wield");
-    const deadline = Date.now() + 13000;
-    let heldAim = "";
+    const deadline = Date.now() + 20000;
     while (!current.events.some((e) => e.t === "shield" && e.id === current.you) && Date.now() < deadline) {
       const me = own(), enemy = current.latest!.players.find((p) => p.id !== me.id && (p.f & 1));
       if (enemy) {
-        const aim = enemy.x < me.x ? "ArrowLeft" : "ArrowRight";
-        if (heldAim !== aim) { if (heldAim) await page.keyboard.up(heldAim); await page.keyboard.down(aim); heldAim = aim; }
-        if (Math.abs(enemy.x - me.x) > 500) await moveTo(page, (enemy.x + me.x) / 2);
+        // Mouse aiming raises the shield without the new keyboard aim-fire action.
+        await page.mouse.move(enemy.x < me.x ? 120 : 1800, 525);
+        if (Math.abs(enemy.x - me.x) > 260) await moveTo(page, enemy.x + (me.x < enemy.x ? -160 : 160));
       }
       await page.waitForTimeout(100);
     }
-    if (heldAim) await page.keyboard.up(heldAim);
     const shieldEvents = current.events.filter((e) => e.t === "shield" && e.id === current.you).length;
     check(shieldEvents > 0, "shield: no frontal block observed against training bot");
     const hud = await page.locator(".hud-weapon").innerText();
@@ -247,49 +245,97 @@ try {
   }
 
   try {
-    await begin(page, "throwables", ["mini-eagle", null]);
-    const checks: Record<string, unknown>[] = [];
-    for (const id of ["frag", "gas", "emp", "mine"]) {
+    await begin(page, "three-slots", ["mini-eagle", "uzi", "magnum"]);
+    check(own().slots.length === 3, "third inventory slot missing in authoritative snapshot");
+    check(await page.locator("[data-slot]").count() === 3, "HUD must show three weapon slots");
+    for (const [key, slot] of [["Digit3", 2], ["Digit1", 0], ["Digit2", 1], ["Tab", 2]] as const) {
+      await tap(page, key);
+      await until(() => own().a === slot, key + " selects slot " + slot);
+    }
+    const before = own().slots.map((slot) => slot?.mag);
+    await tap(page, "KeyF");
+    check(own().dual && own().dualSlot === 0, "selected third slot must pair with first compatible slot");
+    await page.keyboard.down("Numpad8");
+    await page.waitForTimeout(450);
+    await page.keyboard.up("Numpad8");
+    await page.waitForTimeout(150);
+    const after = own().slots.map((slot) => slot?.mag);
+    check(after[0]! < before[0]! && after[2]! < before[2]!, "both paired weapons must spend their own ammo");
+    check(after[1] === before[1], "carried third gun must not fire as a third hand");
+    await tap(page, "KeyR");
+    await until(() => own().slots[2]!.reloadEnd > 0, "third-slot reload starts");
+    await until(() => own().slots[2]!.reloadEnd === 0 && own().slots[2]!.mag === WEAPONS.magnum.mag, "third-slot reload finishes");
+    const droppedAmmo = own().slots[2]!.mag;
+    await tap(page, "KeyX");
+    await until(() => own().slots[2] === null, "third-slot drop");
+    await tap(page, "KeyE");
+    await until(() => own().slots[2]?.weapon === "magnum", "third-slot recovery");
+    check(own().slots[2]!.mag === droppedAmmo, "dropped gun ammunition must survive pickup");
+    const initialGrenade = own().throwable;
+    await tap(page, "KeyT");
+    check(own().throwable !== initialGrenade, "grenade cycle must move off the default frag");
+    await page.screenshot({ path: out + "/three-slots-game.png" });
+    await finish(page, "three-slots");
+    evidence.push({ item: "three-slots", status: "passed", magazineBefore: before, magazineAfter: after, droppedAmmo, ...traceEvidence() });
+    console.log("PASS browser three-slots");
+  } catch (error) {
+    problems.push("three-slots: " + (error as Error).message);
+    await page.screenshot({ path: out + "/three-slots-failed.png" });
+    try { await finish(page, "three-slots"); } catch { /* Report below. */ }
+  }
+
+  // Each effect gets an isolated round. Explicit allowlists include optional
+  // EMP/mines, and spending before walking onto a pickup proves replenishment.
+  for (const id of Object.keys(THROWABLES)) {
+    const label = "throwable-" + id;
+    try {
+      await begin(page, label, ["mini-eagle", null, null], 0, { throwables: [id] });
       const spot = MAPS["test-range"].pickups.find((p) => p.kind === "throwable" && p.item === id)!;
-      await moveTo(page, spot.x);
-      await until(() => (own().throwables[id] ?? 0) > 0, `walk-up ${id} pickup`);
-      for (let n = 0; own().throwable !== id && n < 8; n++) await tap(page, "KeyT");
-      check(own().throwable === id, `could not select ${id} with keyboard`);
+      await moveTo(page, spot.x + 90);
+      check(own().throwable === id, id + ": selected throwable missing");
       const before = own().throwables[id];
       const throwsBefore = current.throwFrames;
-      await page.keyboard.down("ArrowRight");
-      await page.keyboard.down("ArrowUp");
+      // A vertical throw stays nearby, so flash can be observed on this pilot.
+      await page.keyboard.down("Numpad8");
       await tap(page, "KeyG");
-      await page.keyboard.up("ArrowRight");
-      await page.keyboard.up("ArrowUp");
-      await until(() => current.projectileKinds.has(id), `${id} projectile snapshot`);
-      check(current.throwFrames > throwsBefore, `${id}: no real throw input`);
-      check(own().throwables[id] < before, `${id}: grenade inventory did not decrease`);
+      await page.keyboard.up("Numpad8");
+      await until(() => current.projectileKinds.has(id), id + " projectile snapshot");
+      check(current.throwFrames > throwsBefore, id + ": no real throw input");
+      const afterThrow = own().throwables[id];
+      check(afterThrow < before, id + ": grenade inventory did not decrease");
       if (id === "frag" || id === "emp") await until(
         () => current.events.some((e) => e.t === "explode" && e.r === THROWABLES[id].radius),
         id + " authoritative explosion", 4500);
+      if (id === "flash") {
+        await until(() => current.events.some((e) => e.t === "flashbang") && own().flash > 0, "authoritative flash effect", 4500);
+        check(current.events.some((e) => e.t === "flash" && e.id === current.you), "flash: local impairment event missing");
+        await page.locator(".flash-overlay").waitFor({ state: "visible" });
+        check(Number(await page.locator(".flash-overlay").evaluate((element) => getComputedStyle(element).opacity)) > 0, "flash overlay has no visible opacity");
+      }
       if (id === "gas") await until(() => current.gasArea, "visible authoritative gas area", 4500);
       if (id === "mine") await until(() => current.armedMine, "mine attached and armed", 6500);
       const hud = await page.locator(".hud-weapon").innerText();
-      check(hud.includes(THROWABLES[id].name), `${id}: missing grenade HUD`);
-      await page.screenshot({ path: `${out}/throwable-${id}-game.png` });
-      checks.push({ id, status: "passed", hud, before, after: own().throwables[id], pickupX: spot.x,
-        gasArea: id === "gas" ? current.gasArea : undefined, armedMine: id === "mine" ? current.armedMine : undefined });
-      console.log(`PASS browser throwable ${id}`);
+      check(hud.includes(THROWABLES[id].name), id + ": missing grenade HUD");
+      await page.screenshot({ path: out + "/" + label + "-game.png" });
+      await moveTo(page, spot.x);
+      await until(() => (own().throwables[id] ?? 0) > afterThrow, id + " walk-up pickup replenishes spent inventory", 7000);
+      const afterPickup = own().throwables[id];
+      await finish(page, label);
+      evidence.push({ item: id, status: "passed", hud, before, afterThrow, afterPickup, pickupX: spot.x,
+        gasArea: id === "gas" ? current.gasArea : undefined, armedMine: id === "mine" ? current.armedMine : undefined, ...traceEvidence() });
+      console.log("PASS browser throwable " + id);
+    } catch (error) {
+      problems.push(label + ": " + (error as Error).message);
+      await page.screenshot({ path: out + "/" + label + "-failed.png" });
+      try { await finish(page, label); } catch { /* Report below. */ }
     }
-    await finish(page, "throwables");
-    evidence.push({ item: "throwables", status: "passed", checks, ...traceEvidence() });
-  } catch (error) {
-    problems.push(`throwables: ${(error as Error).message}`);
-    await page.screenshot({ path: `${out}/throwables-failed.png` });
-    try { await finish(page, "throwables"); } catch { /* Report below. */ }
   }
 
   const historyResponse = await page.request.get(`${base}/api/me/matches?limit=50`);
   check(historyResponse.ok(), "personal match history is unavailable");
   const history = await historyResponse.json() as { matches: { status: string }[] };
-  check(history.matches.length >= 24 && history.matches.every((match) => match.status === "completed"),
-    "expected twenty-four saved, completed training sessions");
+  check(history.matches.length >= guns.length + 3 + Object.keys(THROWABLES).length && history.matches.every((match) => match.status === "completed"),
+    "expected all arsenal cases to have saved, completed training sessions");
   evidence.push({ item: "history", httpStatus: historyResponse.status(), completedMatches: history.matches.length });
   if (pageErrors.length) problems.push(...pageErrors.map((p) => "browser error: " + p));
 } catch (error) {
@@ -310,5 +356,5 @@ if (problems.length) {
   for (const problem of problems) console.error("FAIL " + problem);
   process.exitCode = 1;
 } else {
-  console.log(`PASS browser arsenal: 21 firearms, machete, shield and four throwable types; evidence in ${out}`);
+  console.log(`PASS browser arsenal: 21 firearms, machete, shield, three-slot inventory and five throwable types; evidence in ${out}`);
 }

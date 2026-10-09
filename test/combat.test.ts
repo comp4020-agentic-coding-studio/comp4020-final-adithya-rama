@@ -66,7 +66,7 @@ describe("weapons", () => {
   it("switching weapons cancels a reload in progress", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
-    a.slots = [{ ...freshSlot("ak47"), mag: 3 }, freshSlot("uzi")];
+    a.slots = [{ ...freshSlot("ak47"), mag: 3 }, freshSlot("uzi"), null];
     let t = 0;
     run(w, 3, () => hold(a.id, t++ === 0 ? Btn.RELOAD : 0));
     expect(a.slots[0]!.reloadEnd).toBeGreaterThan(0);
@@ -291,12 +291,13 @@ describe("pickups", () => {
   it("picking up a weapon fills an empty slot, otherwise swaps the active weapon onto the floor", () => {
     const w = createWorld({ ...world().settings, mode: "ffa", mapPickups: false }, 3);
     const a = player(w, -1, { x: 200, y: 900 });
-    a.slots = [freshSlot("mini-eagle"), null];
+    a.slots = [freshSlot("mini-eagle"), null, null];
     w.pickups.push({ id: 500, kind: "weapon", item: "ak47", x: 205, y: 900, spawnIndex: -1, respawnTicks: 0, availableAt: 0, expiresAt: 0, slot: null });
     const press = (b: number): Map<number, InputFrame> => hold(a.id, b);
     stepWorld(w, press(Btn.PICKUP));
     expect(a.slots[1]?.weapon).toBe("ak47");
     expect(a.active).toBe(1);
+    a.slots[2] = freshSlot("m4"); // all three slots must be full before swapping
     w.pickups.push({ id: 501, kind: "weapon", item: "spas12", x: 205, y: 900, spawnIndex: -1, respawnTicks: 0, availableAt: 0, expiresAt: 0, slot: null });
     stepWorld(w, press(0));
     stepWorld(w, press(Btn.PICKUP));
@@ -307,7 +308,7 @@ describe("pickups", () => {
   it("dropping puts the weapon on the ground with its ammo", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
-    a.slots = [{ ...freshSlot("uzi"), mag: 7 }, null];
+    a.slots = [{ ...freshSlot("uzi"), mag: 7 }, null, null];
     run(w, 1, () => hold(a.id, Btn.DROP));
     expect(a.slots[0]).toBeNull();
     const dropped = w.pickups.find((p) => p.item === "uzi");

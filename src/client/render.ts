@@ -1,8 +1,8 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { PLAYER_CROUCH_H, PLAYER_H, PLAYER_W } from "../shared/constants.ts";
+import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
 import type { AreaSnap, FlagState, MapDefinition, PickupSnap, ProjectileSnap, Team } from "../shared/types.ts";
-import { avatarOf, drawThrowable, drawWeapon, SKIN, type Avatar } from "./art.ts";
-import { WEAPONS } from "../shared/weapons.ts";
+import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar } from "./art.ts";
+import { drawBackdropLayer, drawScenery, drawTerrain } from "./environment-art.ts";
 
 
 interface RenderProbe {
@@ -63,10 +63,12 @@ export interface RenderPlayer {
   otherWeapon: string | null;
   emp: number;
   avatar?: Avatar;
+  vx?:number;
+  vy?:number;
 }
 
 interface Fx {
-  kind: "tracer" | "boom" | "spark" | "slash";
+  kind: "tracer" | "boom" | "spark" | "slash" | "muzzle" | "case" | "smoke" | "blood" | "stain" | "regen" | "flash";
   x1: number;
   y1: number;
   x2: number;
@@ -76,12 +78,15 @@ interface Fx {
   ttl: number;
 }
 
-const GUN_LENGTH: Record<string, number> = { "mini-eagle": 16, uzi: 20, ak47: 30, spas12: 28 };
+interface ActorVisual {x:number;y:number;hp:number;alive:boolean;walk:number;at:number;hitUntil:number;recoilUntil:number;regenUntil:number}
 
 export class Renderer {
   readonly app = new Application();
   private world = new Container();
-  private backdrop = new Graphics();
+  private backdrop = new Container();
+  private backdropLayers=[new Graphics(),new Graphics()];
+  private backdropSize="";
+  private actors=new Map<number,ActorVisual>();
   private mapG = new Graphics();
   private pickupG = new Graphics();
   private playerG = new Graphics();
@@ -138,6 +143,7 @@ export class Renderer {
     }
     this.app.canvas.setAttribute("aria-label", "Game view");
     parent.appendChild(this.app.canvas);
+    this.backdrop.addChild(...this.backdropLayers);
     this.app.stage.addChild(this.backdrop, this.world);
     this.world.addChild(this.mapG, this.decor, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.fxG, this.labelLayer);
   }
@@ -153,41 +159,16 @@ export class Renderer {
     g.clear();
 
     for (const child of this.decor.removeChildren()) child.destroy();
-    const crypt=map.id==="cryptworks";
+
     const label=(text:string,x:number,y:number,color:number,size=16) => {
       const t=new Text({text,style:{fontFamily:"system-ui",fontSize:size,fontWeight:"bold",fill:color,stroke:{color:0x172132,width:3}}});
       t.anchor.set(.5); t.position.set(x,y); this.decor.addChild(t);
     };
-    // Authored decoration is visual only: all colliders remain shared map data.
-    for (const s of map.solids) {
-      g.roundRect(s.x,s.y,s.w,s.h,Math.min(5,s.h/4)).fill(map.theme.rock);
-      g.rect(s.x,s.y,s.w,Math.min(7,s.h)).fill(map.theme.platform);
-      g.rect(s.x,s.y+s.h-5,s.w,5).fill({color:0x102033,alpha:.35});
-      if(s.h>35 && s.w>60) {
-        for(let y=s.y+22;y<s.y+s.h-8;y+=32) {
-          g.moveTo(s.x+4,y).lineTo(s.x+s.w-4,y).stroke({width:1,color:0x101b2b,alpha:.25});
-          for(let x=s.x+20+((y-s.y)%64?20:0);x<s.x+s.w-6;x+=58)
-            g.moveTo(x,y-20).lineTo(x,y).stroke({width:2,color:0x142334,alpha:.3});
-        }
-      }
-      if(s.y>50&&s.w>180) {
-        if(crypt) {
-          for(let x=s.x+45;x<s.x+s.w-25;x+=125) {
-            g.roundRect(x,s.y+14,30,Math.min(36,s.h-19),9).fill({color:0x0b1728,alpha:.55});
-            g.circle(x+15,s.y+24,4).fill({color:map.theme.accent,alpha:.6});
-          }
-        } else {
-          g.rect(s.x+10,s.y+9,Math.min(55,s.w-20),8).fill({color:map.theme.accent,alpha:.45});
-        }
-      }
-    }
-    for (const p of map.platforms) {
-      g.roundRect(p.x,p.y,p.w,p.h,3).fill(map.theme.platform);
-      g.rect(p.x,p.y,p.w,3).fill({color:0xe6f5e0,alpha:.7});
-      for(let x=p.x+10;x<p.x+p.w-5;x+=24) g.rect(x,p.y+5,9,3).fill({color:0x122636,alpha:.4});
-      // Dashed ends identify surfaces that can be dropped through.
-      g.moveTo(p.x+5,p.y+20).lineTo(p.x+10,p.y+24).lineTo(p.x+15,p.y+20).stroke({width:2,color:map.theme.accent,alpha:.55});
-    }
+    this.backdropSize="";
+    drawTerrain(g,map);
+    const scenery=new Graphics();
+    drawScenery(scenery,map);
+    this.decor.addChild(scenery);
     for(const goal of showObjectives ? map.goals : []) {
       const r=goal.rect,c=TEAM_COLORS[goal.team];
       g.roundRect(r.x,r.y,r.w,r.h,12).fill({color:c,alpha:.1}).stroke({width:4,color:c,alpha:.8});
@@ -216,20 +197,31 @@ export class Renderer {
   private computeScale(zoom: number, playableHeight: number): number {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-    const visibleW = (w >= h ? 1200 : 760) * zoom;
+    const visibleW = (w >= h ? 1050 : 620) * zoom;
     // Portrait play is width-limited; reserving controls must not make pilots
     // smaller. In landscape, also fit the available vertical play area.
-    return w<h ? w/visibleW : Math.min(w/visibleW,playableHeight/(680*zoom));
+    return w<h ? w/visibleW : Math.min(w/visibleW,playableHeight/(590*zoom));
   }
 
   worldToScreen(x: number, y: number): { x: number; y: number } {
     return { x: this.world.x + x * this.scale, y: this.world.y + y * this.scale };
   }
 
-  addTracer(x1: number, y1: number, x2: number, y2: number, weapon: string, hit: boolean): void {
-    const now = performance.now();
-    this.fx.push({ kind: "tracer", x1, y1, x2, y2, color: weapon === "phasr" ? 0x89ffeb : weapon === "flamethrower" ? 0xff8844 : weapon === "emp-gun" ? 0x8ecaff : weapon === "spas12" ? 0xffd27a : 0xfff1b8, born: now, ttl: 90 });
-    if (hit) this.fx.push({ kind: "spark", x1: x2, y1: y2, x2, y2, color: 0xd32f2f, born: now, ttl: 220 });
+  addTracer(x1:number,y1:number,x2:number,y2:number,weapon:string,hit:boolean):void {
+    const now=performance.now(),a=Math.atan2(y2-y1,x2-x1),len=weaponLength(weapon)*.9;
+    const mx=x1+Math.cos(a)*len,my=y1+Math.sin(a)*len;
+    const color=weapon==="phasr"?0xb0f3de:weapon==="flamethrower"?0xffa647:weapon==="emp-gun"?0xbadfff:0xffedb0;
+    this.fx.push({kind:"tracer",x1:mx,y1:my,x2,y2,color,born:now,ttl:85});
+    this.fx.push({kind:"muzzle",x1:mx,y1:my,x2:a,y2:0,color,born:now,ttl:85});
+    this.fx.push({kind:"smoke",x1:mx,y1:my,x2:Math.cos(a)*14,y2:-23,color:0xd0d5bd,born:now,ttl:420});
+    if(!["phasr","emp-gun","flamethrower","machete","riot-shield"].includes(weapon))
+      this.fx.push({kind:"case",x1,y1,x2:-Math.cos(a)*30,y2:-42,color:0xe6c46f,born:now,ttl:480});
+    for(const actor of this.actors.values())if(Math.hypot(actor.x-x1,actor.y-28-y1)<42)actor.recoilUntil=now+100;
+    if(hit)this.fx.push({kind:"spark",x1:x2,y1:y2,x2:0,y2:0,color:0xffdb94,born:now,ttl:190});
+  }
+
+  addFlashbang(x:number,y:number,r:number):void {
+    this.fx.push({kind:"flash",x1:x,y1:y,x2:r,y2:0,color:0xfff7dd,born:performance.now(),ttl:370});
   }
 
   addExplosion(x: number, y: number, r: number): void {
@@ -283,7 +275,7 @@ export class Renderer {
     const pg = this.projG;
     pg.clear();
     for (const pr of projectiles) {
-      if(["frag","gas","emp","mine"].includes(pr.k)) drawThrowable(pg,pr.k,pr.x,pr.y,1,pr.armed);
+      if(["frag","flash","gas","emp","mine"].includes(pr.k)) drawThrowable(pg,pr.k,pr.x,pr.y,1,pr.armed);
       else if(pr.k==="saw-launcher" || pr.k==="saw") {
         pg.star(pr.x,pr.y,10,12,7,now/70).fill(0xd6e4e6).stroke({width:2,color:0x5f7583});
         pg.circle(pr.x,pr.y,3).fill(0xedb963);
@@ -299,53 +291,52 @@ export class Renderer {
 
     const fg = this.fxG;
     fg.clear();
-    this.fx = this.fx.filter((f) => now - f.born < f.ttl);
+    this.fx = this.fx.filter((f) => now - f.born < f.ttl).slice(-180);
     for (const f of this.fx) {
       const t = (now - f.born) / f.ttl;
-      if (f.kind === "tracer") {
-        fg.moveTo(f.x1, f.y1).lineTo(f.x2, f.y2).stroke({ width: 2, color: f.color, alpha: 1 - t });
-      } else if (f.kind === "spark") {
-        fg.circle(f.x1, f.y1, 3 + t * 6).fill({ color: f.color, alpha: 0.8 * (1 - t) });
-      } else if (f.kind === "boom") {
-        const r = f.x2 * (0.35 + 0.65 * Math.sqrt(t));
-        fg.circle(f.x1, f.y1, r).fill({ color: 0xffd27a, alpha: 0.45 * (1 - t) });
-        fg.circle(f.x1, f.y1, r * 0.55).fill({ color: f.color, alpha: 0.7 * (1 - t) });
-      } else {
-        fg.arc(f.x1, f.y1, 22, -1, 1).stroke({ width: 3, color: f.color, alpha: 1 - t });
-      }
+      if(f.kind==="tracer") {
+        fg.moveTo(f.x1,f.y1).lineTo(f.x2,f.y2).stroke({width:5,color:f.color,alpha:.16*(1-t)});
+        fg.moveTo(f.x1,f.y1).lineTo(f.x2,f.y2).stroke({width:1.7,color:f.color,alpha:1-t});
+      } else if(f.kind==="muzzle") {
+        const a=f.x2,c=Math.cos(a),ss=Math.sin(a),pts=[0,-4,8,-3,15,-8,11,0,20,2,8,5,2,3];
+        fg.poly(pts.map((v,i)=>i%2?v*c+pts[i-1]*ss+f.y1:v*c-pts[i+1]*ss+f.x1)).fill({color:f.color,alpha:1-t});
+      } else if(f.kind==="case"||f.kind==="blood") {
+        const dt=t*f.ttl/1000,x=f.x1+f.x2*dt,y=f.y1+f.y2*dt+120*dt*dt;
+        if(f.kind==="case")fg.poly([x-2,y,x+2,y-1,x+3,y+2,x-1,y+3]).fill({color:f.color,alpha:1-t});
+        else fg.ellipse(x,y,2.8*(1-t),1.9*(1-t)).fill({color:f.color,alpha:.85*(1-t)});
+      } else if(f.kind==="stain") {
+        fg.ellipse(f.x1,f.y1,5,1.8).fill({color:f.color,alpha:.45*(1-t)});
+      } else if(f.kind==="smoke") {
+        fg.circle(f.x1+f.x2*t,f.y1+f.y2*t,2+t*7).fill({color:f.color,alpha:.35*(1-t)});
+      } else if(f.kind==="regen") {
+        const y=f.y1-20*t,a=.65*(1-t);
+        fg.rect(f.x1-1.4,y-4,2.8,8).fill({color:f.color,alpha:a});
+        fg.rect(f.x1-4,y-1.4,8,2.8).fill({color:f.color,alpha:a});
+      } else if(f.kind==="spark") {
+        for(let i=0;i<5;i++){const a=i*1.4,rr=3+12*t;fg.moveTo(f.x1+Math.cos(a)*rr,f.y1+Math.sin(a)*rr).lineTo(f.x1+Math.cos(a)*(rr+5),f.y1+Math.sin(a)*(rr+5)).stroke({width:2,color:f.color,alpha:1-t});}
+      } else if(f.kind==="boom"||f.kind==="flash") {
+        const rr=f.x2*(.25+.75*Math.sqrt(t)),flash=f.kind==="flash";
+        fg.circle(f.x1,f.y1,rr).stroke({width:flash?4:3,color:flash?0xfff9df:0xffd17d,alpha:.8*(1-t)});
+        for(let i=0;i<7;i++){
+          const a=i*6.283/7,dist=rr*.45;
+          fg.circle(f.x1+Math.cos(a)*dist,f.y1+Math.sin(a)*dist,rr*(.36-t*.12)).fill({color:flash?0xfff4d0:i%2?0xf0a256:0xb78457,alpha:(flash?.3:.5)*(1-t)});
+        }
+        fg.circle(f.x1,f.y1,rr*.28).fill({color:0xffefaa,alpha:.7*(1-t)});
+      } else fg.arc(f.x1,f.y1,22,-1,1).stroke({width:3,color:f.color,alpha:1-t});
     }
     if(this.probe) {this.probe.drawCpuMs.push(performance.now()-drawStarted);if(this.probe.drawCpuMs.length>1200)this.probe.drawCpuMs.shift();}
   }
 
-  private drawBackdrop(map: MapDefinition, sw: number, sh: number): void {
-    const g = this.backdrop;
-    g.clear();
-    if(map.id==="cryptworks") {
-      for(let i=0;i<12;i++) {
-        const x=((i*170-this.cam.x*this.scale*.13)%(sw+240))-120;
-        g.roundRect(x,sh*.16,105,sh*.65,50).fill({color:0x081425,alpha:.36});
-        g.rect(x+10,sh*.16+80,85,sh*.58).fill({color:0x0a192c,alpha:.35});
-        g.circle(x+54,sh*.37,4).fill({color:0x67dfcf,alpha:.35});
-      }
-      for(let i=0;i<20;i++)g.circle((i*137+Math.sin(i)*90)%sw,(i*73)%sh,1+(i%2)).fill({color:0x8db8bc,alpha:.18});
-      return;
+  private drawBackdrop(map:MapDefinition,sw:number,sh:number):void {
+    const key=map.id+":"+sw+":"+sh;
+    if(this.backdropSize!==key) {
+      this.backdropSize=key;
+      this.backdropLayers.forEach((g,i)=>drawBackdropLayer(g,map,sw+800,sh+180,i));
     }
-    if(map.id==="skyshaft") {
-      for(let i=0;i<9;i++) {
-        const x=((i*190-this.cam.x*this.scale*.12)%(sw+220))-100;
-        g.rect(x,0,24,sh).fill({color:0x081828,alpha:.18});
-        g.moveTo(x,0).lineTo(x+170,sh).stroke({width:9,color:0x081828,alpha:.13});
-      }
-      for(let i=0;i<30;i++)g.circle((i*163)%sw,(i*83)%sh,1).fill({color:0xbde0ec,alpha:.4});
-    }
-    const base = sh * 0.62 - (this.cam.y - map.height / 2) * this.scale * 0.15;
-    for (let i = 0; i < 6; i++) {
-      const x = ((i * 420 - this.cam.x * this.scale * 0.2) % (sw + 600)) - 300;
-      g.moveTo(x, base + 200)
-        .lineTo(x + 260, base - 60 - (i % 3) * 30)
-        .lineTo(x + 520, base + 200)
-        .fill({ color: 0x000000, alpha: 0.08 });
-    }
+    this.backdropLayers.forEach((g,i)=>{
+      g.x=-(this.cam.x*this.scale*(.055+i*.045))%350-100;
+      g.y=-(this.cam.y-map.height*.5)*this.scale*(.045+i*.025)-30;
+    });
   }
 
   private drawPickups(pickups: PickupSnap[], now: number): void {
@@ -380,42 +371,40 @@ export class Renderer {
     g.clear();
     const seen = new Set<number>();
     for (const p of players) {
-      if (!p.alive) continue;
+      if(!p.alive) {
+        const last=this.actors.get(p.id);
+        if(last) {
+          for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-24,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
+          const floor=this.map?.solids.filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
+          if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
+        }
+        this.actors.delete(p.id);continue;
+      }
       seen.add(p.id);
       const h = p.crouch ? PLAYER_CROUCH_H : PLAYER_H;
       const top = p.y - h;
       const facing = Math.cos(p.aim) >= 0 ? 1 : -1;
       const body = p.team === -1 ? p.color : TEAM_COLORS[p.team];
       const alpha = p.protected ? 0.45 + 0.35 * Math.sin(now / 80) : 1;
-      const hw = PLAYER_W / 2;
-
-      // jetpack and flame
-      g.roundRect(p.x - facing * hw - 5, top + 12, 9, h * 0.45, 2).fill({ color: 0x4a4f55, alpha });
-      if (p.jetting) {
-        const flick = 10 + Math.random() * 10;
-        g.moveTo(p.x - facing * hw - 4, top + 12 + h * 0.45)
-          .lineTo(p.x - facing * hw + 0.5, top + 12 + h * 0.45 + flick)
-          .lineTo(p.x - facing * hw + 5, top + 12 + h * 0.45)
-          .fill({ color: 0xffa53c, alpha: 0.9 });
+      let state=this.actors.get(p.id);
+      if(!state) {state={x:p.x,y:p.y,hp:p.hp,alive:true,walk:0,at:now,hitUntil:0,recoilUntil:0,regenUntil:0};this.actors.set(p.id,state);}
+      const delta=p.x-state.x;
+      if(Math.abs(delta)<35)state.walk+=Math.abs(delta)*.17;
+      if(p.hp<state.hp) {
+        state.hitUntil=now+130;
+        for(let i=0;i<5;i++)this.fx.push({kind:"blood",x1:p.x,y1:top+22,x2:(i-2)*24,y2:-30-i*7,color:0xa14f3b,born:now,ttl:600});
+        const floor=this.map?.solids.filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
+        if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
+      } else if(p.hp>state.hp&&p.hp-state.hp<20&&now>state.regenUntil) {
+        state.regenUntil=now+450;
+        this.fx.push({kind:"regen",x1:p.x+17,y1:top+20,x2:0,y2:0,color:0x9fd6a8,born:now,ttl:650});
       }
-      // legs, body, head
-      g.rect(p.x - hw + 3, p.y - h * 0.32, 6, h * 0.32).fill({ color: 0x2b2f33, alpha });
-      g.rect(p.x + hw - 9, p.y - h * 0.32, 6, h * 0.32).fill({ color: 0x2b2f33, alpha });
-      g.roundRect(p.x - hw, top + 12, PLAYER_W, h * 0.6, 4).fill({ color: body, alpha });
-      const avatar=avatarOf(p.avatar);
-      g.circle(p.x, top + 7, 8).fill({ color: SKIN[avatar.face], alpha });
-      if(avatar.helmet==="mohawk") g.poly([p.x-4,top,p.x-3,top-9,p.x+1,top-5,p.x+5,top-10,p.x+7,top+1]).fill({color:0xf5aa48,alpha});
-      else {
-        g.roundRect(p.x-9,top-2,18,6,2).fill({color:avatar.helmet==="cap"?0x78916c:0x344957,alpha});
-        if(avatar.helmet==="cap") g.rect(p.x+facing*5,top+1,facing*9,3).fill(0x78916c);
-      }
-      g.rect(p.x+facing*2,top+5,facing*(avatar.helmet==="visor"?7:5),avatar.helmet==="visor"?5:2).fill({color:avatar.helmet==="visor"?0x98e7ed:0x222222,alpha});
-      if(avatar.emblem==="star") g.star(p.x,top+24,5,4,2).fill(0xffe0a0);
-      else if(avatar.emblem==="bolt") g.poly([p.x+2,top+18,p.x-3,top+25,p.x,top+25,p.x-1,top+29,p.x+4,top+22,p.x+1,top+22]).fill(0xffe0a0);
-      else { g.circle(p.x,top+23,3).fill(0xeae8d3); g.rect(p.x-2,top+25,4,3).fill(0xeae8d3); }
-      // gun along the aim
-      if(p.weapon) drawWeapon(g,p.weapon,p.x,p.y-h*.68,p.aim,1,alpha);
-      if(p.dual && p.otherWeapon) drawWeapon(g,p.otherWeapon,p.x-3,p.y-h*.46,p.aim,1,alpha);
+      const moving=Math.abs(p.vx??delta)>1,airborne=p.jetting||Math.abs(p.vy??p.y-state.y)>2;
+      g.ellipse(p.x,p.y+2,15,3).fill({color:0x24382c,alpha:airborne?.1:.22});
+      drawPilot(g,{x:p.x,y:p.y,h,color:body,avatar:avatarOf(p.avatar),aim:p.aim,walk:moving?Math.sin(state.walk):0,
+        airborne,jetting:p.jetting,alpha,recoil:Math.max(0,(state.recoilUntil-now)/100),weapon:p.weapon,
+        otherWeapon:p.dual?p.otherWeapon:null,now,hit:state.hitUntil>now});
+      state.x=p.x;state.y=p.y;state.hp=p.hp;state.at=now;
       if(p.emp>0) {
         g.circle(p.x,top+h/2,28).stroke({width:2,color:0x82ddff,alpha:.4+.25*Math.sin(now/65)});
         g.poly([p.x-19,top+9,p.x-24,top+21,p.x-17,top+19,p.x-22,top+31]).stroke({width:2,color:0xbcf0ff});
@@ -431,7 +420,7 @@ export class Renderer {
 
       let label = this.labels.get(p.id);
       if (!label) {
-        label = new Text({ text: p.name, style: { fontFamily: "system-ui, sans-serif", fontSize: 12, fill: 0xffffff, stroke: { color: 0x000000, width: 3 } } });
+        label = new Text({ text: p.name, style: { fontFamily: "system-ui, sans-serif", fontSize: 11, fontWeight:"600", fill: 0xfff4d6, stroke: { color: 0x000000, width: 3 } } });
         label.anchor.set(0.5, 1);
         this.labels.set(p.id, label);
         this.labelLayer.addChild(label);

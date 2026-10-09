@@ -1,5 +1,7 @@
 # Implementation plan: classic Mini Militia-style PC game
 
+> Current amendment: [10 October gameplay and presentation revision](REVISION_2026_10_10.md) records the user-requested changes to controls, inventory, healing, grenades, bots, maps and UI. It takes precedence over the original scope below where specified.
+
 > Agreed plan, saved verbatim as the reference for every stage. The live status
 > of each feature is tracked in [FEATURES.md](FEATURES.md); the latest stage
 > handoff is in [HANDOFF.md](HANDOFF.md).

@@ -1,6 +1,6 @@
 import { MAX_ROOM_PLAYERS } from "./constants.ts";
 import { MAPS } from "./maps.ts";
-import type { BotDifficulty, Mode, Multiplier, RoomSettings } from "./types.ts";
+import type { BotDifficulty, Loadout, Mode, Multiplier, RoomSettings } from "./types.ts";
 import { IMPLEMENTED_THROWABLES, IMPLEMENTED_WEAPONS, WEAPONS } from "./weapons.ts";
 
 export const MULTIPLIERS: readonly Multiplier[] = [0.5, 1, 1.5, 2];
@@ -34,13 +34,13 @@ export function defaultSettings(): RoomSettings {
     damage: 1,
     respawnSec: 3,
     weapons: [...IMPLEMENTED_WEAPONS],
-    throwables: [...IMPLEMENTED_THROWABLES],
-    loadout: ["mini-eagle", "uzi"],
+    throwables: ["frag", "flash", "gas"],
+    loadout: ["mini-eagle", "uzi", null],
     mapPickups: true,
     unlimitedAmmo: false,
     friendlyFire: false,
     bots: 0,
-    botDifficulty: "normal",
+    botDifficulty: "easy",
   };
 }
 
@@ -63,15 +63,16 @@ export function sanitizeSettings(input: unknown, base: RoomSettings = defaultSet
   const throwables = Array.isArray(o.throwables)
     ? o.throwables.filter((t): t is string => typeof t === "string" && IMPLEMENTED_THROWABLES.includes(t))
     : base.throwables;
-  let loadout = base.loadout;
+  let loadout: Loadout = [base.loadout[0], base.loadout[1] ?? null, base.loadout[2] ?? null];
   if (Array.isArray(o.loadout) && typeof o.loadout[0] === "string" && Object.hasOwn(WEAPONS, o.loadout[0])) {
     const second = typeof o.loadout[1] === "string" && Object.hasOwn(WEAPONS, o.loadout[1]) ? o.loadout[1] : null;
-    loadout = [o.loadout[0], second];
+    const third = typeof o.loadout[2] === "string" && Object.hasOwn(WEAPONS, o.loadout[2]) ? o.loadout[2] : null;
+    loadout = [o.loadout[0], second, third];
   }
   const maxBots = mode === "survival" ? 0 : mode === "training" ? 3 : MAX_ROOM_PLAYERS - 1;
   const legalWeapons = [...new Set(weapons.length > 0 ? weapons : base.weapons)];
-  if (!legalWeapons.includes(loadout[0])) loadout = [legalWeapons[0], loadout[1]];
-  if (loadout[1] && !legalWeapons.includes(loadout[1])) loadout = [loadout[0], null];
+  if (!legalWeapons.includes(loadout[0])) loadout[0] = legalWeapons[0];
+  for (const i of [1, 2] as const) if (loadout[i] && !legalWeapons.includes(loadout[i]!)) loadout[i] = null;
   return {
     map,
     mode,

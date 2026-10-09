@@ -242,7 +242,11 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
     return json(res, 200, { profile: updated });
   }
   if (path === "/api/me/weapons" && method === "GET") return json(res, 200, { weapons: await db.call("weaponStats", { profileId: profile.id }) });
-  if (path === "/api/presets" && method === "GET") return json(res, 200, { presets: await db.call("presets", { profileId: profile.id }) });
+  if (path === "/api/presets" && method === "GET") {
+    const presets = await db.call<Array<{ settings: unknown }>>("presets", { profileId: profile.id });
+    // Normalize older two-slot presets at the boundary without rewriting history.
+    return json(res, 200, { presets: presets.map((preset) => ({ ...preset, settings: sanitizeSettings(preset.settings) })) });
+  }
   if (path === "/api/presets" && method === "POST") {
     try {
       const body = objectBody(await readJson(req));

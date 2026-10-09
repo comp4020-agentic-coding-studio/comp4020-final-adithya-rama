@@ -44,6 +44,7 @@ export class TouchControls {
         <button data-b="${Btn.DUAL}">Dual</button>
         <button data-b="${Btn.SLOT1}">Slot 1</button>
         <button data-b="${Btn.SLOT2}">Slot 2</button>
+        <button data-b="${Btn.SLOT3}">Slot 3</button>
         <button data-b="${Btn.THROW}">Throw</button>
         <button data-b="${Btn.NEXT_THROWABLE}">Type</button>
         <button data-b="${Btn.MELEE}">Melee</button>
@@ -73,6 +74,7 @@ export class TouchControls {
         b.setPointerCapture(e.pointerId);
         this.buttonPointers.set(e.pointerId, { el: b, bit });
         this.buttons |= bit;
+        this.input.tapTouch(bit);
         this.push();
       });
       const release = (e: PointerEvent) => {
@@ -149,7 +151,7 @@ export class TouchControls {
     let aim: number | null = null;
     if (r.id !== null && rLen > DEAD) {
       aim = Math.atan2(r.dy, r.dx);
-      if (rLen > FIRE_AT) bits |= Btn.FIRE;
+      if (rLen > FIRE_AT) bits |= Btn.FIRE | Btn.CONTINUOUS_FIRE;
     }
     this.input.setTouch(bits, aim);
   }
@@ -173,6 +175,7 @@ export class TouchControls {
     this.zoomButton.classList.remove("on");
     this.actions.zoom(false);
     this.push();
+    this.input.clearTouch();
     for (const { el, id } of captures) {
       if (el.hasPointerCapture(id)) el.releasePointerCapture(id);
     }

@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const TICK_RATE = 60;
 export const DT = 1 / TICK_RATE;
@@ -51,3 +51,7 @@ export const MELEE_COOLDOWN_TICKS = 36;
 
 export const SEAT_RESERVE_MS = 30_000;
 export const CHECKPOINT_MS = 5_000;
+
+// Combat postpones discrete healing; hidden reconnect bodies never heal.
+export const HEALTH_REGEN_DELAY_TICKS = 6 * TICK_RATE;
+export const HEALTH_REGEN_INTERVAL_TICKS = TICK_RATE / 4;

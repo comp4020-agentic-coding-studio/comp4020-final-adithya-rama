@@ -34,21 +34,22 @@ for (const [id, length, width, color] of [
 SHAPES.machete = [block(0,-2,9,5,wood),block(9,-3,27,6,0xc7e3e7),block(7,-5,3,10,dark)];
 SHAPES["riot-shield"] = [block(-2,-19,7,39,0x517992),block(-1,-13,5,12,0xbbe9ee),block(0,3,3,10,0xd3c380)];
 export function drawWeapon(g: Graphics, id: string, x: number, y: number, aim = 0, scale = 1, alpha = 1): void {
-  const c=Math.cos(aim)*scale, s=Math.sin(aim)*scale;
+  const c=Math.cos(aim)*scale, s=Math.sin(aim)*scale, flip=Math.cos(aim)>=0?1:-1;
   for (const p of SHAPES[id] ?? SHAPES["mini-eagle"]) {
-    const points = [[p.x,p.y],[p.x+p.w,p.y],[p.x+p.w,p.y+p.h],[p.x,p.y+p.h]].flatMap(([a,b])=>[x+a*c-b*s,y+a*s+b*c]);
-    g.poly(points).fill({color:p.c,alpha});
+    const points = [[p.x,p.y],[p.x+p.w,p.y],[p.x+p.w,p.y+p.h],[p.x,p.y+p.h]].flatMap(([a,b])=>[x+a*c-b*s*flip,y+a*s+b*c*flip]);
+    g.poly(points).fill({color:p.c,alpha}).stroke({color:0x21302c,width:1.2*scale,alpha});
   }
 }
+export function weaponLength(id:string):number {return Math.max(...(SHAPES[id]??SHAPES["mini-eagle"]).map(s=>s.x+s.w));}
 export function weaponIcon(id: string): string {
   const shapes=(SHAPES[id] ?? SHAPES["mini-eagle"]).map(p=>'<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" fill="#'+p.c.toString(16).padStart(6,"0")+'"/>').join("");
   return '<svg class="weapon-icon" aria-hidden="true" viewBox="-9 -22 65 46">'+shapes+'</svg>';
 }
-export const THROW_COLORS: Record<string,number> = { frag:0xa0bc73,gas:0xb2ed62,emp:0x81d7ff,mine:0xf4a76d };
+export const THROW_COLORS: Record<string,number> = { frag:0xa0bc73,flash:0xe6dfc2,gas:0xb2ed62,emp:0x81d7ff,mine:0xf4a76d };
 export function drawThrowable(g: Graphics, id: string, x:number, y:number, size=1, armed=false): void {
   const c=THROW_COLORS[id] ?? 0xffffaa;
   if(id==="mine") { g.ellipse(x,y,9*size,4*size).fill(0x414952); g.circle(x,y-3*size,3*size).fill(armed?0xff554d:c); }
-  else { g.roundRect(x-5*size,y-7*size,10*size,14*size,3*size).fill(c); g.rect(x-3*size,y-10*size,6*size,4*size).fill(0x39434c); g.rect(x-2*size,y-5*size,4*size,9*size).fill({color:0xffffff,alpha:.3}); }
+  else { g.roundRect(x-5*size,y-7*size,10*size,14*size,3*size).fill(c).stroke({width:1.5*size,color:0x26362c}); g.rect(x-3*size,y-10*size,6*size,4*size).fill(0x39434c); g.rect(x-2*size,y-5*size,4*size,9*size).fill({color:0xffffff,alpha:.3}); if(id==="flash")g.rect(x-5*size,y-2*size,10*size,3*size).fill(0xbd7240); else if(id==="frag")for(let i=-4;i<=4;i+=4)g.moveTo(x-4*size,y+i*size).lineTo(x+4*size,y+i*size).stroke({width:size,color:0x587342}); }
 }
 export function avatarSvg(a: Avatar, color:number): string {
   const skin=SKIN[a.face].toString(16).padStart(6,"0"); const body=color.toString(16).padStart(6,"0");
@@ -58,3 +59,67 @@ export function avatarSvg(a: Avatar, color:number): string {
   return '<svg role="img" aria-label="Your customized pilot" viewBox="0 0 120 130"><ellipse cx="59" cy="119" rx="38" ry="7" fill="#0003"/><rect x="23" y="49" width="16" height="42" rx="6" fill="#8495a2"/><path d="M31 92L26 112L32 107L36 122L42 94" fill="#ffb753"/><rect x="41" y="87" width="14" height="28" rx="4" fill="#243442"/><rect x="64" y="87" width="14" height="28" rx="4" fill="#243442"/><rect x="35" y="46" width="48" height="51" rx="11" fill="#'+body+'"/><circle cx="57" cy="32" r="20" fill="#'+skin+'"/>'+head+eyes+'<text x="60" y="76" fill="#fff4cb" text-anchor="middle" font-size="24">'+emblem+'</text><path d="M74 66L91 71" stroke="#'+skin+'" stroke-width="11" stroke-linecap="round"/><path d="M86 65H113V73H86" fill="#354451"/></svg>';
 }
 export function weaponName(id:string):string { return WEAPONS[id]?.name ?? id; }
+
+export interface PilotPose {x:number;y:number;h:number;color:number;avatar:Avatar;aim:number;walk:number;airborne:boolean;jetting:boolean;alpha:number;recoil:number;weapon:string|null;otherWeapon:string|null;now:number;hit:boolean}
+export function drawPilot(g:Graphics,p:PilotPose):void {
+  const {x,y,h,alpha,avatar}=p,top=y-h,f=Math.cos(p.aim)>=0?1:-1,ink=0x21322e,skin=SKIN[avatar.face];
+  const leg=h*.27,hip=y-leg,step=p.airborne?3:p.walk*4.7;
+  const color=p.hit?0xffddd0:p.color;
+  const shape=(xx:number,yy:number,w:number,hh:number,c:number,rad=3)=>g.roundRect(xx,yy,w,hh,rad).fill({color:c,alpha}).stroke({color:ink,width:1.6,alpha});
+  // Boots and articulated legs are separate so running and flight read at scale.
+  for(const side of [-1,1]) {
+    const foot=x+side*6+step*side,fy=y-(p.airborne?(side===f?3:7):Math.max(0,step*side*.6));
+    g.moveTo(x+side*5,hip).lineTo(foot,fy-4).stroke({width:9,color:ink,alpha});
+    g.moveTo(x+side*5,hip).lineTo(foot,fy-4).stroke({width:6,color:0x566858,alpha});
+    shape(foot-5+(f<0?-2:0),fy-6,12,6,0x34433a,2);
+    g.moveTo(foot-4,fy-1).lineTo(foot+5,fy-1).stroke({width:1,color:0x98a690,alpha});
+  }
+  // Twin-cylinder pack, nozzle and hot inner exhaust.
+  const packX=x-f*13;
+  shape(packX-5,top+17,10,h*.44,0x687d73,3);
+  g.moveTo(packX-3,top+21).lineTo(packX-3,top+h*.65).stroke({width:2,color:0xa1b6a4,alpha});
+  shape(packX-4,top+h*.72,8,4,0x33493f,1);
+  if(p.jetting) {
+    const jet=12+Math.sin(p.now/29)*4;
+    g.poly([packX-4,top+h*.76,packX-6,top+h*.76+9,packX,top+h*.76+jet+8,packX+6,top+h*.76+6,packX+4,top+h*.76]).fill({color:0xf08b38,alpha:.85});
+    g.poly([packX-3,top+h*.76,packX,top+h*.76+jet,packX+3,top+h*.76]).fill({color:0xffed9b,alpha});
+    g.circle(packX,top+h*.76+jet+13,3).fill({color:0xd7d9bd,alpha:.38});
+  }
+  // Broad shoulder plate, layered vest, belt and hip pouches.
+  shape(x-11,top+17,22,h*.5,color,6);
+  g.poly([x-10,top+20,x-4,top+16,x+5,top+17,x+11,top+22,x+8,top+h*.66,x-8,top+h*.65]).fill({color:0x536453,alpha:.45}).stroke({color:ink,width:1.3,alpha});
+  g.moveTo(x-7,top+20).lineTo(x-3,top+h*.62).moveTo(x+7,top+20).lineTo(x+3,top+h*.62).stroke({width:2,color:0xc5c6a3,alpha:.7*alpha});
+  shape(x-12,hip-5,24,6,0x394b3d,2);
+  shape(x-9,hip-10,6,7,0x9aa084,1);shape(x+3,hip-10,6,7,0x9aa084,1);
+  if(avatar.emblem==="star")g.star(x,top+26,5,4,1.8).fill({color:0xffe8af,alpha});
+  else if(avatar.emblem==="bolt")g.poly([x+3,top+21,x-3,top+27,x,top+27,x-1,top+31,x+5,top+24,x+1,top+24]).fill({color:0xffe8af,alpha});
+  else {g.circle(x,top+25,3).fill({color:0xeae8d3,alpha});g.rect(x-2,top+26,4,3).fill({color:0xeae8d3,alpha});}
+  // Neck, face, nose and ear; helmet leaves the jaw visible.
+  shape(x-4,top+12,8,8,skin,2);
+  g.ellipse(x,top+8,10,10).fill({color:skin,alpha}).stroke({width:1.7,color:ink,alpha});
+  g.circle(x+f*9,top+9,2.5).fill({color:skin,alpha});
+  g.circle(x-f*8,top+10,2.8).fill({color:0xc9996e,alpha}).stroke({width:1,color:ink,alpha});
+  g.moveTo(x+f*2,top+15).lineTo(x+f*7,top+14).stroke({color:0x684f40,width:1.1,alpha});
+  if(avatar.helmet==="mohawk") {
+    g.poly([x-7,top+1,x-4,top-10,x,top-6,x+3,top-12,x+7,top+2]).fill({color:0xe0a849,alpha}).stroke({width:1.5,color:ink,alpha});
+  } else {
+    const helmet=avatar.helmet==="cap"?0x89966b:0x788878;
+    g.roundRect(x-11,top-3,22,12,5).fill({color:helmet,alpha}).stroke({width:1.8,color:ink,alpha});
+    g.moveTo(x-7,top).quadraticCurveTo(x,top-4,x+7,top).stroke({width:2,color:0xbdc8b4,alpha});
+    g.roundRect(x-12,top+5,24,4,2).fill({color:0x43564a,alpha}).stroke({width:1,color:ink,alpha});
+    if(avatar.helmet==="cap")g.moveTo(x+f*5,top+6).lineTo(x+f*16,top+6).stroke({width:4,color:0x66784f,alpha});
+    else {shape(x-f*12,top+7,6,7,0x4c6054,2);g.circle(x-f*9,top+10,1.3).fill({color:0xb9c7ad,alpha});}
+  }
+  const eyeX=f>0?x+1:x-10;
+  g.roundRect(eyeX,top+8,9,4,1.5).fill({color:avatar.helmet==="visor"?0xb7e7e1:0x253b35,alpha});
+  g.moveTo(eyeX+1,top+9).lineTo(eyeX+6,top+9).stroke({width:1,color:0xdaece0,alpha:.85*alpha});
+  // Aim pose, gloved trigger hand, outlined distinct weapon silhouette.
+  const aim=p.aim-f*p.recoil*.025,gx=x-Math.cos(aim)*p.recoil*3,gy=top+h*.43;
+  const arm=(yy:number)=>{const hx=gx+Math.cos(aim)*13,hy=yy+Math.sin(aim)*13;
+    g.moveTo(x-f*4,top+h*.46).lineTo(x+f*4,yy+5).lineTo(hx,hy).stroke({width:8,color:ink,alpha,cap:"round"});
+    g.moveTo(x-f*4,top+h*.46).lineTo(x+f*4,yy+5).lineTo(hx,hy).stroke({width:5.2,color:skin,alpha,cap:"round"});
+    g.circle(hx,hy,3.5).fill({color:0x455b4b,alpha}).stroke({width:1,color:ink,alpha});};
+  arm(gy);
+  if(p.weapon)drawWeapon(g,p.weapon,gx,gy,aim,.9,alpha);
+  if(p.otherWeapon){arm(gy+9);drawWeapon(g,p.otherWeapon,gx-f*4,gy+9,aim,.9,alpha);}
+}

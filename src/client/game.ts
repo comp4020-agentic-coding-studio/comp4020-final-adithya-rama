@@ -9,7 +9,7 @@ import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
 import { esc } from "./dom.ts";
 import { GameAudio } from "./audio.ts";
 import { avatarOf, weaponIcon } from "./art.ts";
-import { bindingsOf, Input } from "./input.ts";
+import { bindingsOf, keyLabel, Input } from "./input.ts";
 import type { Net } from "./net.ts";
 import { type RenderPlayer, Renderer, TEAM_COLORS, TEAM_NAMES } from "./render.ts";
 import { TouchControls } from "./touch.ts";
@@ -53,6 +53,9 @@ export class GameSession {
   private clockOffset: number | null = null;
   private killfeed: { html: string; at: number }[] = [];
   private touchZoom = false;
+  private previousHp:number|null=null;
+  private healingUntil=0;
+  private bindings:Record<string,number>;
   private hud: HTMLElement;
   private els: Record<string, HTMLElement> = {};
   private destroyed = false;
@@ -69,6 +72,7 @@ export class GameSession {
     this.root = root;
     this.net = net;
     this.hooks = hooks;
+    this.bindings=bindingsOf(hooks.prefs().bindings);
     this.settings = start.settings;
     this.audio.muted=hooks.prefs().muted===true;
     this.audio.volume=Number(hooks.prefs().volume ?? .35);
@@ -80,6 +84,7 @@ export class GameSession {
     this.hud = document.createElement("div");
     this.hud.className = "hud";
     this.hud.innerHTML = `
+      <div class="flash-overlay" data-el="flash" hidden></div>
       <div class="hud-top">
         <span class="team-score t0" data-el="s0"></span>
         <span class="timer" data-el="timer">--:--</span>
@@ -88,8 +93,8 @@ export class GameSession {
       <div class="objective" data-el="objective"></div>
       <div class="spectator-controls" data-el="spectate" hidden><button data-follow="-1" aria-label="Follow previous pilot">←</button><span data-el="following"></span><button data-follow="1" aria-label="Follow next pilot">→</button></div>
       <div class="hud-bars">
-        <div class="bar hp" title="Health"><i data-el="hp"></i><span data-el="hpText"></span></div>
-        <div class="bar fuel" title="Jet fuel"><i data-el="fuel"></i></div>
+        <div class="vital-label"><b>HEALTH</b><span data-el="regen"></span></div><div class="bar hp" title="Health"><i data-el="hp"></i><span data-el="hpText"></span></div>
+        <div class="vital-label"><b>JET FUEL</b><span data-el="fuelText"></span></div><div class="bar fuel" title="Jet fuel"><i data-el="fuel"></i></div>
       </div>
       <div class="hud-weapon" data-el="weapon"></div>
       <div class="killfeed" data-el="feed" aria-live="polite"></div>
@@ -119,7 +124,7 @@ export class GameSession {
     this.input = new Input(this.renderer.canvas, {
       onScoreboard: (show) => { this.els.board.classList.toggle("hidden", !show); if(show)this.renderBoard(); },
       onMenu: () => this.toggleMenu(),
-    },bindingsOf(this.hooks.prefs().bindings));
+    },this.bindings);
     if (matchMedia("(pointer: coarse)").matches || "ontouchstart" in window) {
       this.touch = new TouchControls(this.root, this.input, {
         scoreboard: () => { this.els.board.classList.toggle("hidden"); this.renderBoard(); },
@@ -184,6 +189,11 @@ export class GameSession {
     this.updateHud(s, me);
   }
 
+  private keyFor(action:number):string {
+    const code=Object.entries(this.bindings).find(([,bit])=>bit===action)?.[0];
+    return code?esc(keyLabel(code)):"Unbound";
+  }
+
   private nameOf(id: number | null): string {
     if (id === null) return "";
     const r = this.roster.get(id);
@@ -196,6 +206,9 @@ export class GameSession {
     switch (e.t) {
       case "shot":
         r.addTracer(e.x1, e.y1, e.x2, e.y2, e.w, e.hit);
+        break;
+      case "flashbang":
+        r.addFlashbang(e.x,e.y,e.r);
         break;
       case "explode":
         r.addExplosion(e.x, e.y, e.r);
@@ -240,8 +253,8 @@ export class GameSession {
 
   private localTick(): void {
     if(this.you===null)return;
-    this.input.enabled=this.els.menu.classList.contains("hidden");
-    let b = this.input.buttons();
+    this.input.enabled=this.els.menu.classList.contains("hidden")&&!document.querySelector("dialog[open]");
+    let b = this.input.sampleButtons();
     const me=this.latest?.players.find(p=>p.id===this.you);
     if(me && me.emp>0)b &= ~Btn.JET;
     const f: InputFrame = { seq: ++this.seq, b, aim: this.input.aim, view: Math.floor(this.renderTick()) };
@@ -317,7 +330,8 @@ export class GameSession {
         hp: s.hp,
         maxHp:s.maxHp ?? maxHp,
         dual:s.dual,
-        otherWeapon:s.s[s.a===0?1:0],
+        otherWeapon:s.dualSlot===null?null:s.s[s.dualSlot],
+        vx:s.vx,vy:s.vy,
         emp:s.emp,
         avatar:avatarOf(r?.avatar),
         weapon: s.s[s.a],
@@ -352,7 +366,12 @@ export class GameSession {
     const zoom = weaponZoom * (this.input.zoom || this.touchZoom ? 1.35 : 1);
     this.renderer.frame(camera, zoom, players, this.latest.projectiles, this.latest.pickups, this.settings.mode==="flag"?this.latest.flags:[],this.latest.areas);
 
-    if (this.pred) this.els.fuel.style.width = `${(this.pred.fuel / (100 * this.settings.fuelCapacity)) * 100}%`;
+    if(this.pred) {
+      const fuel=Math.round(this.pred.fuel/(100*this.settings.fuelCapacity)*100);
+      this.els.fuel.style.width=fuel+"%";
+      this.els.fuelText.textContent=this.settings.unlimitedFuel?"∞":fuel+"%";
+    }
+    if(performance.now()>this.healingUntil)this.els.regen.textContent="";
     const now = performance.now();
     const feed = this.killfeed.filter((k) => now - k.at < 6000);
     const feedHtml = feed.map((k) => `<div>${k.html}</div>`).join("");
@@ -379,14 +398,25 @@ export class GameSession {
     if (me) {
       const maxHp = me.maxHp ?? maxHealth(this.settings);
       this.els.hp.style.width = `${Math.max(0, (me.hp / maxHp) * 100)}%`;
-      this.els.hpText.textContent = String(me.hp);
-      const slot = (i: 0 | 1) => {
-        const w = me.s[i];
-        return `<div class="slot ${me.a === i || me.dual ? "on" : ""}"><small>${i + 1}</small> ${w ? weaponIcon(w)+esc(WEAPONS[w]?.name ?? w) : "—"} ${me.dual&&me.slots[i]?`<small>${me.slots[i]!.mag}</small>`:""}</div>`;
+      this.els.hpText.textContent = me.hp+" / "+maxHp;
+      if(this.previousHp!==null&&this.previousHp>0&&me.hp>this.previousHp&&me.hp-this.previousHp<=2) {
+        this.healingUntil=performance.now()+600;this.els.regen.textContent="+ Recovering";
+      }
+      if(this.previousHp!==null&&me.hp<this.previousHp){this.healingUntil=0;this.els.regen.textContent="";}
+      this.previousHp=me.hp;
+      this.els.flash.hidden=me.flash<=0;
+      this.els.flash.style.opacity=String(Math.min(.92,me.flashStrength)*Math.min(1,me.flash/45));
+      const slot = (i: 0 | 1 | 2) => {
+        const w=me.s[i], state=me.slots[i], def=w?WEAPONS[w]:null;
+        const active=me.a===i, offhand=me.dual&&me.dualSlot===i;
+        const reload=state?Math.max(0,state.reloadEnd-s.tick):0;
+        const key=Object.entries(this.bindings).find(([,bit])=>bit===[Btn.SLOT1,Btn.SLOT2,Btn.SLOT3][i])?.[0];
+        const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?"Reloading "+(reload/TICK_RATE).toFixed(1)+"s":state.mag+" / "+(this.settings.unlimitedAmmo?"∞":state.reserve);
+        return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b><span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
       };
-      const ammo = me.s[me.a] ? (me.rl > 0 ? "Reloading…" : `${me.mag} / ${this.settings.unlimitedAmmo ? "∞" : me.res}`) : "Melee only";
       const nade=me.throwable;
-      this.els.weapon.innerHTML = `${slot(0)}${slot(1)}<div class="ammo">${ammo}${me.dual?" · DUAL":""}</div><div class="nades">${esc(THROWABLES[nade]?.name ?? nade)} ${me.throwables[nade] ?? 0} <small>(${Object.values(me.throwables).reduce((a,b)=>a+b,0)}/6 total)</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}`;
+      const grenades=this.settings.throwables.filter(id=>(me.throwables[id]??0)>0||id===nade).map(id=>`<span class="grenade-chip ${id===nade?"selected":""}" data-grenade="${esc(id)}"><span class="grenade-dot ${esc(id)}"></span>${esc(id==="frag"?"Frag":id==="flash"?"Flash":id==="gas"?"Poison":id==="emp"?"EMP":"Mine")} <b>${me.throwables[id]??0}</b></span>`).join("");
+      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
       const alive = (me.f & PF.ALIVE) !== 0;
       this.els.center.textContent = alive ? "" : s.endTick <= s.tick ? "" : this.settings.mode==="survival" ? "Waiting for the next wave…" : `Respawning in ${Math.ceil(me.rs / TICK_RATE)}…`;
     } else {
@@ -434,13 +464,13 @@ export class GameSession {
       <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
       <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
       <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
-      <details><summary>Controls</summary>
+      <details><summary>Default controls</summary>
         <ul class="controls">
           <li><b>A / D</b> move, <b>W</b> jump, <b>Space</b> jetpack, <b>S</b> crouch or drop through a platform</li>
-          <li><b>Mouse</b> aim, <b>left click</b> fire, <b>right click</b> zoom; or <b>arrow keys</b> aim and <b>J / Enter</b> fire</li>
-          <li><b>1 / 2</b> pick slot, <b>Q</b> swap, <b>R</b> reload, <b>E</b> pick up, <b>X</b> drop</li>
-          <li><b>G</b> throw grenade, <b>T</b> next grenade type, <b>V</b> melee</li>
-          <li><b>Tab</b> scoreboard, <b>Esc</b> this menu</li>
+          <li><b>Mouse</b> aim, <b>left click</b> fire, <b>right click</b> zoom; or hold <b>Num 2 / 4 / 6 / 8</b> to aim and fire. <b>Arrow keys</b> aim without firing. Combine two directions for diagonals</li>
+          <li><b>1 / 2 / 3</b> pick slot, <b>Tab / Q</b> cycle, <b>F</b> dual, <b>R</b> reload, <b>E</b> pick up, <b>X</b> drop</li>
+          <li>Health recovers gradually after 6 seconds out of combat.</li><li><b>G</b> throw grenade, <b>T</b> next grenade type, <b>V</b> melee</li>
+          <li><b>B / backquote</b> scoreboard, <b>Esc</b> this menu</li>
         </ul>
       </details>`;
     menu.classList.remove("hidden");
