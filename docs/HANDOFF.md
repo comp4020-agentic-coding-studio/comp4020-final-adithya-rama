@@ -1,68 +1,66 @@
-# Integration handoff: complete scope implemented, release acceptance
+# Integration handoff: October gameplay and presentation revision
 
-Updated 5 October 2026 (Australia/Sydney). The user authorized implementing the
-whole plan after the original Claude P2 handoff. Do not restart P0 or remove the
-later work based on that older handoff.
+Updated 10 October 2026 (Australia/Sydney). Continue the existing game; do not
+restart the foundation or substitute conventional capture-the-enemy-flag.
 
-## Current implementation
+## Current direction
 
-P0–P5 are implemented: shared authoritative simulation, all 21 firearms, both
-equipment entries, four throwables, four planned arenas, five modes, desktop and
-touch controls, room rules/presets, guest identity, preferences and saved history.
-Flag Delivery uses each team's own flag and permanent dropped flags.
+The user's feedback and revised contract are in
+[REVISION_2026_10_10.md](REVISION_2026_10_10.md). The original plan remains
+historical context. The revision adds three carried equipment slots, numpad
+directional firing, incremental health recovery, flashbangs, forgiving bot
+levels, illustrated arena terrain and armored pilots, clearer weapon feedback,
+and redesigned home/profile/lobby screens. Standard rooms use frag, flashbang
+and poison smoke; EMP and mines remain optional advanced equipment.
 
-Core integration is in commit `225a493`; `de9a5f0` fixes the final zero-score MVP
-tie rule. Subsequent client and acceptance work is recorded in Git history.
-[FEATURES.md](FEATURES.md) is the complete feature ledger; [VALIDATION.md](VALIDATION.md)
-separates automated, browser, container, live and outstanding human evidence.
+The complete arsenal and five modes remain. Each team carries its own flag;
+dropped flags remain until recovered or out of bounds. Server authority,
+persistent guest identity/results and the fixed hosting allowance remain.
 
 ## Running and checking
 
-See [DEVELOPMENT.md](DEVELOPMENT.md). Use Node 24.21.0 through mise.
-Build before starting the server. Use an isolated DB and port for destructive
-restart tests; the normal local database is under ignored `.data/`.
+See [DEVELOPMENT.md](DEVELOPMENT.md). Use Node 24.21.0 through mise. Build before
+starting. Isolate databases/ports for acceptance and restart tests:
 
 ```sh
 mise exec -- pnpm build
 PORT=8081 DB_PATH=/tmp/jet-acceptance.sqlite mise exec -- pnpm start
 APP_URL=http://localhost:8081 mise exec -- pnpm check
 APP_URL=http://localhost:8081 mise exec -- pnpm check:browser
+APP_URL=http://localhost:8081 mise exec -- node scripts/browser-refresh.ts
 mise exec -- pnpm check:evidence
 ```
 
-The current unit suite has 101 checks; the running-app/server/storage suite has
-32. The arsenal, independent browser modes, preferences, latency, persistence
-and constrained load harnesses live in `scripts/`. Read each script's isolation
-requirements before running it. Raw local reports belong in ignored
-`test-results/`; durable summaries belong in the validation records.
+The revision browser harness observes authoritative traffic while using real
+keyboard and touch controls; it does not inject game state. The map preview
+harness renders actual map data and renderer code, with explicitly staged art
+fixtures for closeups. These are distinct forms of evidence. Arsenal,
+preferences, modes, rendering, persistence and constrained load harnesses remain
+under scripts/. Raw reports/screenshots are ignored under test-results/.
 
-## Release
+Current measured results belong in [VALIDATION.md](VALIDATION.md), with the
+October record separate from the earlier release. Do not carry forward older
+performance or live claims as though they verify changed code.
 
-The Fly token is available through the course's configured mise environment.
-Never print it or commit `mise.local.toml`. Deploy only the existing application
-with the fixed one-CPU, 256 MB and persistent-volume shape.
+## Release and course boundary
 
-```sh
-mise exec -- flyctl deploy --remote-only --ha=false -a comp4020-final-adithya-rama
-```
+The repository was verified public and the annotated crit-8 tag resolves to
+e6b4df425c06d822c13578559610160be6bfe4f7. Adithya performed his own publication.
+Preserve this tag: October revisions do not alter the cutoff snapshot.
+The existing main-branch course workflow runs checks and deploys after success.
+There is no ship automation.
 
-The application URL is https://comp4020-final-adithya-rama.fly.dev/.
-Deployment, all five live browser mode flows, and persistence across a Fly
-restart/cold start/redeployment have passed. See [VALIDATION.md](VALIDATION.md)
-for evidence and boundaries. Default admission remains one active room.
+The Fly app is https://comp4020-final-adithya-rama.fly.dev/. Credentials remain
+in the configured ignored environment. Never print them. Retain one shared CPU,
+256 MB, one /data volume and the default limit of one active room.
 
-## Remaining evidence
+## Human evidence
 
-Human playtests with one returning Mini Militia player and one newcomer remain
-required. Do not invent observations, enjoyment, familiar feel or balance
-validation. Use [PLAYTEST.md](PLAYTEST.md), observe the listed tasks, then record
-and fix concrete problems.
+Adithya's dissatisfaction with the prior maps/mechanics is real product feedback,
+recorded in the revision. It does not stand in for the required returning-player
+and newcomer playtests. [PLAYTEST.md](PLAYTEST.md) remains the template for those
+observations. No claims of fun, balance or historical parity should be invented.
 
-Adithya supplied the Crit 8 reflection directly. His role is to think,
-brainstorm, define system behavior and quality, and direct agents' implementation.
-His group is Dàchī, Wednesday 10:30am; the cutoff is Wednesday 7 October 2026,
-08:30 Australia/Sydney. Repository instructions retain private visibility until
-that cutoff. Complete the course public ship/tag procedure then and retain public
-visibility; do not claim it has happened before checking. Adithya explicitly
-chose to run /ship himself. No publication schedule was created; leave visibility
-and the course tag for his manual ship action.
+Adithya's preferred role is to think, brainstorm, define system behavior and
+quality, and direct agents. Preserve his supplied Crit 8 reflection; later
+technical work is not a new personal reflection.

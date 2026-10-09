@@ -1,5 +1,7 @@
 # Validation record
 
+Current revision: [October validation](OCTOBER_VALIDATION.md). The earlier release measurements below retain their original dates.
+
 This is an evidence ledger, not a claim of historical parity or finished balance.
 Dates below are 4–5 October 2026; UTC and Australia/Sydney differ at midnight.
 
@@ -134,12 +136,12 @@ Local credentials, database files and raw test reports are ignored and excluded
 from the Docker build context. This is bounded scan evidence, not a guarantee
 about every possible secret format.
 
-The supplied group is Dàchī, Wednesday 10:30am. Its cutoff is Wednesday
-7 October 2026, 08:30 Canberra/Sydney. Public publication, successful course CI
-and the annotated `crit-8` tag remain pending; they have not been claimed.
-Starting /ship exactly at the cutoff would finish its CI/tagging afterward.
-Adithya chose to run /ship himself. Keep the repository private until he does so;
-no publication automation has been created.
+The supplied group is Dàchī, Wednesday 10:30am, with a Wednesday 08:30
+Canberra/Sydney cutoff. Adithya chose to run /ship himself; no publication
+automation was created. On 10 October, a read-only GitHub check confirmed public
+visibility and the annotated crit-8 tag resolving to e6b4df425c06d822c13578559610160be6bfe4f7.
+This verifies the observed publication state, not the exact time he published.
+The tag is preserved while the October revision proceeds separately.
 
 
 ## Human evidence and limits

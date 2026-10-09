@@ -52,11 +52,37 @@ export function drawThrowable(g: Graphics, id: string, x:number, y:number, size=
   else { g.roundRect(x-5*size,y-7*size,10*size,14*size,3*size).fill(c).stroke({width:1.5*size,color:0x26362c}); g.rect(x-3*size,y-10*size,6*size,4*size).fill(0x39434c); g.rect(x-2*size,y-5*size,4*size,9*size).fill({color:0xffffff,alpha:.3}); if(id==="flash")g.rect(x-5*size,y-2*size,10*size,3*size).fill(0xbd7240); else if(id==="frag")for(let i=-4;i<=4;i+=4)g.moveTo(x-4*size,y+i*size).lineTo(x+4*size,y+i*size).stroke({width:size,color:0x587342}); }
 }
 export function avatarSvg(a: Avatar, color:number): string {
-  const skin=SKIN[a.face].toString(16).padStart(6,"0"); const body=color.toString(16).padStart(6,"0");
-  const head=a.helmet==="mohawk"?'<path d="M49 21L47 5L54 10L58 2L64 22" fill="#f2a541"/>':a.helmet==="cap"?'<path d="M37 28Q37 10 56 12Q74 14 74 28H84V33H36" fill="#789571"/>':'<path d="M34 30Q34 7 57 9Q80 11 79 33H34" fill="#42596a"/>';
-  const eyes=a.helmet==="visor"?'<rect x="43" y="28" width="35" height="12" rx="4" fill="#97e5ef"/>':'<rect x="59" y="31" width="9" height="4" rx="1" fill="#24303e"/>';
-  const emblem=a.emblem==="bolt"?"ϟ":a.emblem==="skull"?"●":"★";
-  return '<svg role="img" aria-label="Your customized pilot" viewBox="0 0 120 130"><ellipse cx="59" cy="119" rx="38" ry="7" fill="#0003"/><rect x="23" y="49" width="16" height="42" rx="6" fill="#8495a2"/><path d="M31 92L26 112L32 107L36 122L42 94" fill="#ffb753"/><rect x="41" y="87" width="14" height="28" rx="4" fill="#243442"/><rect x="64" y="87" width="14" height="28" rx="4" fill="#243442"/><rect x="35" y="46" width="48" height="51" rx="11" fill="#'+body+'"/><circle cx="57" cy="32" r="20" fill="#'+skin+'"/>'+head+eyes+'<text x="60" y="76" fill="#fff4cb" text-anchor="middle" font-size="24">'+emblem+'</text><path d="M74 66L91 71" stroke="#'+skin+'" stroke-width="11" stroke-linecap="round"/><path d="M86 65H113V73H86" fill="#354451"/></svg>';
+  a=avatarOf(a);
+  const skin="#"+SKIN[a.face].toString(16).padStart(6,"0");
+  const body="#"+(Number.isFinite(color)?Math.round(color)&0xffffff:0x3c8de0).toString(16).padStart(6,"0");
+  const helmet=a.helmet==="mohawk"
+    ? '<path d="M39 26L43 8L51 15L58 3L64 13L70 8L75 29" fill="#e0a849"/>'
+    : '<path d="M34 30V25Q35 11 54 11H59Q78 12 79 28V32Z" fill="'+(a.helmet==="cap"?"#89966b":"#788878")+'"/><path d="M40 20Q55 12 70 20" fill="none" stroke="#bdc8b4" stroke-width="3"/><path d="M32 28H80V34H32Z" fill="#43564a"/>'+
+      (a.helmet==="cap"?'<path d="M66 29H89V34H67" fill="#66784f"/>':'<rect x="30" y="31" width="11" height="15" rx="4" fill="#4c6054"/><circle cx="35" cy="37" r="2.5" fill="#b9c7ad" stroke="none"/>');
+  const emblem=a.emblem==="bolt"
+    ? '<path d="M59 58L48 71H55L52 81L66 65H59L63 58Z" fill="#ffe8af" stroke="none"/>'
+    : a.emblem==="star"
+      ? '<path d="M57 59L60 66L68 67L62 72L64 80L57 76L50 80L52 72L46 67L54 66Z" fill="#ffe8af" stroke="none"/>'
+      : '<path d="M49 65Q49 58 57 58Q65 58 65 65V70L62 73V78H52V73L49 70Z" fill="#eae8d3" stroke="none"/><path d="M51 66h4v4h-4zm8 0h4v4h-4zm-4 7h4v3h-4" fill="#354d41" stroke="none"/>';
+  return '<svg role="img" aria-label="Your customized armored pilot" viewBox="0 0 120 130">'+
+    '<ellipse cx="60" cy="120" rx="39" ry="6" fill="#102b3340"/>'+
+    '<g stroke="#21322e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">'+
+    '<path d="M42 89L40 110M69 90L76 108" fill="none" stroke-width="16"/><path d="M42 89L40 110M69 90L76 108" fill="none" stroke="#566858" stroke-width="10"/>'+
+    '<path d="M32 106H47L51 113V117H29V112Z" fill="#34433a"/><path d="M69 104H82L89 111V115H66V110Z" fill="#34433a"/><path d="M32 113H47M70 111H85" stroke="#98a690" stroke-width="2"/>'+
+    '<path d="M22 86L18 101L24 98L27 116L33 98L32 86" fill="#f08b38" stroke="none"/><path d="M25 87L25 105L30 89" fill="#ffed9b" stroke="none"/>'+
+    '<rect x="18" y="45" width="16" height="39" rx="6" fill="#687d73"/><rect x="28" y="44" width="13" height="42" rx="5" fill="#7d9386"/><path d="M22 51V76M32 49V77" stroke="#b1c4ab" stroke-width="3"/><path d="M19 82H36V89H20Z" fill="#33493f"/>'+
+    '<rect x="35" y="45" width="47" height="51" rx="12" fill="'+body+'"/><path d="M36 52L47 46H66L80 53L76 88H40Z" fill="#536453" fill-opacity=".6"/>'+
+    '<path d="M41 52L47 85M73 52L68 85" fill="none" stroke="#c5c6a3" stroke-width="4"/>'+
+    '<path d="M35 52Q35 45 42 45L47 52L43 59H35ZM70 49Q80 44 84 53L85 59H75Z" fill="'+body+'"/>'+
+    '<rect x="33" y="88" width="50" height="10" rx="3" fill="#394b3d"/><rect x="39" y="79" width="13" height="15" rx="2" fill="#9aa084"/><rect x="65" y="79" width="12" height="15" rx="2" fill="#9aa084"/><path d="M41 84H50M67 84H75" stroke="#c1c5a4" stroke-width="2"/><rect x="55" y="90" width="8" height="6" rx="1" fill="#c9c6a0"/>'+
+    emblem+
+    '<rect x="49" y="38" width="16" height="12" rx="4" fill="'+skin+'"/><ellipse cx="57" cy="32" rx="21" ry="20" fill="'+skin+'"/><path d="M77 33L82 37L76 41" fill="'+skin+'"/><circle cx="37" cy="37" r="5" fill="'+skin+'"/>'+
+    (a.face==="robot"?'<path d="M44 38V45H66M49 41H59M49 45H59" fill="none" stroke="#607f79" stroke-width="2"/>':'<path d="M62 44Q68 46 73 42" fill="none" stroke="#684f40" stroke-width="1.7"/>')+
+    helmet+
+    '<rect x="56" y="32" width="21" height="8" rx="3" fill="'+(a.helmet==="visor"||a.face==="robot"?"#b7e7e1":"#253b35")+'"/><path d="M59 34H69" stroke="#daece0" stroke-width="1.7"/>'+
+    '<path d="M73 64L82 73L96 68" fill="none" stroke-width="13"/><path d="M73 64L82 73L96 68" fill="none" stroke="'+skin+'" stroke-width="8"/><circle cx="95" cy="68" r="6" fill="#455b4b"/>'+
+    '<path d="M88 59H111V67H99L98 75H91L92 67H86Z" fill="#a4b9c0"/><path d="M107 61H116V66H107Z" fill="#34433a"/><path d="M91 62H104" stroke="#d9e3d4" stroke-width="2"/>'+
+    '</g></svg>';
 }
 export function weaponName(id:string):string { return WEAPONS[id]?.name ?? id; }
 

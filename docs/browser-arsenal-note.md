@@ -1,5 +1,7 @@
 # Desktop arsenal browser evidence
 
+For changed October code, see [October validation](OCTOBER_VALIDATION.md). The measurements below describe the earlier release.
+
 Executed on 4 October 2026 against a production client build served locally on port 8094, using Playwright Chromium at 1920 x 1080. The server used a temporary SQLite database, which was removed after the check; the isolated server was stopped.
 
 ## Reproduce

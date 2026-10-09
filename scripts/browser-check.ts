@@ -65,7 +65,7 @@ async function practiceRound(page: Page, tag: string, touch: boolean): Promise<v
   await page.screenshot({ path: `${out}/${tag}-results.png`, fullPage: true });
 
   await page.getByRole("button", { name: "Leave room" }).click();
-  await page.getByRole("heading", { name: "Your matches" }).waitFor();
+  await page.getByRole("heading", { name: "Recent matches" }).waitFor();
   await page.locator(".match-row").first().waitFor({ timeout: 5000 });
 }
 

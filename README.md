@@ -21,7 +21,7 @@ is simple: a stranger can join, understand movement and flight, finish a round,
 and return to find their result. Joining should not require an account or an
 explanation from the developer.
 
-Familiarity means fluid directional flight, meaningful fuel management, two
+Familiarity means fluid directional flight, meaningful fuel management, three
 weapon slots, and clear differences between weapons. It does not mean claiming
 that authored weapon values reproduce the original game's balance. The arsenal
 should create different decisions: a close-range shotgun, a precision rifle and
@@ -52,6 +52,13 @@ whether flight feels right or a match is fun. A returning player and a newcomer
 will be observed using the [playtest record](docs/PLAYTEST.md); no such experience
 is claimed before it happens.
 
+The [October revision](docs/REVISION_2026_10_10.md) responds to Adithya's review:
+the maps needed illustrated jungle cliffs, snowy shelters and stronger combat
+feedback; the start screen and lobby needed clear choices and readiness. Good
+now also means that a keyboard-only player can aim, fire, reload and switch
+without fighting the controls, and that map art communicates real cover and
+passable routes.
+
 ## What informed these choices
 
 Adithya's memories of the older game and explicit own-flag rules establish the
@@ -66,8 +73,17 @@ to the people using it rather than its audience size.
 ## Play and build
 
 Choose **Quick play**, create a room, or practise against bots. Use A/D to move,
-W to jump, Space to fly and the mouse to aim/fire. The controls menu lists and
-remaps actions; touch uses two sticks and action buttons.
+W to jump and Space to fly. Aim/fire with the mouse, or hold Numpad 2/4/6/8
+for directional fire (combine keys for diagonals). Move to face that direction.
+Use 1/2/3 to select carried weapons, Tab to cycle and R to reload early. Empty
+magazines reload automatically; a held directional trigger resumes afterward.
+B shows the scoreboard. Touch uses two sticks, three slots and action buttons.
+
+Practice starts with forgiving Easy bots; Normal and Hard offer faster reactions
+and more accurate bursts. Frag, flashbang and poison smoke are the standard
+throwables. Health slowly recovers after six seconds without combat. Your pilot,
+preferences and history live in the profile panel. In a room, choose a team and
+mark yourself ready; the host can start once everyone is ready.
 
 See [development and controls](docs/DEVELOPMENT.md), the
 [implementation plan](docs/IMPLEMENTATION_PLAN.md), and [process account](PROCESS.md).

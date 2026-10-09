@@ -1,5 +1,7 @@
 # Rendering evidence
 
+For changed October code, see [October validation](OCTOBER_VALIDATION.md). The measurements below describe the earlier release.
+
 Measured on 4 October 2026 UTC (5 October in Canberra), against the local production client build and isolated server on port 8096. These are short headless browser measurements, not physical display latency, physical phone, eight-player worst-case, or deployed-service certification.
 
 ## Result and change
@@ -84,3 +86,30 @@ Local generated evidence (ignored by Git):
 - `test-results/performance-*.png`: screenshots from measured runs.
 
 No browser page errors were recorded in completed comparisons. One attempted run used a transpiler that injected an unavailable helper into page evaluation; it was rerun with Node's native TypeScript support. Its abandoned training match briefly occupied the server's one-live-match cap; the next comparison waited for that match to close before rerunning. Neither failed attempt is used as performance evidence.
+
+
+## 10 October illustrated-arena revision: software compositing
+
+The richer illustrated terrain and backgrounds kept the native Intel Arc hardware path near 60 FPS in the integrator's 10-second samples, but increased software raster cost. The final correction is limited to positively identified software WebGL backends: static terrain/scenery/objective labels are rasterized once, and the complete illustrated background is flattened into one opaque cached image. Dynamic players, projectiles, pickups, flags, gas and combat effects remain separate live layers. Hardware retains vector rendering and independent background parallax.
+
+Three sequential 10-second foreground samples used Chromium 153.0.8010.12 / WSL SwiftShader, the local production build on port 8081, Practice with two active bots, and actual Pixi postrender counts:
+
+| Configuration | Desktop 1920 × 1080 viewport, 1280 × 720 canvas | Phone 390 × 844 viewport/canvas |
+| --- | ---: | ---: |
+| Same final build, caches disabled with probe override | 26.8 FPS | Not repeated |
+| First trial: static world and separate background caches | 34.4 FPS | 60.0 FPS |
+| **Selected: static world plus one opaque background cache** | **42.6 FPS** | **60.0 FPS** |
+
+The selected configuration improves the same-build software desktop result by approximately 59%; p95 frame interval falls from 41.6 ms to 26.5 ms. Scene construction/submission remain about 0.3/0.9 ms, consistent with software graphics composition being the limiting cost. Canvas resolution was not lowered further. The software desktop path remains below 60 FPS; no physical phone or display-latency claim follows from these headless samples.
+
+Tradeoff: software rendering moves the background illustration as a single parallax layer, so it loses relative movement between its distant layers. Every illustrated layer remains visible. Static world caching also uses additional client-side texture memory and may slightly soften world artwork when magnified; the HTML HUD stays at full display resolution. Caches rebuild on map/viewport changes. Full hardware artwork and separate parallax remain enabled.
+
+Desktop and phone screenshots from the selected run were visually inspected: terrain, scenery, character silhouettes, equipment, pickups and HUD remained correct and readable, with the local phone pilot clear of touch buttons. No browser page errors occurred. The same-build override is available only with the explicit render probe: `PERF_RENDER_CACHE=0` sets `renderCache=0`; normal play uses automatic software detection.
+
+Local reports:
+- `test-results/browser-performance-revision-software-cache-off.json`
+- `test-results/browser-performance-revision-software-cache.json`
+- `test-results/browser-performance-revision-software-flat-cache.json`
+- `test-results/performance-{desktop,phone}-auto-revision-software-flat-cache.png`
+
+Run through the project's Node runtime with `APP_URL=http://localhost:8081 PERF_SAMPLE_MS=10000 PERF_CASES=desktop-auto,phone-auto PERF_SKIP_DUAL=1`. Set a distinct `PERF_LABEL` for each report. No other browser acceptance run was active during these comparisons; server-only load checks had completed before the final pair.

@@ -138,3 +138,48 @@ preferred role is to think, brainstorm, define how the system should work and
 direct capable agents toward that intention. [The Crit 8 reflection](reflections/crit-8.md)
 edits those supplied words without inventing an experience. Defining quality
 and reviewing evidence remain part of that role after the initial prompt.
+
+## October revision: feedback changes the quality criteria
+
+On 10 October, Adithya said the working maps and mechanics were not yet good
+enough. He supplied jungle and snowy-fort screenshots, described keyboard-only
+directional firing, three carried weapons, gradual recovery, easier bot levels,
+flash and poison grenades, and asked for clearer start/profile/room screens.
+Implementation is committed in
+[`c61b96d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/c61b96d).
+[The revision contract](docs/REVISION_2026_10_10.md) records that direction and
+takes precedence over the older plan where they differ.
+
+The integrator divided work into shared rules/server, map/rendering, and
+input/UI, with explicit file ownership. Three-slot snapshots and input bits were
+agreed before clients consumed them. Old two-slot saved presets normalize into
+the new form. Aim-only arrow keys remain available alongside the requested
+numpad aim-and-fire actions; saved custom bindings are preserved.
+
+Independent browser checks observed server snapshots and combat events rather
+than mutating game state. They established firing through an empty magazine and
+reload, gradual recovery after real self-damage, flash exposure and expiry, and
+poison-area damage. A short touch tap initially vanished between simulation
+frames. Latching discrete actions until the next input sample fixed that
+boundary, with regression coverage. Visual review also caught a lobby badge
+inheriting a full-screen waiting layout and a weapon panel obscuring a pilot at
+the floor edge; both were corrected.
+
+Map review rejected four similar compositions with different scenery.
+Crosscurrent became a coastal broken viaduct and Cryptworks gained enclosed
+chambers, while the snow forts have actual collision openings. Route checks use
+disabled flight, doubled gravity and halved speed; art previews are separately
+labelled fixtures, not proof of multiplayer behavior.
+
+This is technical and product feedback, not a fabricated human playtest.
+Performance and release evidence for changed code are recorded separately from
+the earlier release. The user's published crit-8 snapshot remains unchanged.
+
+Rendering measurement caught a regression that screenshots did not: the new
+illustrated scene ran at about 60 FPS on the measured Intel GPU but was slower
+on SwiftShader. The same-build ten-second comparison improved software desktop
+from 26.8 to 42.6 submitted FPS by caching static terrain/scenery and flattening
+the software background into one moving layer, at unchanged 1280×720. Hardware
+keeps its separate parallax layers. The phone viewport remained about 60 FPS.
+This tradeoff preserves live actors, pickups, flags and effects; it does not
+claim 60 FPS for software desktop or every machine.

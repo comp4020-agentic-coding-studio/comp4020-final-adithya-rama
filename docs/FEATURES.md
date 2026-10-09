@@ -7,12 +7,14 @@ checks actually performed on Fly. Human playtesting is a separate requirement.
 
 ## Current release boundary
 
-P0–P5 implementation is present. P6 acceptance is in progress. The integrated
-local check passes 96 simulation tests, five touch-input tests and 32 server/storage/API/course tests.
-Browser arsenal acceptance passes all weapons and throwables. Live browser verification covers every mode, desktop/touch practice and saved
-history across Fly restart, cold start and redeployment. Two thirty-minute
-constrained server soaks passed. Detailed status and limits are recorded in [VALIDATION.md](VALIDATION.md), not inferred
-from these local checks. All four planned arenas are retained.
+The October revision implements the user's updated controls, three-slot inventory,
+health recovery, flashbangs, bot tuning, map art and start/room/profile UI.
+The integrated local check passes 142 unit tests and 33 server/storage/API/course
+checks. Current evidence is in [OCTOBER_VALIDATION.md](OCTOBER_VALIDATION.md).
+The earlier release's live and thirty-minute soak results in
+[VALIDATION.md](VALIDATION.md) are historical; they are not substituted for
+verification of changed code. Human balance/playtest evidence remains pending.
+All four arenas are retained.
 
 ## Movement and inventory
 
@@ -22,16 +24,18 @@ from these local checks. All four planned arenas are retained.
 | Directional flight, fuel use/recharge | tested locally | movement tests; browser practice |
 | Weapon-dependent zoom | tested locally | weapon range/HUD; rendering uses weapon data |
 | Health, damage, deaths, respawns | tested locally | combat/full-game tests; browser rounds |
+| Gradual health recovery after combat delay | tested locally | gameplay-refresh tests; observed browser damage and one-point recovery |
+| Distinct Easy / Normal / Hard bot reactions and bursts | tested locally | bot tuning and navigation tests; human balance remains pending |
 | Two-second spawn protection and early action/flag termination | tested locally | combat/full-game tests |
-| Two slots, direct selection, switching | tested locally | combat/full-game tests; arsenal browser |
+| Three slots, direct selection, Tab cycling | tested locally | combat/full-game tests; arsenal browser |
 | Independent compatible dual wielding | tested locally | dual ammunition/reload tests |
 | Heavy exclusion, shield paired with one-handed equipment | tested locally | full-game tests; shield browser |
 | Manual pickups, swapping, dropping | tested locally | combat tests; browser range traversal |
 | Automatic and manual reload | tested locally | combat/full-game tests; browser ammunition |
 | Health, ammo, fuel pickups | tested locally | full-game tests |
-| Six-item throwable cap, two default frags | tested locally | full-game tests |
-| Remappable keys, keyboard aiming/fire | tested locally | eight-flow preferences browser check; persisted remapping and keyboard input |
-| All touch actions | implemented | two sticks, twelve action buttons, scoreboard/menu; practice movement/fire tested |
+| Six-item throwable cap; two each frag, flash, poison | tested locally | gameplay-refresh tests |
+| Remappable keys, numpad aim/fire, movement facing, aim-only arrows | tested locally | input regressions; eight-flow preferences and revision browsers |
+| All touch actions | implemented | two sticks, thirteen action buttons, scoreboard/menu; practice movement/fire tested |
 | Focus loss clears held inputs | tested locally | input handlers; server stale-input test |
 
 ## Complete arsenal
@@ -67,7 +71,8 @@ assertions belong to simulation tests; an observed shot alone is not that proof.
 | Machete | tested locally | stronger, longer melee strike |
 | Riot shield | tested locally | directional direct-fire damage reduction |
 | Fragmentation | tested locally | blast falloff and wall occlusion |
-| Gas | tested locally | visible lingering damage area |
+| Flashbang | tested locally | distance/cover attenuation, temporary sight impairment, bot disruption |
+| Poison smoke | tested locally | visible lingering damage area |
 | EMP grenade | tested locally | area flight disable |
 | Proximity mine | tested locally | terrain attachment, arming delay, enemy trigger |
 

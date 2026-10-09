@@ -7,6 +7,7 @@ import type { Page } from "playwright";
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE??"playwright");
 const base=process.env.APP_URL??"http://localhost:8096";
 const duration=Number(process.env.PERF_SAMPLE_MS??4000);
+const cacheOption=process.env.PERF_RENDER_CACHE!==undefined?"&renderCache="+process.env.PERF_RENDER_CACHE:"";
 mkdirSync("test-results",{recursive:true});
 const errors:string[]=[];
 interface Probe {frames:number;lastFrameAt:number;frameIntervals:number[];drawCpuMs:number[];submitCpuMs:number[];config:Record<string,unknown>}
@@ -61,7 +62,7 @@ try{
   for(const c of cases.filter(c=>!process.env.PERF_CASES||process.env.PERF_CASES.split(",").includes(c.name))) {
     const context=await browser.newContext(c.phone?{viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:2}:{viewport:{width:1920,height:1080},deviceScaleFactor:1});
     const page=await context.newPage();track(page,c.name);
-    await page.goto(base+"?renderProbe=1"+(c.aa===null?"":"&renderAA="+c.aa+"&renderResolution="+c.res));
+    await page.goto(base+"?renderProbe=1"+cacheOption+(c.aa===null?"":"&renderAA="+c.aa+"&renderResolution="+c.res));
     await page.locator("#practice").waitFor();
     if(c.name==="desktop-aa-on-resolution1"||c.name==="phone-aa-on-resolution2") {
       const home={name:c.phone?"phone-home":"desktop-home",...(await measure(page))};results.push(home);console.log(JSON.stringify(home));
@@ -77,10 +78,10 @@ try{
     const a=await browser.newContext({viewport:{width:1920,height:1080}});
     const b=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:2});
     const host=await a.newPage(),spectator=await b.newPage();track(host,"dual-desktop");track(spectator,"dual-phone");
-    await host.goto(base+"?renderProbe=1"+(aa===null?"":"&renderAA="+aa+"&renderResolution=1"));
+    await host.goto(base+"?renderProbe=1"+cacheOption+(aa===null?"":"&renderAA="+aa+"&renderResolution=1"));
     await host.locator("#practice").click();await host.locator("canvas").waitFor();
     const path=new URL(host.url()).pathname;
-    await spectator.goto(base+path+"?renderProbe=1"+(aa===null?"":"&renderAA="+aa+"&renderResolution="+(aa?2:1)));
+    await spectator.goto(base+path+"?renderProbe=1"+cacheOption+(aa===null?"":"&renderAA="+aa+"&renderResolution="+(aa?2:1)));
     await spectator.locator('dialog input[name="spectate"]').check();
     await spectator.getByRole("button",{name:"Join room",exact:true}).click();
     await spectator.locator("canvas").waitFor();

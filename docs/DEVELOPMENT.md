@@ -36,14 +36,28 @@ session cookies or deployment tokens in logs or commits.
 | Flight | Space, directed towards aim | left stick up |
 | Crouch / drop through platform | S | left stick down |
 | Aim / fire | mouse / left click | right stick |
-| Keyboard aim / fire | arrow keys / J or Enter | right stick |
+| Directional aim + held fire | Numpad 2 / 4 / 6 / 8; combine for diagonals | right stick |
+| Alternate aim / fire | arrow keys / J or Enter | right stick |
 | Zoom | right click | Zoom |
-| Select slot / switch | 1, 2 / Q | slot / Swap |
+| Select slot / switch | 1, 2, 3 / Tab or Q | Slot 1, 2, 3 / Swap |
 | Dual wield | F | Dual |
 | Reload / pick up / drop | R / E / X | matching action buttons |
 | Throw / change throwable | G / T | Throw / Type |
 | Melee | V | Melee |
-| Scoreboard / menu | Tab / Escape | Score / Menu |
+| Scoreboard / menu | B / Escape | Score / Menu |
+
+Holding a numpad direction fires at the selected weapon's normal cadence and
+resumes after automatic reload. R reloads early. A/D sets facing when there is
+no explicit aim; actual mouse movement takes over from keyboard aim. Physical
+numpad key codes work with Num Lock on or off. Menu Tab retains normal focus
+navigation. Dual wielding pairs the selected compatible weapon with another
+compatible carried slot; the third item stays carried.
+
+After six quiet seconds, health returns in one-point increments four times a
+second. Damage, attacking and nearby enemy fire delay recovery. Standard rooms
+start with two each of frag, flashbang and poison smoke (six total). EMP grenades
+and mines remain available in the advanced room allowlist. Flash exposure is
+shorter/weaker with distance and cover; it also impairs bots.
 
 The controls menu saves remapped bindings with the pilot's preferences. Blur and
 hidden-tab transitions clear held actions. Settings and bindings should be

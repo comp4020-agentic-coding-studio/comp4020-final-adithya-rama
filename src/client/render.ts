@@ -83,8 +83,11 @@ interface ActorVisual {x:number;y:number;hp:number;alive:boolean;walk:number;at:
 export class Renderer {
   readonly app = new Application();
   private world = new Container();
+  private staticWorld=new Container();
+  private softwareStaticCache=false;
   private backdrop = new Container();
   private backdropLayers=[new Graphics(),new Graphics()];
+  private backdropSky=new Graphics();
   private backdropSize="";
   private actors=new Map<number,ActorVisual>();
   private mapG = new Graphics();
@@ -108,6 +111,7 @@ export class Renderer {
 
   async init(parent: HTMLElement): Promise<void> {
     const software=usesSoftwareWebGL();
+    this.softwareStaticCache=software&&(!probeEnabled||probeParams.get("renderCache")!=="0");
     const antialias=probeAA??!software;
     await this.app.init({
       resizeTo: parent,
@@ -125,7 +129,7 @@ export class Renderer {
       const gl=(this.app.renderer as unknown as {gl?:WebGL2RenderingContext}).gl;
       const ext=gl?.getExtension("WEBGL_debug_renderer_info");
       this.probe={frames:0,lastFrameAt:0,frameIntervals:[],drawCpuMs:[],submitCpuMs:[],config:{
-        antialiasRequested:antialias,softwareFallback:software,resolution:this.app.renderer.resolution,canvasWidth:this.app.canvas.width,canvasHeight:this.app.canvas.height,
+        antialiasRequested:antialias,softwareFallback:software,staticTextureCaching:this.softwareStaticCache,resolution:this.app.renderer.resolution,canvasWidth:this.app.canvas.width,canvasHeight:this.app.canvas.height,
         graphics:gl?{antialias:gl.getContextAttributes()?.antialias,vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)}:null,
       }};
       probeWindow.__jetRenderProbe=this.probe;
@@ -143,9 +147,10 @@ export class Renderer {
     }
     this.app.canvas.setAttribute("aria-label", "Game view");
     parent.appendChild(this.app.canvas);
-    this.backdrop.addChild(...this.backdropLayers);
+    this.backdrop.addChild(this.backdropSky,...this.backdropLayers);
     this.app.stage.addChild(this.backdrop, this.world);
-    this.world.addChild(this.mapG, this.decor, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.fxG, this.labelLayer);
+    this.staticWorld.addChild(this.mapG,this.decor);
+    this.world.addChild(this.staticWorld, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.fxG, this.labelLayer);
   }
 
   get canvas(): HTMLCanvasElement {
@@ -154,6 +159,7 @@ export class Renderer {
 
   setMap(map: MapDefinition, showObjectives = false): void {
     this.map = map;
+    if(this.softwareStaticCache)this.staticWorld.cacheAsTexture(false);
     this.app.renderer.background.color = map.theme.sky;
     const g = this.mapG;
     g.clear();
@@ -181,10 +187,13 @@ export class Renderer {
       label(TEAM_NAMES[home.team]+" FLAG",home.x,home.y+18,TEAM_COLORS[home.team],11);
     }
     label(map.name.toUpperCase(),map.width/2,100,map.theme.accent,32);
+    // Rasterize the complete static illustration once on software backends.
+    // Dynamic actors, pickups, flags and effects stay live in separate layers.
+    if(this.softwareStaticCache)this.staticWorld.cacheAsTexture({resolution:1,antialias:false});
   }
 
-  // How much of the world shows: landscape screens see ~1200 world px across,
-  // portrait phones ~760, and zoom widens the view.
+  // How much of the world shows: landscape screens see ~1050 world px across,
+  // portrait phones ~620, and zoom widens the view.
   private playableHeight(): number {
     const controls=this.canvas.closest(".game")?.querySelector<HTMLElement>(".touch .tbtns");
     if(!controls)return this.app.screen.height;
@@ -331,9 +340,23 @@ export class Renderer {
     const key=map.id+":"+sw+":"+sh;
     if(this.backdropSize!==key) {
       this.backdropSize=key;
-      this.backdropLayers.forEach((g,i)=>drawBackdropLayer(g,map,sw+800,sh+180,i));
+      if(this.softwareStaticCache)this.backdrop.cacheAsTexture(false);
+      this.backdropSky.clear();
+      if(this.softwareStaticCache)this.backdropSky.rect(-500,-180,sw+1800,sh+480).fill(map.theme.sky);
+      this.backdropLayers.forEach((g,i)=>{
+        g.position.set(0,0);
+        drawBackdropLayer(g,map,sw+800,sh+180,i);
+      });
+      // Preserve every illustrated layer, but composite the software backdrop
+      // once and move it as a unit. Hardware retains independent parallax.
+      if(this.softwareStaticCache) {
+        this.backdrop.blendMode="none";
+        this.backdrop.cacheAsTexture({resolution:Math.min(1,this.app.renderer.resolution),antialias:false});
+      }
     }
-    this.backdropLayers.forEach((g,i)=>{
+    if(this.softwareStaticCache) {
+      this.backdrop.position.set(-(this.cam.x*this.scale*.075)%350-100,-(this.cam.y-map.height*.5)*this.scale*.055-30);
+    } else this.backdropLayers.forEach((g,i)=>{
       g.x=-(this.cam.x*this.scale*(.055+i*.045))%350-100;
       g.y=-(this.cam.y-map.height*.5)*this.scale*(.045+i*.025)-30;
     });
