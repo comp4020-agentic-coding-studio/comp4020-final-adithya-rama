@@ -121,7 +121,7 @@ on 10 October 2026 (Australia/Sydney).
 
 The user explicitly authorized publishing and deploying this later revision.
 Raw local records: test-results/oct10-live-refresh/report.json,
-test-results/browser-modes-report.json, and live-persistence-verify-before-oct10.json
+test-results/browser-modes.json, and live-persistence-verify-before-oct10.json
 / live-persistence-verify-after-oct10.json. A later documentation-only commit
 records this evidence without changing gameplay.
 
