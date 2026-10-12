@@ -1,6 +1,6 @@
 import { GRAVITY, JUMP_SPEED } from "../shared/constants.ts";
 import { lineOfSight, raycastMap } from "../shared/physics.ts";
-import { isTeamMode, muzzleOf, type Player, rng, type World } from "../shared/sim.ts";
+import { dualPartner, isTeamMode, muzzleOf, type Player, rng, type World } from "../shared/sim.ts";
 import { Btn, type BotDifficulty, type InputFrame } from "../shared/types.ts";
 import { WEAPONS } from "../shared/weapons.ts";
 
@@ -79,15 +79,30 @@ export class Bot {
       if (w.tick % 120 === 0) this.strafe = rng(w) < .5 ? -1 : 1;
 
       const slot = me.slots[me.active];
+      const partner = me.dual ? dualPartner(me) : null;
+      const attackingSlot = slot?.weapon === "riot-shield" && partner !== null ? me.slots[partner] : slot;
+      const weapon = attackingSlot ? WEAPONS[attackingSlot.weapon] : undefined;
       const dist = Math.hypot(target.x - me.x, target.y - me.y);
+      const meleeReady = weapon?.behavior === "melee";
+      const usableGun = (index: number): boolean => {
+        const held = me.slots[index];
+        return !!held && WEAPONS[held.weapon].category !== "equipment" &&
+          (held.mag > 0 || held.reserve > 0 || w.settings.unlimitedAmmo);
+      };
+      if (!usableGun(me.active) && (!meleeReady || dist > 120)) {
+        const ready = me.slots.findIndex((_, index) => index !== me.active && usableGun(index));
+        // Direct slot selection cannot get stuck holding SWITCH on an empty
+        // intermediate slot. Keep shield+machete when already in melee range.
+        if (ready >= 0) b |= [Btn.SLOT1, Btn.SLOT2, Btn.SLOT3][ready];
+      }
+      if (meleeReady) goalX = target.x + (me.x < target.x ? -30 : 30);
       const aligned = Math.abs(angleDelta(this.aim, want)) < .5;
-      if (slot && reacted && aligned && w.tick < this.burstEnd && dist < WEAPONS[slot.weapon].range * .9) {
+      if (weapon && reacted && aligned && w.tick < this.burstEnd && dist < weapon.range * .9) {
         b |= Btn.FIRE | Btn.CONTINUOUS_FIRE;
       }
-      if (slot && slot.mag === 0) b |= Btn.RELOAD;
+      if (slot && WEAPONS[slot.weapon].category !== "equipment" && slot.mag === 0) b |= Btn.RELOAD;
       if (reacted && dist < 320 && dist > 120 && (me.throwables.frag ?? 0) > 0 &&
           rng(w) < (this.difficulty === "easy" ? .0005 : this.difficulty === "normal" ? .001 : .002)) b |= Btn.THROW;
-      if (slot && slot.mag === 0 && slot.reserve === 0 && me.slots.some((other, i) => i !== me.active && other && (other.mag > 0 || other.reserve > 0))) b |= Btn.SWITCH;
     } else {
       this.seenSince = -1;
       this.targetId = null;
@@ -132,7 +147,11 @@ export class Bot {
     if (this.stuckTicks > 35) { b |= Btn.JUMP; if (w.settings.flight && me.fuel > 20) b |= Btn.JET; }
     if (this.stuckTicks > 120) { this.route = []; this.nextPlan = 0; this.stuckTicks = 0; }
     if (me.onGround && goalY < me.y - 15) b |= Btn.JUMP;
-    if (w.tick % 30 === 0) b |= Btn.PICKUP;
+    // Do not immediately pick the just-dropped shield back up, or replace a
+    // usable combat weapon with whatever happens to lie underfoot.
+    const hasLoadedGun = me.slots.some((slot) => slot && WEAPONS[slot.weapon].category !== "equipment" &&
+      (slot.mag > 0 || slot.reserve > 0 || w.settings.unlimitedAmmo));
+    if (w.tick % 30 === 0 && !(b & (Btn.SLOT1 | Btn.SLOT2 | Btn.SLOT3)) && (!target || !hasLoadedGun)) b |= Btn.PICKUP;
 
     frame.b = b;
     frame.aim = this.aim;

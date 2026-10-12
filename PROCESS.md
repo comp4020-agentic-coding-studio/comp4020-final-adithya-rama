@@ -190,3 +190,43 @@ sessions then passed the revised mechanics and all five modes, and the saved
 acceptance profile/result remained unchanged after deployment. The original
 crit-8 tag was preserved. [October validation](docs/OCTOBER_VALIDATION.md) records
 this evidence separately from the earlier release and remaining human playtests.
+
+## October 13: recognizable weapons and physical combat
+
+Adithya's next review made the quality gap more specific: similar-looking guns,
+indistinct sound, repetitive environments, shield handling, grenade collection
+and the view after death. The [new contract](docs/REVISION_2026_10_13.md) records
+those requests. Research distinguished developer announcements and screenshots
+from a community table for a later Classic release. The shield-and-knife-only
+rule is the user's chosen behavior; it is not presented as verified v4 parity.
+
+Agents again worked with explicit ownership: shared combat and bots, authored
+weapon/map art, and client feedback/camera behavior. The integrator implemented
+range roles, sound playback, attribution and the armory presentation. Recorded
+CC0 gunshots and hurt/death voices replace the earlier conventional-gun tones.
+Adithya approved this alternate approach after confirming he had no original
+asset pack. Sources, transformations and hashes accompany the shipped clips;
+no Mini Militia sound extraction or developer contact was performed.
+
+Review connected the shield's drawing to the exact collision panel, so exposed
+head and rear shots have consistent geometry. Tests caught slot selection and
+duplicate equipment pickup cases. Browser checks caught missing launcher shot
+events, which would otherwise leave the launch audio silent. Visual review
+rejected a first palace pass as too similar to floating platforms; arches,
+recessed windows and masonry galleries made the environment more distinct.
+
+The evidence separates unit checks, actual browser play, renderer fixtures and
+resource measurements. In particular, successful audio decoding cannot establish
+that a returning player likes the sound. A failed extended rematch probe is
+recorded and investigated rather than counted as load-test success. Current
+results and release status are in the [October 13 acceptance record](docs/REVISION_2026_10_13_VALIDATION.md).
+The user's personal reflection and published crit-8 snapshot are preserved.
+
+The extended network probe exposed a test setup error: a fixed pause was used
+in place of waiting for every player's server-confirmed readiness. System logs
+also showed the host wall clock moving backwards. Network scheduling and
+connection rate/round-trip measurements were changed to monotonic time; stored
+calendar timestamps retain their purpose. The first disconnect's precise cause
+was not captured, so this is not described as a proven diagnosis of that event.
+The improved harness records close reasons and stops immediately on a lost
+connection. Both failures and subsequent results remain in the acceptance record.

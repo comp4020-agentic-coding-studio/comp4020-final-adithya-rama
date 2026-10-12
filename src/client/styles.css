@@ -512,3 +512,5 @@ body:has(.touch) .killfeed{top:19rem;font-size:.58rem;left:.5rem;right:.5rem}
 body:has(.touch) .loadout-heading{display:none}
 body:has(.touch) .hud-weapon .nades>small{display:none}
 body:has(.touch) .weapon-card-top>span{font-size:.36rem}
+
+.armoury-range{display:block;width:100%;height:5px;background:#253d48;border-radius:3px;overflow:hidden}.armoury-range i{display:block;height:100%;background:linear-gradient(90deg,#a9cf78,#f3ca76);border-radius:3px}.armoury-grid>div{gap:.45rem}.armoury-grid small{line-height:1.45}

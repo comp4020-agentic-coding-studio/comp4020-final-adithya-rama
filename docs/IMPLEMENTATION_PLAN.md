@@ -1,10 +1,57 @@
 # Implementation plan: classic Mini Militia-style PC game
 
-> Current amendment: [10 October gameplay and presentation revision](REVISION_2026_10_10.md) records the user-requested changes to controls, inventory, healing, grenades, bots, maps and UI. It takes precedence over the original scope below where specified.
+> Current amendment: [13 October combat and arena revision](REVISION_2026_10_13.md)
+> supersedes this original plan where specified. The earlier
+> [10 October revision](REVISION_2026_10_10.md) remains part of the decision history.
+> The original agreed plan below is preserved as historical process evidence;
+> its earlier two-slot, four-map, grenade and shield provisions are not the
+> current implementation contract.
 
 > Agreed plan, saved verbatim as the reference for every stage. The live status
 > of each feature is tracked in [FEATURES.md](FEATURES.md); the latest stage
 > handoff is in [HANDOFF.md](HANDOFF.md).
+
+## Dated amendment — 13 October 2026
+
+The full current contract and research limits are in
+[REVISION_2026_10_13.md](REVISION_2026_10_13.md). This summary records the
+accepted changes without retrospectively rewriting the original plan.
+
+- Keep Cryptworks, Outpost Yard, Crosscurrent and Skyshaft; add **Sirocco Dunes**
+  and **Sunspire Palace**. These six arenas use connected catacombs, an open
+  jungle canyon, coast spans, snowy log forts, desert escarpments and palace
+  galleries. Test Range remains a separate practice map. Ground flag routes
+  remain usable with flight off, double gravity and half movement speed.
+- Give all **23 weapon/equipment entries distinct original silhouettes** shared
+  between held weapons, pickups and HUD icons. Authored range classes/falloff
+  distinguish close, medium and long reach; exact historical v4 values are not
+  claimed.
+- Use credited **CC0 firearm and human voice recordings**, alongside authored
+  special-weapon/effect synthesis. Source links and transformations are in the
+  [audio credits](../src/client/public/audio/CREDITS.md). These are not copied
+  Mini Militia recordings.
+- Three equipment slots remain the current inventory. A shield pairs only with
+  a carried machete; selecting a gun drops the shield. Its visible front panel
+  blocks intersecting direct fire, while head and rear paths remain exposed.
+  Blast, gas and flame bypass it. One valid machete strike kills, still subject
+  to range, walls, protection and friendly-fire rules.
+- Start with **four of six grenade spaces**: two frag, one flash, one poison.
+  Nearby allowed grenade pickups collect automatically when capacity and a
+  clear path permit. **T cycles stocked types; G throws**. Emptying one type
+  selects the next stocked type. Five throwable types remain available.
+- Follow the actual attacker after death until respawn; self/environment
+  deaths hold the death position, and a missing attacker leaves the last view.
+  This is a live follow camera, not a replay. Rocket kills produce bounded,
+  temporary stylized body/armor fragments; reduced-effects controls limit them.
+
+Local acceptance currently records **198 unit + 33 running-app checks (231
+total)**, all 23 weapon/equipment entries and five throwables across 29 browser
+rounds, and all six arena choices/23 armory cards at desktop and phone sizes.
+See [revision validation](REVISION_2026_10_13_VALIDATION.md). Live verification
+of this revision is still pending. Automated checks do not establish human
+balance, familiarity, subjective sound quality or physical-phone performance.
+
+## Original agreed plan
 
 ## 1. Product and scope
 

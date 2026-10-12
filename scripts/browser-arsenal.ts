@@ -195,6 +195,7 @@ try {
       const after = own().slots[0]!.mag;
       check(current.fireFrames > 0, `${weapon.id}: no real fire input sent`);
       if (weapon.behavior === "projectile") {
+        check(current.events.some((e) => e.t === "shot" && e.by === current.you && e.w === weapon.id), weapon.id + ": no authoritative launch event for audio");
         check(current.projectileKinds.has(weapon.id), `${weapon.id}: no authoritative projectile snapshot`);
       } else if (weapon.behavior === "melee") {
         check(current.events.some((e) => e.t === "melee" && e.by === current.you), "machete: missing authoritative melee event");
@@ -217,9 +218,9 @@ try {
   }
 
   try {
-    await begin(page, "riot-shield", ["riot-shield", "mini-eagle", null], 1);
-    await tap(page, "KeyF");
-    check(own().dual, "shield: compatible sidearm did not enter dual wield");
+    await begin(page, "riot-shield", ["mini-eagle", "machete", "riot-shield"], 1, { weapons: ["riot-shield", "machete", "mini-eagle"] });
+    await tap(page, "Digit3");
+    check(own().a === 2 && own().dual && own().dualSlot === 1, "shield: carried machete did not pair automatically");
     const deadline = Date.now() + 20000;
     while (!current.events.some((e) => e.t === "shield" && e.id === current.you) && Date.now() < deadline) {
       const me = own(), enemy = current.latest!.players.find((p) => p.id !== me.id && (p.f & 1));
@@ -235,8 +236,13 @@ try {
     const hud = await page.locator(".hud-weapon").innerText();
     check(hud.includes("Riot shield") && hud.includes("DUAL"), "shield HUD missing equipment or dual state");
     await page.screenshot({ path: `${out}/riot-shield-game.png` });
+    await tap(page, "Digit1");
+    await until(() => own().a === 0 && own().slots[2] === null, "selecting a firearm drops shield");
+    check(!own().dual && own().slots[1]?.weapon === "machete", "shield drop must preserve machete without gun pairing");
+    const shieldDropped = current.latest!.pickups.some((p) => p.i === "riot-shield");
+    check(shieldDropped, "shield: physical dropped pickup missing");
     await finish(page, "riot-shield");
-    evidence.push({ item: "riot-shield", status: "passed", hud, shieldEvents, ...traceEvidence() });
+    evidence.push({ item: "riot-shield", status: "passed", hud, shieldEvents, shieldDropped, ...traceEvidence() });
     console.log("PASS browser riot-shield");
   } catch (error) {
     problems.push(`riot-shield: ${(error as Error).message}`);

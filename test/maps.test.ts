@@ -32,6 +32,17 @@ describe("authored map validity", () => {
     }
   });
 
+  it("palace gallery stairs can be climbed with flight off and maximum gravity",()=>{
+    for(const right of [false,true]) {
+      const w=createWorld(sanitizeSettings({...defaultSettings(),map:"sunspire-palace",mode:"training",flight:false,gravity:2,moveSpeed:.5,mapPickups:false,bots:0}));
+      const p=player(w,-1,{x:right?2435:365,y:805});
+      let highest=p.y;
+      for(let tick=0;tick<280;tick++){stepWorld(w,hold(p.id,(right?Btn.LEFT:Btn.RIGHT)|Btn.JUMP));highest=Math.min(highest,p.y);}
+      expect(highest,"gallery stair failed to reach upper landing").toBeLessThan(640);
+      expect(right?p.x<2110:p.x>690).toBe(true);
+    }
+  });
+
   it.each(arenas.map(map=>map.id))("%s has supported, accessible pickup positions", id=>{
     const map=MAPS[id];
     for(const pk of map.pickups) {

@@ -1,26 +1,30 @@
-# Integration handoff: October gameplay and presentation revision
+# Integration handoff: October 13 combat and arena revision
 
-Updated 10 October 2026 (Australia/Sydney). Continue the existing game; do not
-restart the foundation or substitute conventional capture-the-enemy-flag.
+Continue the existing game. Read [the current revision contract](REVISION_2026_10_13.md),
+[feature checklist](FEATURES.md) and [acceptance evidence](REVISION_2026_10_13_VALIDATION.md).
+The October 10 release is historical context, not evidence for changed code.
 
-## Current direction
+## Current behavior
 
-The user's feedback and revised contract are in
-[REVISION_2026_10_10.md](REVISION_2026_10_10.md). The original plan remains
-historical context. The revision adds three carried equipment slots, numpad
-directional firing, incremental health recovery, flashbangs, forgiving bot
-levels, illustrated arena terrain and armored pilots, clearer weapon feedback,
-and redesigned home/profile/lobby screens. Standard rooms use frag, flashbang
-and poison smoke; EMP and mines remain optional advanced equipment.
-
-The complete arsenal and five modes remain. Each team carries its own flag;
-dropped flags remain until recovered or out of bounds. Server authority,
-persistent guest identity/results and the fixed hosting allowance remain.
+- Physical shield panel paired only with machete; firearm selection drops it.
+  Exposed head/rear rays remain vulnerable. One-hit machete respects walls,
+  friendly-fire policy and protection; sniper head damage is proportional.
+- Distinct gun silhouettes, authored range falloff, bounded projectile travel,
+  authoritative launcher firing events, small-gun dual wield.
+- Spawn four grenades (2 frag/1 flash/1 gas), auto-collect to six, T changes stocked
+  types, G throws. HUD shows bag capacity and every allowed type.
+- Live killer-follow until respawn, self/environment fallback, rocket-only
+  bounded debris. Reduce shake & debris disables that motion.
+- Six arenas: Outpost Yard, Skyshaft, Cryptworks, Crosscurrent, Sirocco Dunes and
+  Sunspire Palace. Test Range is separate. All six retain own-flag routes.
+- Sixteen CC0 recorded gun/voice clips, credited under src/client/public/audio.
+  The user approved easily available similar sound assets as the alternate
+  approach. The recordings are not Mini Militia rips. No developer contact was sent.
 
 ## Running and checking
 
-See [DEVELOPMENT.md](DEVELOPMENT.md). Use Node 24.21.0 through mise. Build before
-starting. Isolate databases/ports for acceptance and restart tests:
+See [DEVELOPMENT.md](DEVELOPMENT.md). Node 24.21.0 via mise; build before starting.
+Use isolated databases/ports for acceptance, never the real player database.
 
 ```sh
 mise exec -- pnpm build
@@ -28,43 +32,30 @@ PORT=8081 DB_PATH=/tmp/jet-acceptance.sqlite mise exec -- pnpm start
 APP_URL=http://localhost:8081 mise exec -- pnpm check
 APP_URL=http://localhost:8081 mise exec -- pnpm check:browser
 APP_URL=http://localhost:8081 mise exec -- node scripts/browser-refresh.ts
+mise exec -- node scripts/browser-arsenal.ts
+mise exec -- node scripts/browser-death.ts
 mise exec -- pnpm check:evidence
 ```
 
-The revision browser harness observes authoritative traffic while using real
-keyboard and touch controls; it does not inject game state. The map preview
-harness renders actual map data and renderer code, with explicitly staged art
-fixtures for closeups. These are distinct forms of evidence. Arsenal,
-preferences, modes, rendering, persistence and constrained load harnesses remain
-under scripts/. Raw reports/screenshots are ignored under test-results/.
+Art/audio fixture checks use a separate Vite server on 8100:
+`scripts/browser-map-previews.ts` and `scripts/browser-audio.ts`.
+Arsenal/death scripts create disposable servers/databases. Real-network browser
+checks observe snapshots/events while driving normal controls; fixtures are
+labelled separately. Raw reports/screenshots remain ignored in test-results/.
 
-Current measured results belong in [VALIDATION.md](VALIDATION.md), with the
-October record separate from the earlier release. Do not carry forward older
-performance or live claims as though they verify changed code.
+## Preserved boundaries
 
-## Release and course boundary
+One shared CPU, 256 MB, one /data volume, default one active room. Do not increase
+production capacity based on a short or unconstrained check. Authored balance
+and hit geometry are not recovered original game physics.
 
-The repository was verified public and the annotated crit-8 tag resolves to
-e6b4df425c06d822c13578559610160be6bfe4f7. Adithya performed his own publication.
-Preserve this tag: October revisions do not alter the cutoff snapshot.
-The existing main-branch course workflow runs checks and deploys after success.
-There is no ship automation.
+The public repository and immutable crit-8 tag at
+`e6b4df425c06d822c13578559610160be6bfe4f7` remain. Do not run /ship or retag.
+The existing main workflow checks and deploys to
+https://comp4020-final-adithya-rama.fly.dev/. Keep credentials in the configured
+ignored environment and never print them. Current publication/live status is
+recorded in the acceptance document, separately from local results.
 
-The Fly app is https://comp4020-final-adithya-rama.fly.dev/. Credentials remain
-in the configured ignored environment. Never print them. Retain one shared CPU,
-256 MB, one /data volume and the default limit of one active room.
-
-## Human evidence
-
-Adithya's dissatisfaction with the prior maps/mechanics is real product feedback,
-recorded in the revision. It does not stand in for the required returning-player
-and newcomer playtests. [PLAYTEST.md](PLAYTEST.md) remains the template for those
-observations. No claims of fun, balance or historical parity should be invented.
-
-Adithya's preferred role is to think, brainstorm, define system behavior and
-quality, and direct agents. Preserve his supplied Crit 8 reflection; later
-technical work is not a new personal reflection.
-
-The October update is deployed and verified live: keyboard/touch revision flows,
-all five mode results, and existing saved profile/history after deployment.
-See [October validation](OCTOBER_VALIDATION.md) for the exact scope and limits.
+Adithya directs the product, architecture and quality criteria. Preserve his
+Crit 8 reflection. No returning-player/newcomer playtest, physical-phone
+performance or subjective sound assessment should be invented.

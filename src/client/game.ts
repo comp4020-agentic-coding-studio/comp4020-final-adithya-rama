@@ -5,13 +5,14 @@ import type { RosterEntry, ServerMessage } from "../shared/protocol.ts";
 import { MODE_NAMES, TEAM_MODES } from "../shared/settings.ts";
 import { maxHealth } from "../shared/sim.ts";
 import { Btn, type GameEvent, type InputFrame, type MapDefinition, PF, type PlayerSnap, type RoomSettings, type WorldSnapshot } from "../shared/types.ts";
-import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
+import { THROWABLES, WEAPONS, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
 import { esc } from "./dom.ts";
 import { GameAudio } from "./audio.ts";
 import { avatarOf, weaponIcon } from "./art.ts";
 import { bindingsOf, keyLabel, Input } from "./input.ts";
 import type { Net } from "./net.ts";
 import { type RenderPlayer, Renderer, TEAM_COLORS, TEAM_NAMES } from "./render.ts";
+import { DeathCamera } from "./death.ts";
 import { TouchControls } from "./touch.ts";
 
 const TICK_MS = 1000 / TICK_RATE;
@@ -33,6 +34,8 @@ export class GameSession {
   private renderer = new Renderer();
   private audio = new GameAudio();
   private spectatorIndex = 0;
+  private deathCamera=new DeathCamera();
+  private deathDetail="";
   private chat: {name:string;text:string}[] = [];
   private unlockAudio = () => { void this.audio.unlock().catch(()=>{}); };
   private input!: Input;
@@ -162,6 +165,7 @@ export class GameSession {
     const me = this.you === null ? undefined : s.players.find((p) => p.id === this.you);
     this.pending = this.pending.filter((f) => f.seq > s.ack);
     if (me && me.f & PF.ALIVE) {
+      this.deathCamera.reset();this.deathDetail="";
       const before = this.pred ? { x: this.pred.x + this.smooth.x, y: this.pred.y + this.smooth.y } : null;
       const p: MoveState = {
         x: me.x,
@@ -217,6 +221,15 @@ export class GameSession {
         r.addSlash(e.x, e.y);
         break;
       case "kill": {
+        const victim=this.latest?.players.find(p=>p.id===e.victim);
+        const identity=this.roster.get(e.victim);
+        if(victim)r.addDeath({id:victim.id,x:victim.x,y:victim.y,vx:victim.vx,vy:victim.vy,crouch:!!(victim.f&PF.CROUCH),team:identity?.team??-1,color:identity?.color??0x888888,avatar:avatarOf(identity?.avatar)},e.w);
+        if(e.victim===this.you&&victim) {
+          const attacker=e.attacker===undefined?e.killer:e.attacker;
+          this.deathCamera.died({id:victim.id,x:victim.x,y:victim.y-PLAYER_H/2},attacker);
+          this.deathDetail=attacker!==null&&attacker!==victim.id?"Killer camera: "+(this.roster.get(attacker)?.name??"pilot"):attacker===victim.id?"Self-inflicted elimination":"Environmental elimination";
+          this.input?.clear();this.outbox=[];
+        }
         const how = WEAPONS[e.w]?.name ?? THROWABLES[e.w]?.name ?? (e.w === "fall" ? "the void" : e.w);
         const html =
           e.killer === null
@@ -321,7 +334,7 @@ export class GameSession {
         y: s.y,
         aim: s.aim,
         crouch: (s.f & PF.CROUCH) !== 0,
-        alive: (s.f & PF.ALIVE) !== 0,
+        alive: (s.f & PF.ALIVE) !== 0 && !!(this.latest.players.find(p=>p.id===id)?.f! & PF.ALIVE),
         jetting: (s.f & PF.JETTING) !== 0,
         protected: (s.f & PF.PROTECTED) !== 0,
         team: r?.team ?? -1,
@@ -350,6 +363,15 @@ export class GameSession {
       players.push(base);
     }
 
+    if(this.you!==null) {
+      const dead=!(latestMe&&latestMe.f&PF.ALIVE);
+      const target=this.deathCamera.resolve(!dead,players.map(p=>({id:p.id,x:p.x,y:p.y-PLAYER_H/2,alive:p.alive,connected:!!(this.latest!.players.find(s=>s.id===p.id)?.f!&PF.CONNECTED)})));
+      if(target) {
+        camera=target.point;
+        this.els.center.dataset.cameraTarget=target.following?String(target.killer):"death-location";
+        if(target.killer!==null&&!target.following)this.deathDetail="Killer down or unavailable · holding view";
+      } else delete this.els.center.dataset.cameraTarget;
+    }
     if(this.you===null) {
       const followable=players.filter(p=>p.alive);
       if(followable.length) { const index=((this.spectatorIndex%followable.length)+followable.length)%followable.length;const p=followable[index];camera={x:p.x,y:p.y-PLAYER_H/2};this.els.following.textContent=`Following ${p.name}`; }
@@ -363,7 +385,8 @@ export class GameSession {
     if (local) local.aim = aim;
 
     const weaponZoom = latestMe ? (WEAPONS[latestMe.s[latestMe.a] ?? ""]?.zoom ?? 1) : 1;
-    const zoom = weaponZoom * (this.input.zoom || this.touchZoom ? 1.35 : 1);
+    const zoom = latestMe&&!(latestMe.f&PF.ALIVE)?1:weaponZoom * (this.input.zoom || this.touchZoom ? 1.35 : 1);
+    this.audio.scene(players,camera);
     this.renderer.frame(camera, zoom, players, this.latest.projectiles, this.latest.pickups, this.settings.mode==="flag"?this.latest.flags:[],this.latest.areas);
 
     if(this.pred) {
@@ -412,13 +435,14 @@ export class GameSession {
         const reload=state?Math.max(0,state.reloadEnd-s.tick):0;
         const key=Object.entries(this.bindings).find(([,bit])=>bit===[Btn.SLOT1,Btn.SLOT2,Btn.SLOT3][i])?.[0];
         const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?"Reloading "+(reload/TICK_RATE).toFixed(1)+"s":state.mag+" / "+(this.settings.unlimitedAmmo?"∞":state.reserve);
-        return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b><span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
+        return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b>${w?'<small style="font-size:.5rem;line-height:1.3" title="'+esc(weaponHandling(w))+'">'+esc(weaponRangeLabel(w))+(def?.oneHanded&&def.category!=="equipment"?' · Dual-ready':'')+'</small>':""}<span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
       };
       const nade=me.throwable;
-      const grenades=this.settings.throwables.filter(id=>(me.throwables[id]??0)>0||id===nade).map(id=>`<span class="grenade-chip ${id===nade?"selected":""}" data-grenade="${esc(id)}"><span class="grenade-dot ${esc(id)}"></span>${esc(id==="frag"?"Frag":id==="flash"?"Flash":id==="gas"?"Poison":id==="emp"?"EMP":"Mine")} <b>${me.throwables[id]??0}</b></span>`).join("");
-      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
+      const totalGrenades=Object.values(me.throwables).reduce((total,n)=>total+n,0);
+      const grenades=this.settings.throwables.map(id=>`<span class="grenade-chip ${id===nade?"selected":""}" data-grenade="${esc(id)}"><span class="grenade-dot ${esc(id)}"></span>${esc(id==="frag"?"Frag":id==="flash"?"Flash":id==="gas"?"Poison":id==="emp"?"EMP":"Mine")} <b>${me.throwables[id]??0}</b></span>`).join("");
+      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><span data-el="grenade-bag" class="grenade-bag" style="font-size:.58rem;white-space:nowrap" title="Walk over grenade pickups to collect automatically when the bag has space">Bag ${totalGrenades}/6${totalGrenades>=6?" · full":""}</span><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
       const alive = (me.f & PF.ALIVE) !== 0;
-      this.els.center.textContent = alive ? "" : s.endTick <= s.tick ? "" : this.settings.mode==="survival" ? "Waiting for the next wave…" : `Respawning in ${Math.ceil(me.rs / TICK_RATE)}…`;
+      this.els.center.innerHTML = alive||s.endTick<=s.tick?"":`<div style="text-align:center;white-space:normal;width:min(88vw,420px)">${this.settings.mode==="survival"?"Waiting for the next wave…":"Respawning in "+Math.ceil(me.rs/TICK_RATE)+"…"}<small style="display:block;font-size:.65em;line-height:1.5;margin-top:.4rem">${esc(this.deathDetail)}</small></div>`;
     } else {
       this.els.center.textContent = "Spectating";
     }
@@ -461,7 +485,7 @@ export class GameSession {
         ${this.hooks.isHost() ? `<button data-act="rules">Next-round rules</button><button data-act="end">End round now</button>` : ""}
         <button data-act="leave" class="danger">Leave room</button>
       </div>
-      <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
+      <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake &amp; debris</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
       <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
       <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
       <details><summary>Default controls</summary>

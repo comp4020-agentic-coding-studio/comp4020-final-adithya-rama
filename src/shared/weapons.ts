@@ -10,35 +10,35 @@ function gun(id: string, name: string, category: WeaponDefinition["category"],
 }
 export const WEAPONS: Record<string, WeaponDefinition> = {
   "mini-eagle": gun("mini-eagle", "Mini Eagle", "sidearm", 24, 260, 12, 48,
-    { auto: false, spread: .02, reloadMs: 1100, range: 760, oneHanded: true, color: 0xd9d4c7 }),
+    { auto: false, spread: .02, reloadMs: 1100, range: 500, oneHanded: true, color: 0xd9d4c7 }),
   "golden-eagle": gun("golden-eagle", "Golden Eagle", "sidearm", 34, 380, 8, 32,
-    { auto: false, reloadMs: 1250, range: 830, oneHanded: true, color: 0xf9c74f }),
+    { auto: false, reloadMs: 1250, range: 600, oneHanded: true, color: 0xf9c74f }),
   magnum: gun("magnum", "Magnum", "sidearm", 48, 560, 6, 24,
-    { auto: false, reloadMs: 1700, range: 940, oneHanded: true, color: 0xcab9ac }),
+    { auto: false, reloadMs: 1700, range: 650, oneHanded: true, color: 0xcab9ac }),
   uzi: gun("uzi", "Uzi", "smg", 9, 70, 30, 120,
-    { spread: .11, reloadMs: 1300, range: 560, oneHanded: true, color: 0x6f7a80 }),
+    { spread: .11, reloadMs: 1300, range: 500, oneHanded: true, color: 0x6f7a80 }),
   tec9: gun("tec9", "Tec-9", "smg", 12, 110, 24, 96,
-    { spread: .085, reloadMs: 1200, range: 610, oneHanded: true, color: 0xb1b5a3 }),
+    { spread: .085, reloadMs: 1200, range: 600, oneHanded: true, color: 0xb1b5a3 }),
   mp5: gun("mp5", "MP5", "smg", 13, 95, 30, 90,
-    { spread: .04, reloadMs: 1400, range: 720, color: 0x768c9b }),
+    { spread: .04, reloadMs: 1400, range: 700, color: 0x768c9b }),
   ak47: gun("ak47", "AK-47", "rifle", 17, 115, 30, 90,
-    { spread: .045, reloadMs: 1700, range: 980, zoom: 1.25, color: 0x8a5a2b }),
+    { spread: .045, reloadMs: 1700, range: 800, zoom: 1.25, color: 0x8a5a2b }),
   m4: gun("m4", "M4", "rifle", 15, 95, 30, 120,
-    { spread: .03, reloadMs: 1600, range: 1050, zoom: 1.3, color: 0x7c9185 }),
+    { spread: .03, reloadMs: 1600, range: 1000, zoom: 1.3, color: 0x7c9185 }),
   "tavor-x95": gun("tavor-x95", "Tavor X95", "rifle", 19, 145, 28, 84,
-    { spread: .018, reloadMs: 1550, range: 1120, zoom: 1.4, color: 0xd0b080 }),
+    { spread: .018, reloadMs: 1550, range: 800, zoom: 1.4, color: 0xd0b080 }),
   xm8: gun("xm8", "XM8", "rifle", 14, 85, 36, 108,
-    { spread: .055, reloadMs: 1800, range: 900, zoom: 1.2, color: 0xc79461 }),
+    { spread: .055, reloadMs: 1800, range: 875, zoom: 1.2, color: 0xc79461 }),
   m14: gun("m14", "M14", "precision", 43, 440, 14, 42,
-    { auto: false, spread: .006, reloadMs: 1900, range: 1450, zoom: 1.65, color: 0xa98c6e }),
+    { auto: false, spread: .006, reloadMs: 1900, range: 1200, zoom: 1.65, color: 0xa98c6e }),
   m93ba: gun("m93ba", "M93BA", "precision", 90, 1250, 5, 20,
-    { auto: false, spread: 0, reloadMs: 2500, range: 1850, zoom: 2, heavy: true, color: 0x99a7bd }),
+    { auto: false, spread: 0, reloadMs: 2500, range: 1500, headshotMultiplier: 1.5, zoom: 2, heavy: true, color: 0x99a7bd }),
   spas12: gun("spas12", "SPAS-12", "shotgun", 11, 720, 6, 24,
-    { auto: false, pellets: 7, spread: .2, reloadMs: 2000, range: 400, color: 0x3b3f44 }),
+    { auto: false, pellets: 7, spread: .2, reloadMs: 2000, range: 325, color: 0x3b3f44 }),
   aa20: gun("aa20", "AA-20", "shotgun", 8, 330, 12, 36,
-    { pellets: 6, spread: .27, reloadMs: 2400, range: 360, heavy: true, color: 0x737474 }),
+    { pellets: 6, spread: .27, reloadMs: 2400, range: 480, heavy: true, color: 0x737474 }),
   minigun: gun("minigun", "Minigun", "heavy", 8, 50, 100, 200,
-    { spread: .12, reloadMs: 3300, range: 1050, heavy: true, color: 0x89909c }),
+    { spread: .12, reloadMs: 3300, range: 750, heavy: true, color: 0x89909c }),
   smaw: gun("smaw", "SMAW", "heavy", 125, 1000, 1, 5,
     { auto: false, reloadMs: 2300, range: 1600, heavy: true, behavior: "projectile",
       projectileSpeed: 950, projectileGravity: 0, blastRadius: 140, color: 0x72845d }),
@@ -54,7 +54,7 @@ export const WEAPONS: Record<string, WeaponDefinition> = {
     { spread: 0, reloadMs: 2200, range: 1150, behavior: "beam", zoom: 1.4, color: 0xa66cff }),
   "emp-gun": gun("emp-gun", "EMP gun", "special", 14, 430, 10, 30,
     { spread: .01, reloadMs: 1800, range: 850, behavior: "emp", empMs: 2400, color: 0x4ae0ed }),
-  machete: gun("machete", "Machete", "equipment", 70, 430, 0, 0,
+  machete: gun("machete", "Machete", "equipment", 100, 430, 0, 0,
     { auto: false, reloadMs: 0, range: 65, oneHanded: true, behavior: "melee", color: 0xd3e0e0 }),
   "riot-shield": gun("riot-shield", "Riot shield", "equipment", 0, 0, 0, 0,
     { auto: false, reloadMs: 0, range: 0, oneHanded: true, behavior: "shield", color: 0x64a3bd }),
@@ -73,3 +73,20 @@ export const THROWABLES: Record<string, ThrowableDefinition> = {
 };
 export const IMPLEMENTED_WEAPONS = Object.keys(WEAPONS);
 export const IMPLEMENTED_THROWABLES = Object.keys(THROWABLES);
+
+/** Player-facing role; world units stay in the armory comparison, not the HUD. */
+export function weaponRangeLabel(id: string): string {
+  const w = WEAPONS[id];
+  if (!w) return "Empty";
+  if (w.behavior === "shield") return "Frontal cover";
+  if (w.behavior === "melee") return "One-hit melee";
+  return w.range <= 550 ? "Close range" : w.range <= 900 ? "Mid range" : w.range <= 1200 ? "Long range" : "Very long range";
+}
+
+export function weaponHandling(id: string): string {
+  const w = WEAPONS[id];
+  if (!w) return "";
+  if (w.behavior === "shield") return "Pairs with machete; selecting a gun drops it";
+  if (w.behavior === "melee") return "One clean strike; pair with a shield";
+  return w.oneHanded ? "Dual-wield compatible" : w.heavy ? "Two-handed heavy" : "Two-handed";
+}

@@ -1,3 +1,5 @@
+import { performance } from "node:perf_hooks";
+import { admitMessage } from "./rate-limit.ts";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -135,6 +137,7 @@ const MIME: Record<string, string> = {
   ".gif": "image/gif",
   ".ico": "image/x-icon",
   ".json": "application/json",
+  ".md": "text/plain; charset=utf-8",
   ".woff2": "font/woff2",
   ".mp3": "audio/mpeg",
   ".ogg": "audio/ogg",
@@ -364,10 +367,10 @@ server.on("upgrade", async (req, socket, head) => {
 });
 
 function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
-  const client: Client = { ws, profile, room: null, windowStart: Date.now(), windowCount: 0, strikes: 0 };
+  const client: Client = { ws, profile, room: null, windowStart: performance.now(), windowCount: 0, strikes: 0 };
   let alive = true;
   let pingAt = 0;
-  ws.on("pong", () => { alive = true; if (pingAt) client.roundTripMs = Math.min(1000, Date.now() - pingAt); });
+  ws.on("pong", () => { alive = true; if (pingAt) client.roundTripMs = Math.max(0, Math.min(1000, performance.now() - pingAt)); });
   const heartbeat = setInterval(() => {
     if (!alive) {
       log("stalled", { profile: profile.id });
@@ -375,20 +378,16 @@ function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
       return;
     }
     alive = false;
-    pingAt = Date.now();
+    pingAt = performance.now();
     ws.ping();
   }, 10_000);
 
   rooms.welcome(client);
 
   ws.on("message", (data, isBinary) => {
-    const now = Date.now();
-    if (now - client.windowStart > 1000) {
-      client.windowStart = now;
-      client.windowCount = 0;
-    }
-    if (++client.windowCount > 90 || isBinary) {
-      if (++client.strikes > 20) ws.close(1008, "rate limit");
+    const admission = admitMessage(client, isBinary);
+    if (admission !== "accept") {
+      if (admission === "close") ws.close(1008, "rate limit");
       return;
     }
     let msg: ClientMessage;

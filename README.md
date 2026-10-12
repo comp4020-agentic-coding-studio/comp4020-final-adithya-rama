@@ -3,7 +3,7 @@
 A browser arena shooter for a handful of friends: run through tunnels, fly over
 cover, switch weapons, and bring your own team's flag into the opposing goal.
 Classic Mini Militia v4 is the reference for the feel; Jet Skirmish uses original
-maps, characters, effects and branding. All equipment is available from the start.
+maps, characters, visual effects and branding, with credited CC0 audio. All equipment is available from the start.
 
 **[Play Jet Skirmish](https://comp4020-final-adithya-rama.fly.dev/)**
 
@@ -59,6 +59,12 @@ now also means that a keyboard-only player can aim, fire, reload and switch
 without fighting the controls, and that map art communicates real cover and
 passable routes.
 
+The [October 13 revision](docs/REVISION_2026_10_13.md) makes these criteria more
+specific: recognize a gun from its silhouette and sound, understand the reach
+tradeoff, see why a shield blocks a shot, and distinguish arenas by routes and
+architecture. Recorded firearm and hurt/death clips replace generic beeps;
+[their credits](/audio/CREDITS.md) distinguish them from Mini Militia's own audio.
+
 ## What informed these choices
 
 Adithya's memories of the older game and explicit own-flag rules establish the
@@ -81,7 +87,10 @@ B shows the scoreboard. Touch uses two sticks, three slots and action buttons.
 
 Practice starts with forgiving Easy bots; Normal and Hard offer faster reactions
 and more accurate bursts. Frag, flashbang and poison smoke are the standard
-throwables. Health slowly recovers after six seconds without combat. Your pilot,
+throwables. Start with four grenades and automatically collect nearby grenades
+up to six; T changes type and G throws. F pairs compatible small guns. A shield
+pairs with a machete; switching to a firearm drops the shield. After a death,
+the camera follows your attacker until respawn. Health slowly recovers after six seconds without combat. Your pilot,
 preferences and history live in the profile panel. In a room, choose a team and
 mark yourself ready; the host can start once everyone is ready.
 

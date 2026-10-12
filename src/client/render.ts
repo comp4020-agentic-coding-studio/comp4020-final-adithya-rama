@@ -1,7 +1,9 @@
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
+import { WEAPONS } from "../shared/weapons.ts";
 import type { AreaSnap, FlagState, MapDefinition, PickupSnap, ProjectileSnap, Team } from "../shared/types.ts";
-import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar } from "./art.ts";
+import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar, SKIN } from "./art.ts";
+import { advanceDebris, appendDebris, isRocketDeath, rocketDebris, type DeathDebris } from "./death.ts";
 import { drawBackdropLayer, drawScenery, drawTerrain } from "./environment-art.ts";
 
 
@@ -101,6 +103,8 @@ export class Renderer {
   private labels = new Map<number, Text>();
   private labelLayer = new Container();
   private fx: Fx[] = [];
+  private debris:DeathDebris[]=[];
+  private debrisAt=0;
   private map: MapDefinition | null = null;
   private scale = 1;
   private cam = { x: 0, y: 0 };
@@ -159,6 +163,7 @@ export class Renderer {
 
   setMap(map: MapDefinition, showObjectives = false): void {
     this.map = map;
+    this.debris=[];this.debrisAt=0;
     if(this.softwareStaticCache)this.staticWorld.cacheAsTexture(false);
     this.app.renderer.background.color = map.theme.sky;
     const g = this.mapG;
@@ -220,10 +225,11 @@ export class Renderer {
     const now=performance.now(),a=Math.atan2(y2-y1,x2-x1),len=weaponLength(weapon)*.9;
     const mx=x1+Math.cos(a)*len,my=y1+Math.sin(a)*len;
     const color=weapon==="phasr"?0xb0f3de:weapon==="flamethrower"?0xffa647:weapon==="emp-gun"?0xbadfff:0xffedb0;
-    this.fx.push({kind:"tracer",x1:mx,y1:my,x2,y2,color,born:now,ttl:85});
+    const projectile=WEAPONS[weapon]?.behavior==="projectile";
+    if(!projectile)this.fx.push({kind:"tracer",x1:mx,y1:my,x2,y2,color,born:now,ttl:85});
     this.fx.push({kind:"muzzle",x1:mx,y1:my,x2:a,y2:0,color,born:now,ttl:85});
     this.fx.push({kind:"smoke",x1:mx,y1:my,x2:Math.cos(a)*14,y2:-23,color:0xd0d5bd,born:now,ttl:420});
-    if(!["phasr","emp-gun","flamethrower","machete","riot-shield"].includes(weapon))
+    if(!projectile&&!["phasr","emp-gun","flamethrower","machete","riot-shield"].includes(weapon))
       this.fx.push({kind:"case",x1,y1,x2:-Math.cos(a)*30,y2:-42,color:0xe6c46f,born:now,ttl:480});
     for(const actor of this.actors.values())if(Math.hypot(actor.x-x1,actor.y-28-y1)<42)actor.recoilUntil=now+100;
     if(hit)this.fx.push({kind:"spark",x1:x2,y1:y2,x2:0,y2:0,color:0xffdb94,born:now,ttl:190});
@@ -240,6 +246,59 @@ export class Renderer {
 
   addSlash(x: number, y: number): void {
     this.fx.push({ kind: "slash", x1: x, y1: y, x2: x, y2: y, color: 0xffffff, born: performance.now(), ttl: 160 });
+  }
+
+  addDeath(p:Pick<RenderPlayer,"id"|"x"|"y"|"vx"|"vy"|"crouch"|"team"|"color"|"avatar">,weapon:string):void {
+    const now=performance.now(),h=p.crouch?PLAYER_CROUCH_H:PLAYER_H;
+    const avatar=avatarOf(p.avatar),armor=p.team===-1?p.color:TEAM_COLORS[p.team];
+    if(isRocketDeath(weapon)) {
+      this.debris=appendDebris(this.debris,rocketDebris(
+        {id:p.id,x:p.x,y:p.y,vx:p.vx??0,vy:p.vy??0,height:h},
+        {armor,skin:SKIN[avatar.face],helmet:avatar.helmet==="cap"?0x89966b:0x788878},
+        this.reducedShake,
+      ));
+    } else if(!this.reducedShake) {
+      for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-h*.55,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
+    }
+    if(!this.reducedShake) {
+      const floor=[...(this.map?.solids??[]),...(this.map?.platforms??[])].filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
+      if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:isRocketDeath(weapon)?3800:2500});
+    }
+  }
+
+  private drawDebris(now:number):void {
+    const elapsed=this.debrisAt?now-this.debrisAt:0;
+    this.debrisAt=now;
+    if(!this.map)return;
+    if(this.reducedShake)this.debris=[];
+    this.debris=advanceDebris(this.debris,elapsed,this.map);
+    const g=this.fxG;
+    for(const p of this.debris) {
+      const alpha=Math.min(1,(p.ttl-p.age)/650);
+      if(p.kind==="blood") {
+        g.ellipse(p.x,p.y,p.settled?3:2,p.settled?1:1.6).fill({color:p.color,alpha:alpha*.8});
+        continue;
+      }
+      const c=Math.cos(p.angle),s=Math.sin(p.angle);
+      const polygon=(points:number[],color:number)=>{
+        g.poly(points.map((v,i)=>i%2?p.y+points[i-1]*s+v*c:p.x+v*c-points[i+1]*s)).fill({color,alpha}).stroke({color:0x21322e,width:1.5,alpha});
+      };
+      if(p.kind==="helmet") {
+        polygon([-7,3,-7,-2,-4,-6,4,-6,7,-2,7,3],p.color);
+        polygon([-7,0,7,0,7,3,-7,3],0x43564a);
+      } else if(p.kind==="vest") {
+        polygon([-7,-7,-4,-9,4,-9,7,-7,7,6,-7,6],p.color);
+        polygon([-5,1,5,1,5,6,-5,6],0x65785b);
+      } else if(p.kind==="arm") {
+        polygon([-3,-7,3,-7,3,3,-3,3],p.color);
+        polygon([-4,2,4,2,4,6,-4,6],0x455b4b);
+      } else polygon([-4,-4,2,-4,2,0,6,0,6,4,-4,4],p.color);
+    }
+    if(this.probe) {
+      this.probe.config.deathDebris=this.debris.length;
+      this.probe.config.peakDeathDebris=Math.max(Number(this.probe.config.peakDeathDebris??0),this.debris.length);
+      this.probe.config.camera={x:this.cam.x,y:this.cam.y};
+    }
   }
 
   frame(
@@ -267,7 +326,7 @@ export class Renderer {
     this.cam.y += (clamp(camera.y, halfH, map.height - halfH) - this.cam.y) * 0.25;
     let ox = 0;
     let oy = 0;
-    if (this.shake > 0.2) {
+    if (!this.reducedShake && this.shake > 0.2) {
       ox = (Math.random() - 0.5) * this.shake;
       oy = (Math.random() - 0.5) * this.shake;
       this.shake *= 0.86;
@@ -333,6 +392,7 @@ export class Renderer {
         fg.circle(f.x1,f.y1,rr*.28).fill({color:0xffefaa,alpha:.7*(1-t)});
       } else fg.arc(f.x1,f.y1,22,-1,1).stroke({width:3,color:f.color,alpha:1-t});
     }
+    this.drawDebris(now);
     if(this.probe) {this.probe.drawCpuMs.push(performance.now()-drawStarted);if(this.probe.drawCpuMs.length>1200)this.probe.drawCpuMs.shift();}
   }
 
@@ -394,15 +454,7 @@ export class Renderer {
     g.clear();
     const seen = new Set<number>();
     for (const p of players) {
-      if(!p.alive) {
-        const last=this.actors.get(p.id);
-        if(last) {
-          for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-24,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
-          const floor=this.map?.solids.filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
-          if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
-        }
-        this.actors.delete(p.id);continue;
-      }
+      if(!p.alive) {this.actors.delete(p.id);continue;}
       seen.add(p.id);
       const h = p.crouch ? PLAYER_CROUCH_H : PLAYER_H;
       const top = p.y - h;
@@ -415,9 +467,9 @@ export class Renderer {
       if(Math.abs(delta)<35)state.walk+=Math.abs(delta)*.17;
       if(p.hp<state.hp) {
         state.hitUntil=now+130;
-        for(let i=0;i<5;i++)this.fx.push({kind:"blood",x1:p.x,y1:top+22,x2:(i-2)*24,y2:-30-i*7,color:0xa14f3b,born:now,ttl:600});
+        if(!this.reducedShake)for(let i=0;i<5;i++)this.fx.push({kind:"blood",x1:p.x,y1:top+22,x2:(i-2)*24,y2:-30-i*7,color:0xa14f3b,born:now,ttl:600});
         const floor=this.map?.solids.filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
-        if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
+        if(floor&&!this.reducedShake)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
       } else if(p.hp>state.hp&&p.hp-state.hp<20&&now>state.regenUntil) {
         state.regenUntil=now+450;
         this.fx.push({kind:"regen",x1:p.x+17,y1:top+20,x2:0,y2:0,color:0x9fd6a8,born:now,ttl:650});

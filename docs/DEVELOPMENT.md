@@ -55,7 +55,8 @@ compatible carried slot; the third item stays carried.
 
 After six quiet seconds, health returns in one-point increments four times a
 second. Damage, attacking and nearby enemy fire delay recovery. Standard rooms
-start with two each of frag, flashbang and poison smoke (six total). EMP grenades
+start with two frag, one flashbang and one poison smoke (four total). Walk over
+allowed grenades to fill the six-item bag; T cycles stocked types and G throws. EMP grenades
 and mines remain available in the advanced room allowlist. Flash exposure is
 shorter/weaker with distance and cover; it also impairs bots.
 

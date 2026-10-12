@@ -20,7 +20,7 @@ try {
     const renderer=new Renderer();await renderer.init(document.querySelector<HTMLElement>("#art")!);
     window.__art={renderer,maps:MAPS};
   },"/@fs"+resolve("src/shared/maps.ts"));
-  for(const id of ["outpost-yard","skyshaft","cryptworks","crosscurrent"]) {
+  for(const id of ["outpost-yard","skyshaft","cryptworks","crosscurrent","sirocco-dunes","sunspire-palace"]) {
     await page.evaluate(id=>{
       const {renderer,maps}=window.__art,map=maps[id];
       renderer.setMap(map,true);
@@ -30,7 +30,7 @@ try {
     await page.waitForTimeout(180);
     await page.screenshot({path:"test-results/map-revision/overview-"+id+".png"});
   }
-  for(const scene of [{id:"skyshaft",x:480,y:1020,feet:1060,pilotX:450},{id:"outpost-yard",x:1300,y:620,feet:620,pilotX:1270},{id:"cryptworks",x:1270,y:900,feet:950,pilotX:1270}]) {
+  for(const scene of [{id:"skyshaft",x:480,y:1020,feet:1060,pilotX:450},{id:"outpost-yard",x:1300,y:620,feet:620,pilotX:1270},{id:"cryptworks",x:1270,y:880,feet:975,pilotX:1270},{id:"sirocco-dunes",x:1450,y:700,feet:640,pilotX:1470},{id:"sunspire-palace",x:1400,y:630,feet:670,pilotX:1380}]) {
     await page.evaluate(scene=>{
       const {renderer,maps}=window.__art;renderer.setMap(maps[scene.id],false);
       const pilot:RenderPlayer={id:1,x:scene.pilotX,y:scene.feet,aim:-.12,crouch:false,alive:true,jetting:false,protected:false,team:0,color:0x6e9860,name:"Ranger",hp:100,maxHp:100,weapon:"ak47",local:true,dual:false,otherWeapon:null,emp:0,avatar:{helmet:"pilot",face:"medium",emblem:"bolt"},vx:65,vy:0};
@@ -51,7 +51,17 @@ try {
   });
   await page.waitForTimeout(40);
   await page.screenshot({path:"test-results/map-revision/flash-hit-art-fixture.png"});
+  await page.evaluate(async()=>{
+    const module="/art.ts";const {weaponIcon,weaponName}=await import(module);
+    const ids=["mini-eagle","golden-eagle","magnum","uzi","tec9","mp5","ak47","m4","tavor-x95","xm8","m14","m93ba","spas12","aa20","minigun","smaw","rg6","saw-launcher","flamethrower","phasr","emp-gun","machete","riot-shield"];
+    document.body.innerHTML='<style>body{margin:0;background:#dce4dd;color:#21312c;font:18px system-ui;padding:24px}h1{font-size:24px;margin:0 0 8px}p{margin:0 0 20px;font-size:14px}.guns{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.gun{border:2px solid #71877b;border-radius:12px;background:#f3f0df;padding:14px;min-width:0}.weapon-icon{width:100%;height:105px}.gun b{display:block;text-align:center;margin-top:8px;font-size:16px}@media(max-width:600px){body{padding:12px}.guns{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gun{padding:10px}.weapon-icon{height:68px}.gun b{font-size:13px}h1{font-size:21px}}</style><h1>Original arsenal silhouettes</h1><p>The same authored outlines are used in loadout cards, pickups and held weapons.</p><div class="guns">'+ids.map((id:string)=>'<div class="gun">'+weaponIcon(id)+'<b>'+weaponName(id)+'</b></div>').join("")+'</div>';
+  });
+  await page.screenshot({path:"test-results/map-revision/weapon-contact-desktop.png",fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:"test-results/map-revision/weapon-contact-phone.png",fullPage:true});
+  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+  if(overflow)throw Error("Phone arsenal preview overflows.");
   writeFileSync("test-results/map-revision/report.json",JSON.stringify({at:new Date().toISOString(),browser:browser.version(),viewport:{width:1920,height:1080},scope:"Static actual-renderer art fixtures, not live simulation or gameplay proof.",errors},null,2));
   if(errors.length)throw Error(errors.join("\n"));
-  console.log("Four map overviews, three closeups and one effects fixture saved; no browser errors.");
+  console.log("Six map overviews, five closeups, one effects fixture and desktop/phone arsenal contacts saved; no browser errors.");
 } finally {await browser.close();}

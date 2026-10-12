@@ -1,3 +1,5 @@
+> Latest revision: [October 13 acceptance](REVISION_2026_10_13_VALIDATION.md). The results below describe the earlier release.
+
 # Validation record
 
 Current revision: [October validation](OCTOBER_VALIDATION.md). The earlier release measurements below retain their original dates.

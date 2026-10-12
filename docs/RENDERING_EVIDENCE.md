@@ -1,6 +1,6 @@
 # Rendering evidence
 
-For changed October code, see [October validation](OCTOBER_VALIDATION.md). The measurements below describe the earlier release.
+For changed October code, see [October validation](OCTOBER_VALIDATION.md). The first measurements below describe the earlier release; the final section records the 13 October build, including its lower software-rendering result.
 
 Measured on 4 October 2026 UTC (5 October in Canberra), against the local production client build and isolated server on port 8096. These are short headless browser measurements, not physical display latency, physical phone, eight-player worst-case, or deployed-service certification.
 
@@ -113,3 +113,34 @@ Local reports:
 - `test-results/performance-{desktop,phone}-auto-revision-software-flat-cache.png`
 
 Run through the project's Node runtime with `APP_URL=http://localhost:8081 PERF_SAMPLE_MS=10000 PERF_CASES=desktop-auto,phone-auto PERF_SKIP_DUAL=1`. Set a distinct `PERF_LABEL` for each report. No other browser acceptance run was active during these comparisons; server-only load checks had completed before the final pair.
+
+
+## 13 October combat revision: current software and native samples
+
+The current production build was measured against an isolated server on port 8093 with a disposable database. Each case ran Practice with two bots, waited one second, then counted completed Pixi render submissions for ten seconds. Cases ran sequentially, not as two simultaneous game contexts. Both documents stayed visible. The automatic graphics configuration remained enabled.
+
+| Current-build sample | Desktop rendered FPS | Desktop interval p95 | Phone viewport rendered FPS | Phone interval p95 |
+| --- | ---: | ---: | ---: | ---: |
+| WSL SwiftShader, first sample | 21.4 | 53.2 ms | 43.4 | 28.6 ms |
+| WSL SwiftShader, repeat | 21.2 | 52.2 ms | 45.7 | 30.2 ms |
+| Native Windows, Intel Arc 140T | 60.0 | 20.9 ms | 60.1 | 20.5 ms |
+
+The software result is lower than the 10 October sample (42.6 desktop / 60.0 phone viewport). Repeating after the integrator's server load had ended did not restore that earlier result. No controlled prior-build comparison or graphics profiler was run in this session, so the cause is unproven. These measurements do not support a current 60 FPS claim for software rendering.
+
+The software browser reported Chromium 153.0.8010.12, WSL2 Linux 6.6.87.2, Intel Core Ultra 9 285H, eight logical CPUs and 20 GiB memory. SwiftShader used antialiasing off, static texture caching on, a 1280 × 720 backing canvas for the 1920 × 1080 desktop viewport, and a 390 × 844 backing canvas for the phone viewport. Mean scene construction was approximately 0.65–0.88 ms and submission 2.28–2.55 ms; these CPU spans are not GPU completion measurements.
+
+The native run used a separate hidden Chrome 154.0.8037.99 process, fresh test profile and loopback CDP port. It did not reuse the user's Chrome profile. Windows reported Intel Arc 140T / Direct3D11, antialiasing on, static caching off, full 1920 × 1080 desktop rendering and a 780 × 1688 backing canvas for the 390 × 844 / DPR 2 phone viewport. The host was Windows 10.0.26200, the same CPU, 16 logical CPUs and 31 GiB memory. The phone-sized case still used the desktop Intel GPU; it is not a physical phone result.
+
+No browser page errors occurred in the three completed samples. Matches ended, saved and left before contexts closed; the isolated server and native test browser were stopped. Software screenshots were inspected: players, terrain, weapons, new bag/range labels and touch controls were visible; software canvas edges remained softer than full-resolution HTML. The brief native sample does not certify display latency, eight-player worst-case rendering, new-arena performance or deployed-service behavior.
+
+A supported native browser UI check also reached and saved a Practice round, but its read-only inspection surface did not expose the renderer counters. Native FPS above comes from the existing repository harness over the isolated CDP browser. One initial native launch failed to resolve Playwright's WSL package symlink before any measurement; using the installed playwright-core module directly resolved that test setup issue.
+
+Local evidence:
+
+- test-results/browser-performance-oct13-final-software-auto.json
+- test-results/browser-performance-oct13-final-software-repeat.json
+- test-results/browser-performance-oct13-final-native-auto.json
+- test-results/performance-{desktop,phone}-auto-oct13-final-{software-auto,software-repeat,native-auto}.png
+- test-results/oct13-final-modes.json: all five modes produced identical saved results for the desktop and phone identities; flag delivery ended through its one-delivery score limit, and the other four modes used the host's end-round control.
+
+Reproduce the short automatic sample with APP_URL=http://localhost:8093 PERF_SAMPLE_MS=10000 PERF_CASES=desktop-auto,phone-auto PERF_SKIP_DUAL=1 PERF_LABEL=your-distinct-label mise exec -- node scripts/browser-performance.ts. The native test additionally used PERF_CDP and a direct file URL to the installed playwright-core/index.mjs through PLAYWRIGHT_MODULE.

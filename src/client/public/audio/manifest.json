@@ -1,0 +1,146 @@
+[
+  {
+    "file": "pistol.ogg",
+    "source": "Prepared SFX Library/1911/A_42P.wav",
+    "sourceSha256": "8e84438e771c157155a6a1ff47a6a7a7d81b6f39b185d41e426c57337a82254a",
+    "onsetSeconds": 0.9385,
+    "durationSeconds": 0.65,
+    "sha256": "27a5231f1e3b05933b9de8405016992845fb786c5702ba3e9d935b7873f3e364",
+    "bytes": 9534
+  },
+  {
+    "file": "silenced.ogg",
+    "source": "Prepared SFX Library/Ruger Mark III/R_35P.wav",
+    "sourceSha256": "9ae9b13cb414bbfa2d12ee9321fc79c508a9cf25bde6e916c153e86965a600d5",
+    "onsetSeconds": 0.478,
+    "durationSeconds": 0.36,
+    "sha256": "28645e949b73a594266fc5cc91db81ae977869a4070d6558f903389186531f2f",
+    "bytes": 7783
+  },
+  {
+    "file": "revolver.ogg",
+    "source": "Prepared SFX Library/Smith & Wesson 642/V_27P.wav",
+    "sourceSha256": "dc9a11f7e6544139f38cadccf3373fed733f2e000caca1b2328575293838fc58",
+    "onsetSeconds": 0.8024,
+    "durationSeconds": 0.9,
+    "sha256": "001f04a7e882fa0297e7945e90aa94c61dfe5d2a7fe4b7f3c3b1e5b8b0cdc112",
+    "bytes": 10583
+  },
+  {
+    "file": "smg.ogg",
+    "source": "Prepared SFX Library/Carl Gustav M45/G_31P.wav",
+    "sourceSha256": "5982c6c2fa44545b750ba6217ed57797a6a15c02f5c9943ac0e99e5f3ab2b158",
+    "onsetSeconds": 0.3073,
+    "durationSeconds": 0.32,
+    "sha256": "3f63ceaabb5d7c45ff16306b50b42c0015c8c53a89b8da15a14d2f9872f0803a",
+    "bytes": 6684
+  },
+  {
+    "file": "machine-pistol.ogg",
+    "source": "Prepared SFX Library/PPSh/P_30P.wav",
+    "sourceSha256": "75621034e31c390edc44c963e00d44c995fb62ebcb11bec36ad7a752fafd4346",
+    "onsetSeconds": 0.9658,
+    "durationSeconds": 0.3,
+    "sha256": "6880656c03f2eb2ace55c0f6cc897c0e9474f3f7e31f18c33cd666e92382c0ed",
+    "bytes": 6515
+  },
+  {
+    "file": "ak.ogg",
+    "source": "Prepared SFX Library/AK-47/C_28P.wav",
+    "sourceSha256": "e0934c1d79192d2216db62fdf6ab57bf9d5d585267af367a1cfb21f0972a537d",
+    "onsetSeconds": 0.6081,
+    "durationSeconds": 0.65,
+    "sha256": "9b892a58791086bf4f208c931c4cf151248b3ef58c381dfcd649766e774c76b3",
+    "bytes": 9151
+  },
+  {
+    "file": "carbine.ogg",
+    "source": "Prepared SFX Library/AR-15/D_32P.wav",
+    "sourceSha256": "acee9d2106b68fe5956225a19d7aedf943d97793817f9bda9d486a2b74b0a812",
+    "onsetSeconds": 0.7007,
+    "durationSeconds": 0.5,
+    "sha256": "dfb70db7df878676f70ac24a75d09fa17b55b5c436d4c6cbd346d6571808fae2",
+    "bytes": 8130
+  },
+  {
+    "file": "marksman.ogg",
+    "source": "Prepared SFX Library/SKS/U_14P.wav",
+    "sourceSha256": "ad33d11af79d73ec8b7a527a8aed948a086a0d764cec5a54d2e86887351d6c96",
+    "onsetSeconds": 3.574,
+    "durationSeconds": 0.9,
+    "sha256": "4aeeef7b790e72f1029bd1b90660e261a12a2bb0916ee39726ebe7ba37bb8f16",
+    "bytes": 10989
+  },
+  {
+    "file": "sniper.ogg",
+    "source": "Prepared SFX Library/Tikka/W_29P.wav",
+    "sourceSha256": "b1ffe3c104391bf8ceb8337aa4d5a2ca47938fb88ccbd051cdd2b2e205d9e72b",
+    "onsetSeconds": 0.5744,
+    "durationSeconds": 1.1,
+    "sha256": "c4a313601dbcbf3df832c8bce82f999c5d40b72e6d87a4c2cc6d616e7e1c8ef7",
+    "bytes": 12093
+  },
+  {
+    "file": "shotgun.ogg",
+    "source": "Prepared SFX Library/Nova/O_21P.wav",
+    "sourceSha256": "5661d0625e4634f19e6e316c13693b80c8e28cd9f716cf9c75c465153ae40815",
+    "onsetSeconds": 0.4282,
+    "durationSeconds": 0.85,
+    "sha256": "f8433cb724f756871764c068374a7eff450b40315149981ff4faf003348f48df",
+    "bytes": 10844
+  },
+  {
+    "file": "auto-shotgun.ogg",
+    "source": "Prepared SFX Library/CD/H_21P.wav",
+    "sourceSha256": "29d1565cf449bc0e61e5d4b8090a1212faa3d1060df243bffb3ccc1d21cbc26a",
+    "onsetSeconds": 0.4613,
+    "durationSeconds": 0.6,
+    "sha256": "bbaf56a00ec864df30a25a557e65347e43ed2db9d7822cc1955a0e3270e6121b",
+    "bytes": 8916
+  },
+  {
+    "file": "hurt-1.ogg",
+    "source": "voices/1.mp3",
+    "sourceSha256": "f400e571c7310bc38d33061992bf8fa1d91589dbd6e8fba8644b313abd74b427",
+    "onsetSeconds": 0.7665,
+    "durationSeconds": 0.6,
+    "sha256": "9b4983c6b1dabc2697f9dc27dc600b938871a77fe1c6a0db3d9b50953153b876",
+    "bytes": 9280
+  },
+  {
+    "file": "hurt-2.ogg",
+    "source": "voices/2.mp3",
+    "sourceSha256": "2ba7c5640a8739dd7ae0b6cc34dc54bdf00a75cd71f90730e7e23926f0b370e4",
+    "onsetSeconds": 0.5512,
+    "durationSeconds": 0.6,
+    "sha256": "15c32c12844deac61c77a10a4c7f0492f02714a5782d05fa00c791ae0a845e37",
+    "bytes": 9996
+  },
+  {
+    "file": "death-1.ogg",
+    "source": "voices/6.mp3",
+    "sourceSha256": "d99049c09086df6c1110e0ea3f7de51f46b5f62d342e561ab2c7727a9a56ebe2",
+    "onsetSeconds": 0.2691,
+    "durationSeconds": 1.6,
+    "sha256": "7089cf6627366ed144a1be5361012deb6365a09043243bc81a4454e1f830bcb8",
+    "bytes": 18605
+  },
+  {
+    "file": "death-2.ogg",
+    "source": "voices/8.mp3",
+    "sourceSha256": "6621985b0925be163a6763ac206d2fc0016a2f4f28e519bf79be7550371f6a0d",
+    "onsetSeconds": 0.3094,
+    "durationSeconds": 1.6,
+    "sha256": "c206c5ebdd9842d5dfa11df946569ba9af3e1c2cf05aebc226eac6e8ac693ad0",
+    "bytes": 19106
+  },
+  {
+    "file": "death-3.ogg",
+    "source": "voices/10.mp3",
+    "sourceSha256": "ca8f44352b8cd809cfba9a51efea728ae119b31f4639707982c3e40b84cd0963",
+    "onsetSeconds": 0.4602,
+    "durationSeconds": 1.6,
+    "sha256": "ecd90f83eba2fe13d4d7b21513a451e965787aeff1616f5c27560beeee5d8ac3",
+    "bytes": 19232
+  }
+]

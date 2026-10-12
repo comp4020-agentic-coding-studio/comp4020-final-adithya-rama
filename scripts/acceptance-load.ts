@@ -9,6 +9,9 @@ const target = process.env.APP_URL ?? "http://localhost:8081";
 const seconds = Number(process.env.DURATION_S ?? 60);
 const roomCount = Number(process.env.ROOMS ?? 1);
 const mode = process.env.LOAD_MODE ?? "ffa";
+const requestedMap = process.env.LOAD_MAP;
+const roundSeconds = Number(process.env.LOAD_ROUND_SECONDS ?? 0);
+if (!Number.isFinite(roundSeconds) || roundSeconds < 0 || roundSeconds > 120) throw Error("invalid round duration override");
 const count = mode === "survival" ? 4 : 8;
 const rtt = Number(process.env.RTT_MS ?? 0);
 const jitter = Number(process.env.JITTER_MS ?? 0);
@@ -22,10 +25,10 @@ const ackDelays: number[] = [];
 const pingTimes: number[] = [];
 const clients: TestPlayer[] = [];
 let completed = 0;
-let packet = 0;
+let connectionFailure: string | null = null;
 let active = true;
 const timers = new Set<ReturnType<typeof setTimeout>>();
-const groups: { host: TestPlayer; players: TestPlayer[]; code: string; seq: number[]; view: number[]; match: string; ready: boolean; ids: number[]; snap: any; maxEnemies: number; reachedEight: boolean }[] = [];
+const groups: { host: TestPlayer; players: TestPlayer[]; code: string; seq: number[]; view: number[]; match: string; ready: boolean; ids: number[]; snap: any; maxEnemies: number; reachedEight: boolean; roundStarted: number; endRequested: boolean }[] = [];
 const originStart = performance.now();
 const sendLater = (p: TestPlayer, msg: any) => {
   const delay = 0; // Bidirectional network delay is applied by the proxy, including heartbeat frames.
@@ -36,7 +39,8 @@ const sendLater = (p: TestPlayer, msg: any) => {
 const arm = (p: TestPlayer, group: typeof groups[number], i: number) => {
   p.ws!.on("message", data => {
     const m = JSON.parse(data.toString());
-    if (m.t === "pong") pingTimes.push(Date.now() - m.c);
+    if (m.t === "error") failures.push("server rejected command: " + m.message);
+    if (m.t === "pong") pingTimes.push(performance.now() - m.c);
     if (m.t === "snap") {
       group.view[i] = m.tick;
       if(i===0) { group.snap=m; const enemies=m.players.filter((p:any)=>!group.ids.includes(p.id)&&(p.f&1)).length;
@@ -48,18 +52,26 @@ const arm = (p: TestPlayer, group: typeof groups[number], i: number) => {
       }
     }
   });
-  p.ws!.on("close", (code) => { if (active && code !== 1000) failures.push(`unexpected connection close ${code}`); });
+  p.ws!.on("close", (code, reason) => { if (active) {
+    connectionFailure = "unexpected connection close " + code + ": " + reason.toString();
+    failures.push(connectionFailure);
+  } });
+  p.ws!.on("error", (error) => { if (active) connectionFailure = "connection error: " + error.message; });
+
 };
 async function startRound(g: typeof groups[number]) {
   g.ready = false;
   for (const p of g.players) { p.drain(); p.send({ t:"ready", ready:true }); }
-  await sleep(100);
+  // Readiness is a server-observed fact, not a guessed network delay.
+  await g.host.waitFor("room", m => m.room.state === "lobby" &&
+    m.room.members.filter(member => !member.spectator && member.connected).length === g.players.length &&
+    m.room.members.every(member => member.spectator || !member.connected || member.host || member.ready));
   g.host.send({ t:"start" });
   const matches = await Promise.all(g.players.map(p=>p.waitFor("match")));
   g.match = matches[0].matchId;
   if (matches.some(m=>m.matchId !== g.match)) throw Error("clients disagree on match identity");
   g.ids=matches.map(m=>m.you!); g.snap=null;
-  g.seq.fill(0); g.view.fill(0); g.ready = true;
+  g.seq.fill(0); g.view.fill(0); g.ready = true; g.roundStarted = performance.now(); g.endRequested = false;
 }
 try {
   for (let j=0;j<roomCount;j++) {
@@ -76,11 +88,12 @@ try {
         mode, capacity:count, durationMin:2, bots:0, unlimitedAmmo:true, unlimitedFuel:true,
         loadout:mode === "survival" ? ["phasr","minigun"] : j % 2 ? ["smaw","rg6"] : ["minigun","saw-launcher"], health:2, damage:0.5,
         ...(mode === "survival" ? {map:"crosscurrent",flight:false,botDifficulty:"easy"} : {}),
+        ...(requestedMap ? {map:requestedMap} : {}),
         scoreLimit:0
       }
     }});
     if (created.status !== 201) throw Error(`create room failed: ${JSON.stringify(created.body)}`);
-    const g = {host,players,code:created.body.code,seq:players.map(()=>0),view:players.map(()=>0),match:"",ready:false,ids:[] as number[],snap:null as any,maxEnemies:0,reachedEight:false};
+    const g = {host,players,code:created.body.code,seq:players.map(()=>0),view:players.map(()=>0),match:"",ready:false,ids:[] as number[],snap:null as any,maxEnemies:0,reachedEight:false,roundStarted:0,endRequested:false};
     groups.push(g);
     for (let i=0;i<players.length;i++) {
       const p=players[i]; arm(p,g,i);
@@ -94,7 +107,11 @@ try {
   let nextInput=start;
   while(performance.now()-start < seconds*1000) {
     const now=performance.now();
+    if(connectionFailure) throw Error(connectionFailure);
     for(const g of groups) {
+      if(roundSeconds && g.ready && !g.endRequested && now-g.roundStarted>=roundSeconds*1000) {
+        g.host.send({t:"end"}); g.endRequested=true;
+      }
       const result=g.host.inbox.find(m=>m.t==="results");
       if(result?.t==="results") {
         const save=await g.host.waitFor("save",m=>m.matchId===result.result.matchId,15000);
@@ -133,7 +150,7 @@ try {
     }
     if(now>=nextSample) {
       nextSample=now+5000;
-      for (const g of groups) g.host.send({t:"ping",c:Date.now()});
+      for (const g of groups) g.host.send({t:"ping",c:performance.now()});
       const res=await fetch(new URL("/healthz",base));
       if(!res.ok) throw Error("health check failed");
       const s=await res.json();
@@ -166,7 +183,7 @@ try {
 }
 const sorted=ackDelays.sort((a,b)=>a-b);
 const report={
-  base:target,mode,roomCount,playersPerRoom:count,requestedSeconds:seconds,elapsedSeconds:Math.round((performance.now()-originStart)/1000),
+  base:target,mode,roomCount,playersPerRoom:count,requestedSeconds:seconds,hostEndedRoundSeconds:roundSeconds || null,elapsedSeconds:Math.round((performance.now()-originStart)/1000),
   syntheticRttMs:rtt,jitterMs:jitter,completedMatches:completed,
   latencyMethod:proxy ? "ordered bidirectional WebSocket and heartbeat proxy" : "direct localhost",
   measuredPingP95Ms:pingTimes.sort((a,b)=>a-b)[Math.floor(pingTimes.length*.95)]??null,

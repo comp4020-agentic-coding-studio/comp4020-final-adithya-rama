@@ -31,7 +31,7 @@ function arena(id:string,name:string,width:number,height:number,biome:NonNullabl
     ],
     goals:[{team:0,rect:r(48,floor-125,130,125)},{team:1,rect:r(width-178,floor-125,130,125)}],
     flagHomes:[{team:0,x:340,y:floor},{team:1,x:width-340,y:floor}],
-    navNodes:[...ground,...nodes,...solids.filter(s=>s.w>=100&&s.y>60).map(s=>({x:s.x+s.w/2,y:s.y}))],
+    navNodes:[...ground,...nodes,...solids.filter(s=>s.w>=100&&s.y>60).map(s=>({x:s.x+s.w/2,y:s.y}))].filter(p=>!allSolids.some(s=>p.x+11>s.x&&p.x-11<s.x+s.w&&p.y>s.y&&p.y-44<s.y+s.h)),
   };
 }
 
@@ -72,28 +72,31 @@ const skyshaft=arena("skyshaft","Skyshaft",2600,1500,"snow",
    {kind:"pine",x:2520,y:1380,h:195},{kind:"crate",x:490,y:1060,w:45,h:34},{kind:"crate",x:2110,y:1060,w:45,h:34},
    {kind:"lantern",x:565,y:940,h:50},{kind:"lantern",x:2030,y:940,h:50}]);
 
-// CRYPTWORKS: large connected cave vaults, hanging rock teeth, staggered
-// chambers and mining remnants. Every low passage has at least player height.
-const caveLeft=[...island(32,910,600,250),...island(250,460,410,250),...island(800,700,260,370),
-  r(900,480,100,220),r(1000,430,600,90),r(1600,480,100,220),
-  r(1000,520,100,25),r(1000,545,65,25),r(1000,570,35,25),
-  r(1500,520,100,25),r(1535,545,65,25),r(1565,570,35,25)];
+// CRYPTWORKS: connected catacomb chambers, a broad burial vault and two
+// narrow vertical shafts. These masonry ceilings have a very different route
+// silhouette from the exposed forest cliffs and the fort roofs.
 const cryptworks=arena("cryptworks","Cryptworks",2600,1450,"cavern",
-  {sky:0x354445,rock:0x6a7068,platform:0x969a80,accent:0x83c7a3},
-  [...caveLeft,...mirror(2600,caveLeft.slice(0,10)),...island(1540,700,260,370),
-   ...[r(32,590,270,65),r(180,655,50,65),r(560,600,65,130),r(560,825,65,115),r(650,460,280,65)].flatMap(s=>[s,...mirror(2600,[s])]),
-   ...island(1090,950,420,120),...island(1080,180,440,130),r(80,24,130,190),r(2390,24,130,190)],
-  [r(210,795,160,14),r(2230,795,160,14),r(130,1210,190,14),r(2280,1210,190,14),r(700,1150,210,14),r(1690,1150,210,14),
-   r(1030,1190,210,14),r(1360,1190,210,14),r(650,810,190,14),r(1760,810,190,14),
-   r(1110,730,380,14),r(740,360,210,14),r(1650,360,210,14)],
+  {sky:0x29373b,rock:0x606664,platform:0x929683,accent:0x85ceb2},
+  [r(32,185,850,110),r(32,295,130,180),r(1090,185,420,120),r(1718,185,850,110),r(2438,295,130,180),
+   r(32,565,570,65),r(520,630,82,130),r(32,940,570,100),r(150,1040,100,100),
+   r(1998,565,570,65),r(1998,630,82,130),r(1998,940,570,100),r(2350,1040,100,100),
+   r(795,475,1010,80),r(795,555,100,380),r(1705,555,100,380),
+   r(895,555,115,25),r(895,580,75,25),r(895,605,35,25),
+   r(1590,555,115,25),r(1630,580,75,25),r(1670,605,35,25),
+   r(975,975,650,80),r(1050,1055,75,100),r(1475,1055,75,100),
+   r(630,735,165,60),r(1805,735,165,60),
+   r(360,360,220,50),r(2020,360,220,50)],
+  [r(240,795,210,14),r(2150,795,210,14),r(95,1195,210,14),r(2295,1195,210,14),
+   r(665,1110,200,14),r(1735,1110,200,14),r(625,915,140,14),r(1835,915,140,14),
+   r(1060,805,480,14),r(1090,645,200,14),r(1370,645,160,14),r(925,365,160,14),r(1515,365,160,14)],
   ["spas12","aa20","saw-launcher","flamethrower","machete","riot-shield","tec9","magnum","rg6","emp-gun","mp5"],
-  [{kind:"crystal",x:400,y:910,w:80,h:55},{kind:"crystal",x:2210,y:918,w:70,h:48},
-   {kind:"crystal",x:1220,y:180,w:100,h:60},{kind:"crystal",x:970,y:700,w:55,h:50},
-   {kind:"lantern",x:330,y:1120,h:60},{kind:"lantern",x:2270,y:1120,h:60},
-   {kind:"lantern",x:1100,y:520,h:75},{kind:"lantern",x:1500,y:520,h:75},
-   {kind:"lantern",x:300,y:665,h:70},{kind:"lantern",x:2300,y:665,h:70},
-   {kind:"bones",x:650,y:1330,w:60},{kind:"bones",x:1960,y:1330,w:60},
-   {kind:"bridge",x:1110,y:730,w:380},{kind:"crate",x:530,y:918,w:48,h:44}]);
+  [{kind:"crystal",x:410,y:940,w:80,h:55},{kind:"crystal",x:2210,y:940,w:70,h:48},
+   {kind:"crystal",x:1200,y:185,w:80,h:45},{kind:"crystal",x:1050,y:975,w:55,h:35},
+   {kind:"lantern",x:335,y:640,h:65},{kind:"lantern",x:2265,y:640,h:65},
+   {kind:"lantern",x:1130,y:555,h:85},{kind:"lantern",x:1470,y:555,h:85},
+   {kind:"bones",x:1240,y:975,w:80},{kind:"bones",x:650,y:1330,w:60},{kind:"bones",x:1960,y:1330,w:60},
+   {kind:"urn",x:240,y:940,w:36,h:50},{kind:"urn",x:2360,y:940,w:36,h:50},
+   {kind:"crate",x:465,y:940,w:48,h:44}]);
 
 // CROSSCURRENT: an asymmetric broken coastal viaduct. Unequal headlands,
 // rising bridge spans and hanging piers create a distinct long-range middle lane.
@@ -114,6 +117,64 @@ const crosscurrent=arena("crosscurrent","Crosscurrent",2800,1300,"coast",
    {kind:"crate",x:500,y:330,w:54,h:38},{kind:"crate",x:1480,y:680,w:48,h:40},
    {kind:"lantern",x:660,y:520,h:65},{kind:"lantern",x:1970,y:915,h:55}]);
 
+// SIROCCO DUNES: stepped sandstone escarpments, a broken aqueduct and
+// a tall eroded central needle. Long open sky sits above sheltered ground runs.
+const siroccoDunes=arena("sirocco-dunes","Sirocco Dunes",2900,1450,"desert",
+  {sky:0xf0dcc0,rock:0xbd8450,platform:0xe6b973,accent:0x64c4b3},
+  [r(32,420,430,90),r(32,510,560,90),r(32,600,675,200),r(32,800,540,165),r(32,965,385,170),
+   r(2380,320,488,120),r(2240,440,628,100),r(2300,540,568,260),r(2440,800,428,280),
+   r(1170,640,510,75),r(1240,715,370,95),r(1280,810,280,180),r(1345,990,155,170),
+   r(650,905,430,60),r(710,965,80,170),r(980,965,70,150),
+   r(1790,805,480,60),r(1840,865,70,180),r(2150,865,70,170),
+   r(930,335,300,65),r(980,400,70,135),r(980,225,70,110),
+   r(1740,200,330,65),r(1810,265,70,110),r(1815,85,70,115)],
+  [r(170,1220,190,14),r(2540,1210,190,14),r(500,1095,170,14),r(2200,1130,180,14),
+   r(1100,1100,170,14),r(1580,1070,170,14),r(1080,875,140,14),r(1650,825,140,14),
+   r(755,685,200,14),r(1850,585,210,14),r(1040,490,210,14),r(1510,395,200,14)],
+  ["m93ba","ak47","magnum","smaw","m14","tec9","spas12","rg6","mini-eagle","emp-gun","machete","riot-shield"],
+  [{kind:"cactus",x:240,y:420,h:155,w:65},{kind:"cactus",x:380,y:420,h:85,w:42},
+   {kind:"cactus",x:2660,y:320,h:155,w:70},{kind:"cactus",x:1430,y:640,h:115,w:55},
+   {kind:"cactus",x:810,y:1330,h:130,w:60},{kind:"cactus",x:2100,y:1330,h:90,w:50},
+   {kind:"urn",x:730,y:905,w:50,h:55},{kind:"urn",x:2110,y:805,w:45,h:55},
+   {kind:"bones",x:1020,y:1330,w:75},{kind:"bones",x:1850,y:1330,w:65},
+   {kind:"column",x:1015,y:335,w:70,h:110},{kind:"column",x:1850,y:200,w:70,h:115},
+   {kind:"palm",x:1580,y:640,h:180,flip:true},{kind:"crate",x:1940,y:805,w:48,h:42}]);
+
+// SUNSPIRE PALACE: continuous galleries face a high central throne hall.
+// Open lower courtyards, colonnades and side staircases replace floating islands.
+const palaceLeft=[
+  r(90,435,650,40),r(110,475,55,175),r(640,475,55,90),
+  // Stepped intrados make actual arch-shaped openings, not painted doors.
+  r(165,475,85,20),r(165,495,55,20),r(165,515,25,20),
+  r(555,475,85,20),r(585,495,55,20),r(615,515,25,20),
+  r(90,805,740,45),r(110,850,55,165),r(735,850,55,165),
+  r(310,1130,520,40),r(360,1170,60,65),r(725,1170,60,65),
+  // Each staircase has 30px risers, traversable at maximum gravity.
+  ...Array.from({length:6},(_,i)=>r(410+i*45,805-(i+1)*30,45,(i+1)*30)),
+];
+const sunspirePalace=arena("sunspire-palace","Sunspire Palace",2800,1500,"palace",
+  {sky:0xdbddeb,rock:0xb8afa0,platform:0xe5dbc5,accent:0xc2a348},
+  [...palaceLeft,...mirror(2800,palaceLeft),
+   r(1090,330,620,50),r(1110,380,60,190),r(1630,380,60,190),
+   r(1050,670,700,45),r(1090,715,60,200),r(1650,715,60,200),
+   r(1150,715,100,22),r(1150,737,65,22),r(1150,759,30,22),
+   r(1550,715,100,22),r(1585,737,65,22),r(1620,759,30,22),
+   r(1210,1000,380,45),r(1360,1045,80,155)],
+  [r(680,625,115,14),r(2005,625,115,14),r(110,1250,180,14),r(2510,1250,180,14),r(870,1210,200,14),r(1730,1210,200,14),
+   r(890,1000,220,14),r(1690,1000,220,14),r(835,790,180,14),r(1785,790,180,14),
+   r(795,590,210,14),r(1795,590,210,14),r(1175,505,175,14),r(1450,505,175,14)],
+  ["golden-eagle","m4","tavor-x95","xm8","phasr","aa20","m93ba","saw-launcher","minigun","flamethrower","machete","riot-shield"],
+  [{kind:"dome",x:1400,y:330,w:550,h:210},{kind:"dome",x:410,y:435,w:430,h:175},{kind:"dome",x:2390,y:435,w:430,h:175},
+   {kind:"column",x:137.5,y:650,w:55,h:175},{kind:"column",x:667.5,y:565,w:55,h:90},
+   {kind:"column",x:2132.5,y:565,w:55,h:90},{kind:"column",x:2662.5,y:650,w:55,h:175},
+   {kind:"column",x:1140,y:570,w:60,h:190},{kind:"column",x:1660,y:570,w:60,h:190},
+   {kind:"column",x:1120,y:915,w:60,h:200},{kind:"column",x:1680,y:915,w:60,h:200},
+   {kind:"banner",x:270,y:475,w:64,h:190},{kind:"banner",x:2466,y:475,w:64,h:190,flip:true},
+   {kind:"banner",x:1250,y:715,w:55,h:180},{kind:"banner",x:1495,y:715,w:55,h:180,flip:true},
+   {kind:"urn",x:990,y:1380,w:58,h:75},{kind:"urn",x:1810,y:1380,w:58,h:75},
+   {kind:"urn",x:1240,y:1000,w:38,h:50},{kind:"urn",x:1560,y:1000,w:38,h:50},
+   {kind:"palm",x:85,y:1380,h:230},{kind:"palm",x:2715,y:1380,h:230,flip:true}]);
+
 const rangeWeapons=["mini-eagle","golden-eagle","magnum","uzi","tec9","mp5","ak47","m4","tavor-x95","xm8","m14","m93ba","spas12","aa20","minigun","smaw","rg6","saw-launcher","flamethrower","phasr","emp-gun","machete","riot-shield"];
 const testRange:MapDefinition={id:"test-range",name:"Test Range",width:1800,height:1000,biome:"range",
   theme:{sky:0x859b9a,rock:0x545e5b,platform:0xc3b48b,accent:0xf0ba60},
@@ -124,4 +185,4 @@ const testRange:MapDefinition={id:"test-range",name:"Test Range",width:1800,heig
     ...["frag","flash","gas","emp","mine"].map((item,i)=>({x:180+i*320,y:900,kind:"throwable" as const,item,respawnSec:5}))],
   goals:[],flagHomes:[],navNodes:Array.from({length:11},(_,i)=>({x:100+150*i,y:900})),scenery:[{kind:"crate",x:60,y:900,w:30,h:30}],
 };
-export const MAPS:Record<string,MapDefinition>={[cryptworks.id]:cryptworks,[crosscurrent.id]:crosscurrent,[skyshaft.id]:skyshaft,[outpostYard.id]:outpostYard,[testRange.id]:testRange};
+export const MAPS:Record<string,MapDefinition>={[cryptworks.id]:cryptworks,[crosscurrent.id]:crosscurrent,[skyshaft.id]:skyshaft,[outpostYard.id]:outpostYard,[siroccoDunes.id]:siroccoDunes,[sunspirePalace.id]:sunspirePalace,[testRange.id]:testRange};

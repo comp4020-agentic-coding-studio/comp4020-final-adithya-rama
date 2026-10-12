@@ -91,8 +91,8 @@ export interface MapDefinition {
   name: string;
   width: number;
   height: number;
-  biome?: "jungle" | "snow" | "cavern" | "coast" | "range";
-  scenery?: Array<{ kind: "palm" | "pine" | "fern" | "bunker" | "crate" | "lantern" | "crystal" | "bones" | "bridge"; x: number; y: number; w?: number; h?: number; flip?: boolean }>;
+  biome?: "jungle" | "snow" | "cavern" | "coast" | "range" | "desert" | "palace";
+  scenery?: Array<{ kind: "palm" | "pine" | "fern" | "bunker" | "crate" | "lantern" | "crystal" | "bones" | "bridge" | "cactus" | "urn" | "column" | "banner" | "dome"; x: number; y: number; w?: number; h?: number; flip?: boolean }>;
   theme: { sky: number; rock: number; platform: number; accent: number };
   solids: Rect[];
   platforms: Rect[];
@@ -126,6 +126,9 @@ export interface WeaponDefinition {
   reserve: number;
   reloadMs: number;
   range: number;
+  effectiveRange?: number;
+  minRangeDamage?: number;
+  headshotMultiplier?: number;
   zoom: number;
   oneHanded: boolean;
   heavy: boolean;
@@ -268,7 +271,7 @@ export interface PickupSnap {
 
 export type GameEvent =
   | { t: "shot"; by: number; w: string; x1: number; y1: number; x2: number; y2: number; hit: boolean }
-  | { t: "kill"; killer: number | null; victim: number; w: string }
+  | { t: "kill"; killer: number | null; attacker?: number | null; victim: number; w: string }
   | { t: "explode"; x: number; y: number; r: number }
   | { t: "melee"; by: number; x: number; y: number }
   | { t: "hurt"; id: number; amount: number }

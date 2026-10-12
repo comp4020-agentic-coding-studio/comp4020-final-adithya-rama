@@ -6,7 +6,7 @@ import type { MatchResult, RoomSettings } from "../shared/types.ts";
 import { api, esc, hex, toast } from "./dom.ts";
 import { GameSession } from "./game.ts";
 import { Net } from "./net.ts";
-import { WEAPONS, THROWABLES } from "../shared/weapons.ts";
+import { WEAPONS, THROWABLES, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
 import { ACTION_LABELS, BINDABLE_CODE, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
 import { avatarOf, avatarSvg, weaponIcon, weaponName } from "./art.ts";
 import { TEAM_COLORS, TEAM_NAMES } from "./render.ts";
@@ -91,7 +91,7 @@ function renderHome(): void {
         <div class="hero-landscape">${arenaPreview("outpost-yard")}</div>
         <div class="hero-copy"><span class="eyebrow">2D JETPACK COMBAT · UP TO 8 PILOTS</span><h1>Small squads.<br><em>Big air.</em></h1><p>Find your crew. Pick your arsenal.<br>Make the whole arena your playground.</p></div>
         <div class="hero-pilot" aria-hidden="true">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
-        <div class="arena-caption"><span class="live-dot"></span><b>OUTPOST YARD</b><span>One of four original arenas</span></div>
+        <div class="arena-caption"><span class="live-dot"></span><b>OUTPOST YARD</b><span>One of six original arenas</span></div>
         <div class="hero-mission"><span>FLAG DELIVERY</span><b>Your flag. Their goal.</b><p>Carry your team's flag across the arena. Keep flying. Score for your squad.</p></div>
       </section>
       <section class="card play">
@@ -138,7 +138,7 @@ function renderHome(): void {
           <label class="check"><input type="checkbox" name="muted" ${profile.prefs.muted===true?"checked":""}> Mute sound</label>
           <label>Sound volume <input type="range" name="volume" min="0" max="1" step=".05" value="${Number(profile.prefs.volume??.35)}"></label>
           <label class="check"><input type="checkbox" name="chatMuted" ${profile.prefs.chatMuted===true?"checked":""}> Mute room chat</label>
-          <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce screen shake</label>
+          <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce shake & debris</label>
           <button>Save</button>
         </form>
         <button id="bindings">Keyboard controls</button>
@@ -149,7 +149,7 @@ function renderHome(): void {
         <div class="section-heading row"><div><span class="eyebrow">FIND YOUR CREW</span><h2>Open rooms</h2></div><button id="refresh-rooms" class="quiet">Refresh</button></div>
         <ul id="room-list" class="list"><li class="muted">Looking…</li></ul>
       </section>
-      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${w.category} · ${w.mag} rounds</small></div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. EMP and proximity mines are advanced room options.</p></details></section>
+      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start. Compare silhouettes, reach and handling below.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${esc(weaponRangeLabel(w.id))} · ${w.category==="equipment"?esc(weaponHandling(w.id)):w.mag+" rounds"}</small><span class="armoury-range" aria-label="Relative maximum reach"><i style="width:${Math.max(2,w.range/1600*100)}%"></i></span>${w.category!=="equipment"?`<small>${esc(weaponHandling(w.id))} · ${Math.round(60000/w.cooldownMs)} shots/min</small>`:""}</div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. Walk over grenades to collect them when your six-item bag has room. T changes type; G throws. F pairs compatible small guns. A shield pairs with a machete; selecting a firearm drops the shield. EMP and mines are advanced room options.</p></details></section>
       <section class="card history">
         <div class="section-heading"><span class="eyebrow">YOUR FLIGHT LOG</span><h2>Recent matches</h2></div>
         <ul id="history" class="list"><li class="muted">Loading…</li></ul>

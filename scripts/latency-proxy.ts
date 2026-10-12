@@ -1,6 +1,7 @@
 // Isolated acceptance helper: ordered, bidirectional WebSocket delay including
 // heartbeat frames. HTTP remains undelayed. This is synthetic latency, not WAN evidence.
 import { createServer, request } from "node:http";
+import { performance } from "node:perf_hooks";
 import WebSocket, { WebSocketServer, type RawData } from "ws";
 
 export async function startLatencyProxy(target: string, rtt: number, jitter: number) {
@@ -35,7 +36,7 @@ export async function startLatencyProxy(target: string, rtt: number, jitter: num
       const relay = (source: WebSocket, destination: WebSocket) => {
         let lastDelivery = 0;
         const enqueue = (kind: "message" | "ping" | "pong", data: RawData, binary = false) => {
-          const now = Date.now();
+          const now = performance.now();
           const intended = now + Math.max(0, rtt / 2 + Math.sin(++packet * 1.7) * jitter);
           const delivery = lastDelivery = Math.max(lastDelivery, intended);
           const timer = setTimeout(() => {
@@ -52,9 +53,12 @@ export async function startLatencyProxy(target: string, rtt: number, jitter: num
         source.on("message", (data, binary) => enqueue("message", data, binary));
         source.on("ping", data => enqueue("ping", data));
         source.on("pong", data => enqueue("pong", data));
-        source.on("close", () => {
+        source.on("close", (code, reason) => {
           sockets.delete(source);
-          if (destination.readyState === WebSocket.OPEN) destination.close(1000);
+          if (destination.readyState === WebSocket.OPEN) {
+            const valid = code >= 1000 && code < 5000 && ![1004,1005,1006,1015].includes(code);
+            destination.close(valid ? code : 1011, valid ? reason : "Upstream connection lost");
+          }
         });
         source.on("error", () => destination.terminate());
       };

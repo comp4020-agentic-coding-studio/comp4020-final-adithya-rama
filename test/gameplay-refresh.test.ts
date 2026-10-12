@@ -72,9 +72,13 @@ describe("three carried weapons", () => {
     const w = world({ mode: "ffa" }), attacker = player(w, -1, { x: 600, y: 900 }), p = player(w, -1, { x: 200, y: 900 });
     p.slots = [freshSlot("mini-eagle"), freshSlot("uzi"), freshSlot("riot-shield")]; p.dual = true;
     expect(dualPartner(p)).toBe(1);
-    expect(applyDamage(w, p, attacker.id, 20, "mini-eagle")).toBe(20);
-    p.active = 2;
-    expect(applyDamage(w, p, attacker.id, 20, "mini-eagle")).toBe(3);
+    run(w, 1, () => hold(attacker.id, Btn.FIRE, Math.PI));
+    const wounded = p.hp;
+    expect(wounded).toBeLessThan(100);
+    run(w, 20); p.active = 2;
+    expect(canDual(p)).toBe(false);
+    run(w, 1, () => hold(attacker.id, Btn.FIRE, Math.PI));
+    expect(p.hp).toBe(wounded);
   });
 });
 
@@ -149,9 +153,9 @@ describe("flashbang and throwable availability", () => {
   it("starts with frag, flash and poison smoke; optional extras still fit six", () => {
     const w = world(), p = player(w);
     expect(defaultSettings().throwables).toEqual(["frag", "flash", "gas"]);
-    expect(p.throwables).toEqual({ frag: 2, flash: 2, gas: 2 });
+    expect(p.throwables).toEqual({ frag: 2, flash: 1, gas: 1 });
     const extras = world({ throwables: Object.keys(THROWABLES) }), q = player(extras);
-    expect(Object.values(q.throwables).reduce((a, b) => a + b, 0)).toBe(MAX_THROWABLES);
+    expect(Object.values(q.throwables).reduce((a, b) => a + b, 0)).toBe(MAX_THROWABLES - 1);
     expect(Object.keys(q.throwables)).toEqual(Object.keys(THROWABLES));
     const empty = world({ throwables: [] }); expect(player(empty).throwables).toEqual({});
   });
@@ -235,7 +239,7 @@ describe("practice bot perception and difficulty", () => {
 
 
 describe("bot navigation on the revised arenas", () => {
-  it.each(["cryptworks", "crosscurrent", "skyshaft", "outpost-yard"])(
+  it.each(["cryptworks", "crosscurrent", "skyshaft", "outpost-yard", "sirocco-dunes", "sunspire-palace"])(
     "%s lets both teams deliver their own flag with and without flight", (map) => {
       for (const flight of [true, false]) for (const team of [0, 1] as const) {
         const w = createWorld(sanitizeSettings({ ...defaultSettings(), map, mode: "flag", flight, mapPickups: false }), 42);
