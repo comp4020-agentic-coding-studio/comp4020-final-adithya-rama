@@ -58,17 +58,43 @@ connections closed with code 1008 after its first natural rematch. Its original
 harness did not record the close reason and continued sampling an empty server.
 Consequently, its low resource readings do not count as a passing load result.
 The harness now records close reasons and fails promptly on a lost connection.
-Follow-up rematch and constrained results are recorded below when complete;
-no unproven server fix is claimed.
+Follow-up direct tests passed: five rapid rounds in 45 seconds and two rounds
+across a natural timer/rematch in 155 seconds. The original close reason remains
+unknown. The later latency-start failure was traced to a fixed readiness pause;
+the harness now awaits the server's all-ready state. Logs also showed a backward
+wall-clock adjustment. Proxy scheduling, WebSocket rate limits and heartbeat RTT
+now use monotonic time, with three focused regression tests. This hardens a
+reproducible timing weakness without claiming it proves the first close's cause.
 
 A 60-second bounded palace survival run reached **four humans plus eight active
 enemies**, saved its result, and reported no failures. Peak sampled process RSS
 was 129 MB; maximum sampled simulation p95 was 2.37 ms. No cgroup OOM event or
 service restart occurred. `test-results/oct13-cgroup-palace-survival.json`.
 
+The current native Intel Arc 140T / Chrome 154 sample measured **60.0 FPS desktop**
+and **60.1 FPS in the phone viewport**. SwiftShader repeated at about **21 FPS
+desktop and 43–46 FPS phone viewport**, below the earlier sample and the target;
+the cause is unproven. These are ten-second practice samples.
+
 Current render measurements and their software/native distinction are in
 [RENDERING_EVIDENCE.md](RENDERING_EVIDENCE.md). A short probe does not certify
 30-minute stability, worst-case graphics, every weapon combination, or phones.
+
+The final bounded desert run passed **180 seconds with eight players**, a
+100 ms round-trip proxy and +/-15 ms jitter. Two matches completed and saved,
+including a natural timer and rematch. Maximum sampled process RSS was **137 MB**;
+maximum sampled simulation p95 was **6.49 ms**, with the last sample at 1.69 ms.
+Measured ping p95 was 133.3 ms and input-acknowledgement frame age p95 was 133.3 ms.
+There were no disconnects, failed assertions, OOM events or service restarts.
+Cgroup peak charged memory was 84,725,760 bytes; this differs from process RSS
+because shared-page accounting differs. See
+`test-results/oct13-cgroup-desert-100ms-final.json`. An earlier retest was
+intentionally interrupted to restart with the fix and records code 1012; it is
+not counted as a passing run.
+
+These short checks do not complete the planned 30-minute production-container
+soak or the full latency matrix for this revision. One active room remains the
+production limit. Two-room capacity is not enabled by these results.
 
 ## Release
 

@@ -230,3 +230,10 @@ calendar timestamps retain their purpose. The first disconnect's precise cause
 was not captured, so this is not described as a proven diagnosis of that event.
 The improved harness records close reasons and stops immediately on a lost
 connection. Both failures and subsequent results remain in the acceptance record.
+
+The combat, audio, map and timing changes are committed in
+[`0790c1b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/0790c1b).
+The final local check passed 201 unit tests and 33 running-app spec tests.
+An enforced one-CPU/256-MB process completed the eight-player delayed-network
+rematch probe, and palace survival reached four humans plus eight active enemies.
+These short runs are recorded separately from the planned container soak.

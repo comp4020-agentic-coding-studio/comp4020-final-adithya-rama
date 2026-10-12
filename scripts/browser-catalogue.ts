@@ -1,9 +1,9 @@
-// UI catalogue acceptance; a dedicated local server and disposable guests only.
+// UI catalogue acceptance using disposable guests and private rooms.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { MAPS } from "../src/shared/maps.ts";
-const base=process.env.APP_URL??"http://localhost:8093",out="test-results/oct13-catalogue";
+const base=process.env.APP_URL??"http://localhost:8093",out="test-results/"+(process.env.REPORT_TAG??"oct13-catalogue");
 mkdirSync(out,{recursive:true});
 const maps=Object.values(MAPS).filter(m=>m.id!=="test-range");
 assert.equal(maps.length,6);
