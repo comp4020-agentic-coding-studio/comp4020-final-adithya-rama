@@ -98,8 +98,43 @@ production limit. Two-room capacity is not enabled by these results.
 
 ## Release
 
-Publication and live verification are pending. The original crit-8 tag remains
-unchanged; no /ship or retag is part of this revision.
+The implementation is committed in `0790c1b`; acceptance follow-up `777848f`
+was pushed to the existing public main branch. [Workflow 38309016324](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/38309016324)
+passed the production Docker build, all 234 checks, process evidence and secret
+scans, then deployed successfully. The running Fly machine remained one shared
+CPU / 256 MB in Sydney. The full updated README is served at /readme/.
+
+Live verification on https://comp4020-final-adithya-rama.fly.dev/:
+
+- All six arena choices were accepted by the server; 23 armory cards and profile
+  screens fit both 1920x1080 and 390x844. No browser errors. Rooms were left after
+  checking; `test-results/oct13-live-catalogue/report.json`.
+- All 16 audio responses returned HTTP 200 and matched the local byte counts and
+  SHA-256 hashes. All decoded to non-silent PCM in Chromium. Credits returned
+  HTTP 200 as text and matched the local file. This is asset/playback validation,
+  not listening feedback; `test-results/oct13-live-audio/report.json`.
+- FFA, TDM and actual own-flag delivery passed with matching saved results for
+  desktop and phone identities. The first survival attempt then lost both
+  browser heartbeats; the server disconnected them and saved the abandoned
+  match. No storage failure was logged. A shared host/browser/network pause is
+  plausible but unproven. This failed attempt is retained in
+  `test-results/oct13-live-modes.json` and the server log.
+- Fresh survival and training runs both passed, including identical results,
+  saved indicators and host history. Survival recorded two humans and six
+  enemies. Together, the two runs establish successful live flows for all five
+  modes without claiming the first full run passed.
+  `test-results/oct13-live-modes-retry.json`.
+- Read-only verification restored the existing acceptance guest's exact profile,
+  preferences, aggregates, single saved history entry and match details after
+  deployment. Match detail SHA-256 remained
+  `43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
+  `test-results/live-persistence-verify-oct13-redeploy.json`.
+- After the checks, the public health endpoint reported no active rooms, an empty
+  database queue and the unchanged one-room limit. The test clients were closed.
+
+The original crit-8 commit remains `e6b4df425c06d822c13578559610160be6bfe4f7`.
+No /ship, retag or visibility change was performed. Human evidence and the longer
+resource acceptance below remain separate from this successful deployment.
 
 ## Remaining human evidence
 

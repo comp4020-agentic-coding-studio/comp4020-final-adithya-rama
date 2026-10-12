@@ -12,12 +12,17 @@ silhouettes, role-based range tuning, recorded audio, physical shield/knife
 handling, automatic grenade collection, an attacker-follow death camera,
 rocket-death debris and six distinct arenas.
 
-**Current evidence is local:** 201 unit tests and 33 running-app/server/storage
-checks pass (231 total). Browser acceptance covers all 23 weapon/equipment
+**Local evidence:** 201 unit tests and 33 running-app/server/storage
+checks pass (234 total). Browser acceptance covers all 23 weapon/equipment
 entries and five throwables across 29 rounds, all six arena choices and 23
 armory cards at desktop and phone sizes. See
 [13 October validation](REVISION_2026_10_13_VALIDATION.md) for the exact scope
-and limitations. This revision has not yet been verified live.
+and limitations. **Verified live:** all six map selections, 23 armory cards,
+profile layouts, 16 audio responses/hashes/decodes, successful flows for all five
+modes, and unchanged pre-existing saved profile/history after deployment. The
+first survival attempt lost both browser heartbeats; its failed report and
+successful fresh retry are retained. Detailed combat geometry and every arsenal
+entry remain supported by the local tests rather than an exhaustive live playtest.
 
 Earlier deployment and soak evidence in [OCTOBER_VALIDATION.md](OCTOBER_VALIDATION.md)
 and [VALIDATION.md](VALIDATION.md) applies to those recorded builds. It does not

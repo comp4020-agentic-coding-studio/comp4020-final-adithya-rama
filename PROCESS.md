@@ -237,3 +237,13 @@ The final local check passed 201 unit tests and 33 running-app spec tests.
 An enforced one-CPU/256-MB process completed the eight-player delayed-network
 rematch probe, and palace survival reached four humans plus eight active enemies.
 These short runs are recorded separately from the planned container soak.
+
+The normal public workflow deployed
+[`777848f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/777848f).
+Live checks confirmed all six map choices, the weapon catalogue and all recorded
+audio files. Separate desktop and phone identities completed all five modes
+across two runs. The first survival attempt missed both browser heartbeats and
+became a saved abandoned match; a fresh survival/training run succeeded. That
+failure is preserved in the report rather than silently replaced by the retry.
+The existing acceptance guest's profile and match details survived deployment
+unchanged. No human playtest or listening assessment is inferred from these checks.
