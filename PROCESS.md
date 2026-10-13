@@ -247,3 +247,34 @@ became a saved abandoned match; a fresh survival/training run succeeded. That
 failure is preserved in the report rather than silently replaced by the retry.
 The existing acceptance guest's profile and match details survived deployment
 unchanged. No human playtest or listening assessment is inferred from these checks.
+
+## October 14: reference research before the next gameplay revision
+
+Adithya asked for a broader review of Mini Militia, including the guides he
+supplied, after identifying unsatisfactory weapon reach/view, crouching,
+repetitive maps and missing hiding places. Implementation edits were stopped
+before any game source changed. Three read-only work streams compared combat
+rules, labelled map references and the current client/server behavior. The
+integrator reviewed the wider controls, rooms, loadouts, progression and
+supporting guides.
+
+The [research ledger](docs/RESEARCH_MINI_MILITIA_2026_10_14.md) records sources,
+access limits and concrete gaps. Most article text was available through the
+search index; Chrome also opened the Maps catalogue, full-resolution references
+and the incomplete Game Modes article. Developer announcements clarified that
+CV4, original v4 and modern MMC settings are not interchangeable. Map labels
+corrected the supplied tall image to Cliffhanger and provided the actual
+Catacombs layout.
+
+The [proposed implementation plan](docs/REVISION_2026_10_14_PLAN.md) keeps the
+user's custom rules and working systems, targets six reference layouts, and
+sets behavior, browser, performance and human-review gates. Independent review
+added explicit space flag boundaries, recovery from narrow pockets, server-bound
+killer-follow visibility, equivalent low-flash impairment, and reload behavior.
+The code audit also found a concrete level-shot/crouch hitbox mismatch, alongside
+the existing S-to-drop behavior and rocket-camera mismatch.
+
+This is research and a proposal, not a gameplay release. The isolated geometry
+probe and camera calculations are distinguished from full test-suite/browser
+acceptance. No original v4 play session, audio resemblance assessment or human
+playtest is invented. Crit 9 reflection and decision commits remain unchanged.

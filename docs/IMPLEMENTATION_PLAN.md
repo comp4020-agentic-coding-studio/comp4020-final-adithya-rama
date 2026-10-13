@@ -1,5 +1,7 @@
 # Implementation plan: classic Mini Militia-style PC game
 
+> Next revision proposal: [14 October whole-game research and implementation plan](REVISION_2026_10_14_PLAN.md), with a [source ledger and code audit](RESEARCH_MINI_MILITIA_2026_10_14.md). This is proposed work, not a claim of implemented or deployed changes.
+
 > Current amendment: [13 October combat and arena revision](REVISION_2026_10_13.md)
 > supersedes this original plan where specified. The earlier
 > [10 October revision](REVISION_2026_10_10.md) remains part of the decision history.
