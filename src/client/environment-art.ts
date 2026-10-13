@@ -33,8 +33,19 @@ function edges(rs:Rect[]):Edge[] {
 }
 export function drawTerrain(g:Graphics,map:MapDefinition):void {
   g.clear();
-  const snow=map.biome==="snow",cave=map.biome==="cavern",range=map.biome==="range",desert=map.biome==="desert",palace=map.biome==="palace";
+  const snow=map.biome==="snow",cave=map.biome==="cavern",range=map.biome==="range",desert=map.biome==="desert",palace=map.biome==="palace",space=map.biome==="space",industrial=map.biome==="industrial";
   const rs=map.solids,ink=cave?0x28322e:INK;
+  // Passable rear walls always use low-contrast detail without a collision cap.
+  for(const r of map.backgrounds??[]) {
+    const color=industrial?0x8b9290:cave?0x536059:desert?0xc5a477:snow?0xa9c1c8:0x839581;
+    g.rect(r.x,r.y,r.w,r.h).fill({color,alpha:.58});
+    for(let yy=r.y+24;yy<r.y+r.h;yy+=industrial?70:38)
+      g.moveTo(r.x+3,yy).lineTo(r.x+r.w-3,yy).stroke({width:1,color:mix(color,0x243837,.2),alpha:.45});
+    if(industrial)for(let xx=r.x+24;xx<r.x+r.w-25;xx+=92) {
+      g.rect(xx,r.y+18,38,Math.max(12,Math.min(56,r.h-36))).fill({color:0xbacbc3,alpha:.6});
+      g.moveTo(xx+19,r.y+18).lineTo(xx+19,r.y+Math.max(30,Math.min(74,r.h-18))).stroke({width:2,color:0x6f8482});
+    }
+  }
   if(palace) {
     // Recessed rear masonry is deliberately lighter, without the dark collision
     // contour. Draw it before terrain so stairs/columns retain exact solid edges.
@@ -67,12 +78,30 @@ export function drawTerrain(g:Graphics,map:MapDefinition):void {
   }
   for(const r of rs)g.rect(r.x,r.y,r.w,r.h).fill(map.theme.rock);
   // Interior geology is seeded and built once. No collision is inferred from art.
-  for(let y=35;!palace&&y<map.height;y+=51)for(let x=25;x<map.width;x+=57) {
+  for(let y=35;!palace&&!industrial&&y<map.height;y+=space?77:51)for(let x=25;x<map.width;x+=57) {
     const n=x*7+y*13,cx=x+noise(n)*24,cy=y+noise(n+2)*22,rx=10+noise(n+7)*19,ry=8+noise(n+9)*14;
     const pts=[cx-rx,cy-ry*.4,cx-rx*.35,cy-ry,cx+rx*.8,cy-ry*.6,cx+rx,cy+ry*.35,cx+rx*.2,cy+ry,cx-rx*.75,cy+ry*.65];
     if(pts.every((v,i)=>i%2===1||inside(rs,v,pts[i+1]))) {
       g.poly(pts).fill(mix(map.theme.rock,noise(n+5)>.5?0xc6c9b7:0x374a43,.16+noise(n+6)*.23)).stroke({color:ink,width:1.4,alpha:.7});
       g.moveTo(pts[0]+2,pts[1]).lineTo(pts[2],pts[3]+3).lineTo(pts[4]-2,pts[5]+2).stroke({color:0xe2e4cf,width:1,alpha:.32});
+    }
+  }
+  if(space) {
+    // Craters stay inside the collision union, so hollow asteroids stay hollow.
+    for(let y=55;y<map.height;y+=95)for(let x=55;x<map.width;x+=107) {
+      const seed=x*3+y,rx=13+noise(seed)*13,ry=rx*.62;
+      if(![[-rx,0],[rx,0],[0,-ry],[0,ry],[-rx*.7,-ry*.7],[rx*.7,ry*.7]].every(([dx,dy])=>inside(rs,x+dx,y+dy)))continue;
+      g.ellipse(x,y,rx,ry).fill(0x69757a).stroke({width:2,color:0x4c5b63,alpha:.65});
+      g.moveTo(x-rx*.8,y).arc(x,y,rx*.8,Math.PI,Math.PI*1.8).stroke({width:2,color:0xc0c6bc,alpha:.5});
+    }
+  }
+  if(industrial)for(const r of rs) {
+    for(let yy=r.y+28;yy<r.y+r.h;yy+=58) {
+      g.moveTo(r.x+2,yy).lineTo(r.x+r.w-2,yy).stroke({width:2,color:0x4e6265,alpha:.55});
+      for(let xx=r.x+10;xx<r.x+r.w-5;xx+=56)g.circle(xx,yy-5,2).fill(0xb5c3b5);
+    }
+    if(r.w>=55&&r.h>=90)for(let yy=r.y+8;yy+65<r.y+r.h;yy+=80) {
+      g.moveTo(r.x+8,yy).lineTo(r.x+r.w-8,yy+65).moveTo(r.x+r.w-8,yy).lineTo(r.x+8,yy+65).stroke({width:4,color:0x91a39b,alpha:.65});
     }
   }
   if(palace||desert) {
@@ -88,7 +117,12 @@ export function drawTerrain(g:Graphics,map:MapDefinition):void {
     g.moveTo(e.x1,e.y1).lineTo(e.x2,e.y2).stroke({width:3.5,color:ink});
     if(e.top&&e.y1>35) {
       const len=e.x2-e.x1;
-      if(snow) {
+      if(space) {
+        g.moveTo(e.x1,e.y1+3).lineTo(e.x2,e.y1+3).stroke({width:3,color:0xc8d1c8,alpha:.75});
+      } else if(industrial) {
+        g.rect(e.x1,e.y1,len,8).fill(0xb9b991);
+        for(let xx=e.x1+2;xx+7<e.x2;xx+=17)g.poly([xx,e.y1+1,xx+7,e.y1+1,xx+12,e.y1+7,xx+5,e.y1+7]).fill(0x4e6264);
+      } else if(snow) {
         g.rect(e.x1,e.y1,len,10).fill(0xd7e7e9);
         const cap:number[]=[e.x1,e.y1+5,e.x1,e.y1-3];
         for(let x=e.x1;x<=e.x2;x+=14)cap.push(x,e.y1-3-noise(x+e.y1)*5);
@@ -120,8 +154,8 @@ export function drawTerrain(g:Graphics,map:MapDefinition):void {
       g.poly([x,e.y1-1,x+8,e.y1+14,x+19,e.y1-1]).fill(map.theme.rock).stroke({width:1.5,color:ink});
   }
   for(const p of map.platforms) {
-    if(cave||palace||desert) {
-      const base=palace?0xc6b99e:desert?0xbc8d56:0x717c78,cap=palace?0xf2e5c4:desert?0xf2cb8f:0xa6afa0;
+    if(cave||palace||desert||space||industrial) {
+      const base=industrial?0x6d8184:space?0x798992:palace?0xc6b99e:desert?0xbc8d56:0x717c78,cap=industrial?0xd5c787:space?0xc4d1d0:palace?0xf2e5c4:desert?0xf2cb8f:0xa6afa0;
       g.poly([p.x,p.y,p.x+p.w,p.y,p.x+p.w-3,p.y+p.h,p.x+3,p.y+p.h]).fill(base).stroke({width:2.5,color:ink});
       g.rect(p.x+1,p.y+1,p.w-2,4).fill(cap);
       for(let x=p.x+27;x<p.x+p.w-6;x+=37)g.moveTo(x,p.y+5).lineTo(x-4,p.y+p.h).stroke({width:1.5,color:ink,alpha:.6});
@@ -250,6 +284,36 @@ export function drawBackdropLayer(g:Graphics,map:MapDefinition,width:number,heig
   g.clear();
   const snow=map.biome==="snow",cave=map.biome==="cavern",color=cave?(layer?0x435951:0x3c514b):snow?(layer?0xa9bbc1:0xc6ccd8):(layer?0x9bb59b:0xb2c6ad);
   const base=height*.75;
+  if(map.biome==="space") {
+    for(let i=0;i<(layer?65:110);i++) {
+      const x=-400+noise(i*43+layer*300)*(width+800),y=noise(i*71+17)*height;
+      g.circle(x,y,layer?1.2:1.8).fill({color:i%5?0xd2e0e6:0xf0dba2,alpha:.3+noise(i+9)*.55});
+      if(!layer&&i%19===0)g.moveTo(x-4,y).lineTo(x+4,y).moveTo(x,y-4).lineTo(x,y+4).stroke({width:1,color:0xdbecf2,alpha:.55});
+    }
+    if(!layer) {
+      const x=width*.66,y=height*.28,r=Math.min(width,height)*.16;
+      g.circle(x,y,r+6).fill({color:0x8cafbb,alpha:.10});
+      g.circle(x,y,r).fill(0x647d87);
+      g.ellipse(x-r*.2,y-r*.15,r*.35,r*.22).fill(0x83979a);
+      g.ellipse(x+r*.25,y+r*.3,r*.29,r*.18).fill(0x4e6b77);
+      g.moveTo(x+Math.cos(-1.6)*r*.98,y+Math.sin(-1.6)*r*.98).arc(x,y,r*.98,-1.6,.6).stroke({width:4,color:0xb5ccd0,alpha:.6});
+    } else for(let i=0;i<9;i++) {
+      const x=noise(i*9)*width,y=noise(i+89)*height,r=12+noise(i+10)*28;
+      g.poly([x-r,y-r*.3,x-r*.3,y-r,x+r*.7,y-r*.7,x+r,y+r*.4,x,y+r,x-r*.8,y+r*.6]).fill({color:0x475661,alpha:.5});
+    }
+    return;
+  }
+  if(map.biome==="industrial") {
+    const y=height*(layer?.91:.79),c=layer?0x8ba4a0:0xb1beb1;
+    for(let x=-400;x<width+500;x+=145) {
+      const h=90+noise(x+layer)*200;
+      g.rect(x,y-h,110,h+height).fill(c);
+      g.rect(x+15,y-h-8,80,9).fill(mix(c,0x485f64,.2));
+      for(let yy=y-h+20;yy<y;yy+=35)for(let xx=x+14;xx<x+100;xx+=27)g.rect(xx,yy,13,18).fill({color:0xd9d7b8,alpha:.45});
+      if(x%3===0)g.moveTo(x+18,y-h).lineTo(x+18,y-h-55).lineTo(x+84,y-h-88).lineTo(x+84,y-h).stroke({width:4,color:c});
+    }
+    return;
+  }
   if(map.biome==="desert") {
     const dune=height*(layer?.84:.70),c=layer?0xd5b27e:0xe0c49b;
     g.moveTo(-500,height+100).lineTo(-500,dune);
@@ -320,5 +384,26 @@ export function drawBackdropLayer(g:Graphics,map:MapDefinition,width:number,heig
       g.ellipse(x,yy-hh*.65,hh*.4,hh*.28).fill(0x91aa8d);
       g.ellipse(x+hh*.23,yy-hh*.4,hh*.28,hh*.22).fill(0x91aa8d);
     }
+  }
+}
+
+/** Opaque foreground leaves represent the authored concealment volumes, not walls. */
+export function drawConcealment(g:Graphics,map:MapDefinition):void {
+  g.clear();
+  if(map.physics==="space"||map.biome==="space")return;
+  for(const r of map.concealment??[]) {
+    const cold=map.biome==="snow",dark=cold?0x385b54:0x365331,mid=cold?0x52786b:0x567c42,light=cold?0x80a391:0x8fa957;
+    g.roundRect(r.x,r.y+7,r.w,Math.max(1,r.h-7),6).fill(dark);
+    for(let x=r.x+7;x<r.x+r.w;x+=15) {
+      const seed=x+r.y,hh=Math.min(r.h,18+noise(seed)*24),yy=r.y+r.h-hh;
+      g.ellipse(x,yy+hh*.42,12,hh*.52).fill(noise(seed+1)>.5?mid:dark).stroke({width:1.4,color:INK});
+      g.moveTo(x,r.y+r.h).lineTo(x-2,yy+6).stroke({width:1.5,color:light,alpha:.7});
+      for(let k=0;k<3;k++) {
+        const y=yy+9+k*9,side=k%2?1:-1;
+        g.poly([x,y+8,x+side*12,y-1,x+side*4,y-4]).fill(k%2?light:mid).stroke({width:1,color:dark});
+      }
+    }
+    // Low opaque skirt prevents holes at a crouched pilot's feet.
+    g.rect(r.x,r.y+r.h-5,r.w,5).fill(dark);
   }
 }

@@ -34,11 +34,12 @@ session cookies or deployment tokens in logs or commits.
 | Move | A / D | left stick |
 | Jump | W | Jump |
 | Flight | Space, directed towards aim | left stick up |
-| Crouch / drop through platform | S | left stick down |
+| Crouch / crawl | S, with A/D to crawl | left stick down / down-diagonal |
+| Deliberate one-way platform descent | Shift+S or remapped Descend | Descend |
 | Aim / fire | mouse / left click | right stick |
 | Directional aim + held fire | Numpad 2 / 4 / 6 / 8; combine for diagonals | right stick |
 | Alternate aim / fire | arrow keys / J or Enter | right stick |
-| Zoom | right click | Zoom |
+| Cycle saved weapon scope | right click / Z | Scope |
 | Select slot / switch | 1, 2, 3 / Tab or Q | Slot 1, 2, 3 / Swap |
 | Dual wield | F | Dual |
 | Reload / pick up / drop | R / E / X | matching action buttons |
@@ -52,6 +53,25 @@ no explicit aim; actual mouse movement takes over from keyboard aim. Physical
 numpad key codes work with Num Lock on or off. Menu Tab retains normal focus
 navigation. Dual wielding pairs the selected compatible weapon with another
 compatible carried slot; the third item stays carried.
+
+Scopes cycle Near, Field, Far and Range; they change visible area, not the
+weapon's reach or damage. Near keeps the phone pilot readable. Far views trade
+character size for longer sightlines. Aim look-ahead, low-flash obscuration and
+blood visibility are independent profile choices. Touch layout editing lives
+in the field menu; its saved positions, scale and opacity survive a reload.
+
+Lunarcy forces zero gravity and unlimited boost. A/D accelerates laterally,
+W/Space upward and unsupported S downward. Release coasts; counter-thrust brakes.
+Supported S crouches. EMP disables every powered direction while preserving
+existing momentum. Its floating flag and equipment behavior uses the same map
+physics. These coefficients are authored, not recovered v4 values.
+
+Conventional reloads continue while holstered. PHASR and flamethrower refill
+automatically. A quick M4 press commits three rounds; releasing stops repeat
+bursts, but the already committed rounds can finish for about 167ms. This also
+applies to menu/blur release. Switching, reloading, death, disconnect and stale
+input cancel pending rounds. Minigun and saw launcher require their displayed
+wind-up before firing.
 
 After six quiet seconds, health returns in one-point increments four times a
 second. Damage, attacking and nearby enemy fire delay recovery. Standard rooms

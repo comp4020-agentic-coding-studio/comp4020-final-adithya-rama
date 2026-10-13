@@ -25,6 +25,13 @@ export function spatialMix(x:number,y:number,listener:{x:number;y:number}):{gain
   return {gain:Math.max(0,1-distance/1700)**1.6,pan:Math.max(-.85,Math.min(.85,(x-listener.x)/750))};
 }
 
+export interface AudioActor {id:number;x:number;y:number;alive?:boolean;jetting?:boolean;charge?:number;weapon?:string|null}
+export function motorCue(actor:AudioActor,listener:{x:number;y:number}):{charge:number;jet:boolean;gain:number;pan:number} {
+  const mix=spatialMix(actor.x,actor.y-24,listener);
+  const powered=actor.alive!==false;
+  return {...mix,charge:powered&&["minigun","saw-launcher"].includes(actor.weapon??"")?Math.max(0,Math.min(1,actor.charge??0)):0,jet:powered&&actor.jetting===true};
+}
+
 export class GameAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -35,6 +42,8 @@ export class GameAudio {
   private voices=new Map<number,number>();
   private shots=new Map<string,number>();
   private positions=new Map<number,{x:number;y:number}>();
+  private motorAt=0;
+  private previousCharges=new Map<number,number>();
   private listener={x:0,y:0};
   private _muted=false;
   private _volume=.35;
@@ -46,8 +55,22 @@ export class GameAudio {
   private applyVolume():void {
     if(this.master&&this.context)this.master.gain.setTargetAtTime(this._muted?0:this._volume,this.context.currentTime,.015);
   }
-  scene(players:readonly {id:number;x:number;y:number}[],listener:{x:number;y:number}):void {
+  scene(players:readonly AudioActor[],listener:{x:number;y:number}):void {
     this.listener=listener;this.positions.clear();for(const p of players)this.positions.set(p.id,{x:p.x,y:p.y-24});
+    if(this.destroyed||this.muted||!this.context||this.context.state!=="running")return;
+    const now=performance.now();if(now-this.motorAt<140)return;this.motorAt=now;
+    const cues=players.map(p=>({id:p.id,...motorCue(p,listener)})).filter(p=>p.gain>.03).sort((a,b)=>b.gain-a.gain).slice(0,6);
+    const charges=new Map<number,number>();
+    for(const cue of cues) {
+      if(cue.charge>0) {
+        this.tone(95+cue.charge*190,125+cue.charge*210,.17,"triangle",.024*cue.gain,cue.pan);
+        charges.set(cue.id,cue.charge);
+      } else if((this.previousCharges.get(cue.id)??0)>0)this.tone(170,55,.15,"triangle",.022*cue.gain,cue.pan);
+      if(cue.jet)this.noise(.17,.038*cue.gain,750,cue.pan);
+    }
+    // Cues are short bounded envelopes, not orphanable loops. Removed/hidden
+    // players immediately stop scheduling positional sound.
+    this.previousCharges=charges;
   }
   async unlock():Promise<void> {
     if(this.destroyed)return;
@@ -108,7 +131,7 @@ export class GameAudio {
   private at(id:number|undefined,local:number|null):{gain:number;pan:number} {
     if(id===local)return {gain:1,pan:0};
     const p=id===undefined?undefined:this.positions.get(id);
-    return p?spatialMix(p.x,p.y,this.listener):{gain:.25,pan:0};
+    return p?spatialMix(p.x,p.y,this.listener):{gain:0,pan:0};
   }
   event(e:GameEvent,local:number|null):void {
     if(this.destroyed||this.muted)return;
@@ -154,7 +177,7 @@ export class GameAudio {
   }
   destroy():void {
     this.destroyed=true;for(const source of this.sources){try{source.stop();}catch{}}
-    this.sources.clear();this.buffers.clear();this.positions.clear();this.voices.clear();this.shots.clear();
+    this.previousCharges.clear();this.sources.clear();this.buffers.clear();this.positions.clear();this.voices.clear();this.shots.clear();
     void this.context?.close();this.context=null;this.master=null;this.compressor=null;
   }
 }

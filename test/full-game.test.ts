@@ -152,7 +152,7 @@ describe("complete arsenal", () => {
     const a = player(w, -1, { x: 200, y: 900 });
     const b = player(w, -1, { x: 350, y: 900 });
     a.slots = [freshSlot(id), null, null];
-    run(w, 1, () => hold(a.id, Btn.FIRE));
+    run(w, Math.max(1, Math.round((WEAPONS[id].chargeMs ?? 0) / 1000 * 60)), () => hold(a.id, Btn.FIRE));
     expect(a.slots[0]!.mag).toBe(WEAPONS[id].mag - 1);
     run(w, 150);
     expect(b.hp).toBeLessThan(100);
@@ -309,6 +309,8 @@ describe("throwable effects", () => {
     const mate = player(w, 0, { x: 420, y: 900 });
     a.slots = [freshSlot("emp-gun"), null, null];
     run(w, 1, () => hold(a.id, Btn.FIRE));
+    expect(b.empUntil).toBe(0);
+    run(w, 25);
     expect(b.empUntil).toBeGreaterThan(w.tick);
     run(w, 30, () => hold(b.id, Btn.JET));
     expect(b.jetting).toBe(false);

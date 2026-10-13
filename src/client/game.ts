@@ -1,11 +1,13 @@
-import { INTERP_MS, PLAYER_H, TICK_RATE } from "../shared/constants.ts";
+import { INTERP_MS, PLAYER_H, PICKUP_RADIUS, TICK_RATE } from "../shared/constants.ts";
 import { MAPS } from "../shared/maps.ts";
-import { heightOf, type MoveState, stepMovement } from "../shared/physics.ts";
+import { heightOf, lineOfSight, type MoveState, stepMovement } from "../shared/physics.ts";
 import type { RosterEntry, ServerMessage } from "../shared/protocol.ts";
 import { MODE_NAMES, TEAM_MODES } from "../shared/settings.ts";
 import { maxHealth } from "../shared/sim.ts";
 import { Btn, type GameEvent, type InputFrame, type MapDefinition, PF, type PlayerSnap, type RoomSettings, type WorldSnapshot } from "../shared/types.ts";
-import { THROWABLES, WEAPONS, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
+import { THROWABLES, WEAPONS, weaponRangeLabel, weaponHandling, equippedMovementMultiplier } from "../shared/weapons.ts";
+import { concealed } from "../shared/visibility.ts";
+import { cameraFrame, scopesOf, SCOPE_LABELS, type ScopeLevel } from "./camera.ts";
 import { esc } from "./dom.ts";
 import { GameAudio } from "./audio.ts";
 import { avatarOf, weaponIcon } from "./art.ts";
@@ -13,6 +15,7 @@ import { bindingsOf, keyLabel, Input } from "./input.ts";
 import type { Net } from "./net.ts";
 import { type RenderPlayer, Renderer, TEAM_COLORS, TEAM_NAMES } from "./render.ts";
 import { DeathCamera } from "./death.ts";
+import { includeAuthorizedKiller } from "./camera-actors.ts";
 import { TouchControls } from "./touch.ts";
 
 const TICK_MS = 1000 / TICK_RATE;
@@ -55,7 +58,14 @@ export class GameSession {
   private localTicks = 0;
   private clockOffset: number | null = null;
   private killfeed: { html: string; at: number }[] = [];
-  private touchZoom = false;
+  private scopeHeld = false;
+  private scopeWeapon: string | null = null;
+  private scopes: Record<string, ScopeLevel>;
+  private cameraTarget: number | null = null;
+  private editingTouch=false;
+  private lessonDone=new Set<string>();
+  private lessonInitial: {slot:number;grenade:string;count:number}|null=null;
+  private lessonPreviousCount:number|null=null;
   private previousHp:number|null=null;
   private healingUntil=0;
   private bindings:Record<string,number>;
@@ -76,6 +86,7 @@ export class GameSession {
     this.net = net;
     this.hooks = hooks;
     this.bindings=bindingsOf(hooks.prefs().bindings);
+    this.scopes=scopesOf(hooks.prefs().scopes);
     this.settings = start.settings;
     this.audio.muted=hooks.prefs().muted===true;
     this.audio.volume=Number(hooks.prefs().volume ?? .35);
@@ -94,6 +105,7 @@ export class GameSession {
         <span class="team-score t1" data-el="s1"></span>
       </div>
       <div class="objective" data-el="objective"></div>
+      <div class="pickup-hint" data-el="pickup"></div>
       <div class="spectator-controls" data-el="spectate" hidden><button data-follow="-1" aria-label="Follow previous pilot">←</button><span data-el="following"></span><button data-follow="1" aria-label="Follow next pilot">→</button></div>
       <div class="hud-bars">
         <div class="vital-label"><b>HEALTH</b><span data-el="regen"></span></div><div class="bar hp" title="Health"><i data-el="hp"></i><span data-el="hpText"></span></div>
@@ -122,8 +134,9 @@ export class GameSession {
       this.renderer.destroy();
       return;
     }
-    this.renderer.setMap(this.map,this.settings.mode==="flag");
+    this.renderer.setMap(this.map,this.settings.mode==="flag"||this.settings.mode==="training"&&this.map.flagHomes.length===2);
     this.renderer.reducedShake = this.hooks.reducedShake();
+    this.renderer.reducedBlood = this.hooks.prefs().reducedBlood===true;
     this.input = new Input(this.renderer.canvas, {
       onScoreboard: (show) => { this.els.board.classList.toggle("hidden", !show); if(show)this.renderBoard(); },
       onMenu: () => this.toggleMenu(),
@@ -132,8 +145,9 @@ export class GameSession {
       this.touch = new TouchControls(this.root, this.input, {
         scoreboard: () => { this.els.board.classList.toggle("hidden"); this.renderBoard(); },
         menu: () => this.toggleMenu(),
-        zoom: (on) => (this.touchZoom = on),
-      });
+        zoom: () => {},
+        scope: () => this.cycleScope(),
+      },this.hooks.prefs().touchLayout);
     }
     document.addEventListener("visibilitychange", this.onVisibility);
     this.renderer.app.ticker.add((t) => this.frame(t.deltaMS));
@@ -157,12 +171,18 @@ export class GameSession {
     if (this.clockOffset === null || Math.abs(sample - this.clockOffset) > 30) this.clockOffset = sample;
     else this.clockOffset += (sample - this.clockOffset) * 0.05;
 
+    const firstSnapshot=!this.latest;
     this.snaps.push(s);
     if (this.snaps.length > 30) this.snaps.shift();
     this.latest = s;
     for (const e of s.events) this.onEvent(e);
 
     const me = this.you === null ? undefined : s.players.find((p) => p.id === this.you);
+    if(firstSnapshot&&me&&!(me.f&PF.ALIVE)){
+      this.deathCamera.died({id:me.id,x:me.x,y:me.y-PLAYER_H/2},s.following??null);
+      this.deathDetail=s.following?"Killer camera: "+(this.roster.get(s.following)?.name??"pilot"):"Waiting to respawn";
+    }
+    if(me&&!(me.f&PF.ALIVE)&&s.following===null)this.deathCamera.stopFollowing();
     this.pending = this.pending.filter((f) => f.seq > s.ack);
     if (me && me.f & PF.ALIVE) {
       this.deathCamera.reset();this.deathDetail="";
@@ -179,7 +199,7 @@ export class GameSession {
         jetCooldown: me.jc,
         dropTicks: me.dt,
       };
-      for (let i=0;i<this.pending.length;i++) { const f=this.pending[i]; stepMovement(p, me.emp>i ? f.b & ~Btn.JET : f.b, this.map, this.settings); }
+      for (let i=0;i<this.pending.length;i++) { const f=this.pending[i]; stepMovement(p, f.b, this.map, this.settings, {movementMultiplier:equippedMovementMultiplier(me.slots,me.a,me.dual?me.dualSlot:null),thrustDisabled:me.emp>i}); }
       this.pred = p;
       if (before) {
         const dx = before.x - p.x;
@@ -240,6 +260,7 @@ export class GameSession {
         break;
       }
       case "flag": {
+        if(e.action==="delivery"&&e.by===this.you)this.lessonDone.add("delivery");
         const text=e.action==="delivery"?`${TEAM_NAMES[e.owner]} delivered a flag!`:e.action==="pickup"?`${this.nameOf(e.by)} carries the ${TEAM_NAMES[e.owner]} flag`:e.action==="drop"?`${TEAM_NAMES[e.owner]} flag dropped — teammates can recover it`:`${TEAM_NAMES[e.owner]} flag returned home`;
         this.killfeed.push({html:`<b>${text}</b>`,at:performance.now()});if(this.killfeed.length>5)this.killfeed.shift();
         break;
@@ -265,8 +286,8 @@ export class GameSession {
   }
 
   private localTick(): void {
+    this.input.enabled=!this.editingTouch&&this.els.menu.classList.contains("hidden")&&!document.querySelector("dialog[open]");
     if(this.you===null)return;
-    this.input.enabled=this.els.menu.classList.contains("hidden")&&!document.querySelector("dialog[open]");
     let b = this.input.sampleButtons();
     const me=this.latest?.players.find(p=>p.id===this.you);
     if(me && me.emp>0)b &= ~Btn.JET;
@@ -274,7 +295,7 @@ export class GameSession {
     this.outbox.push(f);
     this.pending.push(f);
     if (this.pending.length > 240) this.pending.shift();
-    if (this.pred) stepMovement(this.pred, b, this.map, this.settings);
+    if (this.pred) stepMovement(this.pred, b, this.map, this.settings, {movementMultiplier:me?equippedMovementMultiplier(me.slots,me.a,me.dual?me.dualSlot:null):1,thrustDisabled:!!me&&me.emp>0});
     if (++this.localTicks % 2 === 0) {
       this.net.send({ t: "input", frames: this.outbox });
       this.outbox = [];
@@ -321,9 +342,11 @@ export class GameSession {
     this.smooth.y *= 0.85;
 
     const others = this.interpolated();
+    includeAuthorizedKiller(others,this.latest,this.you);
     const latestMe = this.you === null ? undefined : this.latest.players.find((p) => p.id === this.you);
     const players: RenderPlayer[] = [];
     let camera = { x: this.map.width / 2, y: this.map.height / 2 };
+    let cameraActor: RenderPlayer | undefined;
     const maxHp = maxHealth(this.settings);
     for (const [id, s] of others) {
       const r = this.roster.get(id);
@@ -339,7 +362,7 @@ export class GameSession {
         protected: (s.f & PF.PROTECTED) !== 0,
         team: r?.team ?? -1,
         color: r?.color ?? 0x888888,
-        name: r?.name ?? "?",
+        name: this.settings.mode==="survival"&&r?.bot?`${WEAPONS[s.s[s.a]??""]?.category==="precision"?"Marksman":WEAPONS[s.s[s.a]??""]?.category==="heavy"?"Heavy":WEAPONS[s.s[s.a]??""]?.category==="shotgun"?"Breacher":WEAPONS[s.s[s.a]??""]?.category==="special"?"Specialist":"Raider"} · ${WEAPONS[s.s[s.a]??""]?.name??"enemy"}`:r?.name ?? "?",
         hp: s.hp,
         maxHp:s.maxHp ?? maxHp,
         dual:s.dual,
@@ -349,6 +372,11 @@ export class GameSession {
         avatar:avatarOf(r?.avatar),
         weapon: s.s[s.a],
         local,
+        concealed: concealed(s,this.map,this.latest.tick)&&(local||(TEAM_MODES.includes(this.settings.mode)||this.settings.mode==="survival"||this.settings.mode==="training")&&r?.team!==-1&&r?.team===this.roster.get(this.you??-1)?.team)&&!this.latest.flags.some(f=>f.state==="carried"&&f.carrier===id),
+        charge: this.slotPresentation(s,s.a).charge,
+        reload: this.slotPresentation(s,s.a).reload,
+        otherCharge: s.dualSlot===null?0:this.slotPresentation(s,s.dualSlot).charge,
+        otherReload: s.dualSlot===null?0:this.slotPresentation(s,s.dualSlot).reload,
       };
       if (local && this.pred && latestMe) {
         base.x = this.pred.x + this.smooth.x;
@@ -359,7 +387,7 @@ export class GameSession {
         base.weapon = latestMe.s[latestMe.a];
         base.protected = (latestMe.f & PF.PROTECTED) !== 0;
       }
-      if (local) camera = { x: base.x, y: base.y - PLAYER_H / 2 };
+      if (local) { camera = { x: base.x, y: base.y - heightOf(base) / 2 }; if(base.alive)cameraActor=base; }
       players.push(base);
     }
 
@@ -368,13 +396,14 @@ export class GameSession {
       const target=this.deathCamera.resolve(!dead,players.map(p=>({id:p.id,x:p.x,y:p.y-PLAYER_H/2,alive:p.alive,connected:!!(this.latest!.players.find(s=>s.id===p.id)?.f!&PF.CONNECTED)})));
       if(target) {
         camera=target.point;
+        cameraActor=target.following?players.find(p=>p.id===target.killer):undefined;
         this.els.center.dataset.cameraTarget=target.following?String(target.killer):"death-location";
         if(target.killer!==null&&!target.following)this.deathDetail="Killer down or unavailable · holding view";
       } else delete this.els.center.dataset.cameraTarget;
     }
     if(this.you===null) {
       const followable=players.filter(p=>p.alive);
-      if(followable.length) { const index=((this.spectatorIndex%followable.length)+followable.length)%followable.length;const p=followable[index];camera={x:p.x,y:p.y-PLAYER_H/2};this.els.following.textContent=`Following ${p.name}`; }
+      if(followable.length) { const index=((this.spectatorIndex%followable.length)+followable.length)%followable.length;const p=followable[index];camera={x:p.x,y:p.y-heightOf(p)/2};cameraActor=p;this.els.following.textContent=`Following ${p.name}`; }
       this.els.spectate.hidden=false;
     }
     const local = players.find((p) => p.local);
@@ -384,21 +413,39 @@ export class GameSession {
     const aim = this.input.updateAim(origin);
     if (local) local.aim = aim;
 
-    const weaponZoom = latestMe ? (WEAPONS[latestMe.s[latestMe.a] ?? ""]?.zoom ?? 1) : 1;
-    const zoom = latestMe&&!(latestMe.f&PF.ALIVE)?1:weaponZoom * (this.input.zoom || this.touchZoom ? 1.35 : 1);
+    this.scopeWeapon=cameraActor?.weapon??null;
+    if(this.input.zoom&&!this.scopeHeld)this.cycleScope();
+    this.scopeHeld=this.input.zoom;
+    const framed=cameraFrame({ ...camera,aim:cameraActor?.aim??0,weapon:this.scopeWeapon },this.renderer.viewport(),this.scopes[this.scopeWeapon??""]??0,!!cameraActor&&this.hooks.prefs().cameraLookAhead!==false);
+    const cameraId=cameraActor?.id??null;
     this.audio.scene(players,camera);
-    this.renderer.frame(camera, zoom, players, this.latest.projectiles, this.latest.pickups, this.settings.mode==="flag"?this.latest.flags:[],this.latest.areas);
+    this.renderer.frame({...framed,snap:cameraId!==this.cameraTarget}, 1, players, this.latest.projectiles, this.latest.pickups, this.latest.flags,this.latest.areas);
+    this.cameraTarget=cameraId;
 
     if(this.pred) {
       const fuel=Math.round(this.pred.fuel/(100*this.settings.fuelCapacity)*100);
       this.els.fuel.style.width=fuel+"%";
-      this.els.fuelText.textContent=this.settings.unlimitedFuel?"∞":fuel+"%";
+      this.els.fuelText.textContent=this.settings.unlimitedFuel||this.map.physics==="space"?"∞":fuel+"%";
     }
     if(performance.now()>this.healingUntil)this.els.regen.textContent="";
     const now = performance.now();
     const feed = this.killfeed.filter((k) => now - k.at < 6000);
     const feedHtml = feed.map((k) => `<div>${k.html}</div>`).join("");
     if (this.els.feed.innerHTML !== feedHtml) this.els.feed.innerHTML = feedHtml;
+  }
+
+  private cycleScope(): void {
+    if(!this.scopeWeapon)return;
+    this.scopes[this.scopeWeapon]=((this.scopes[this.scopeWeapon]??0)+1)%4 as ScopeLevel;
+    void this.hooks.savePrefs({scopes:{...this.scopes}});
+    if(this.latest)this.updateHud(this.latest,this.latest.players.find(p=>p.id===this.you));
+  }
+
+  private slotPresentation(p:PlayerSnap,index:0|1|2):{charge:number;reload:number} {
+    const slot=p.slots[index],def=slot?WEAPONS[slot.weapon]:null;
+    if(!slot||!def)return {charge:0,reload:0};
+    const remaining=Math.max(0,slot.reloadEnd-(this.latest?.tick??0));
+    return {charge:Math.min(1,(slot.chargeTicks??0)/Math.max(1,(def.chargeMs??0)*TICK_RATE/1000)),reload:remaining?Math.max(.01,1-remaining/Math.max(1,def.reloadMs*TICK_RATE/1000)):0};
   }
 
   private updateHud(s: WorldSnapshot, me: PlayerSnap | undefined): void {
@@ -409,16 +456,23 @@ export class GameSession {
       this.els.s0.textContent = `${TEAM_NAMES[0]} ${s.ts[0]}`;
       this.els.s1.textContent = `${s.ts[1]} ${TEAM_NAMES[1]}`;
     } else {
-      const best = [...s.players].sort((a, b) => b.k - a.k)[0];
+      const best = [...(s.scores??s.players)].sort((a, b) => b.k - a.k)[0];
       this.els.s0.textContent = MODE_NAMES[this.settings.mode];
       this.els.s1.textContent = best ? `Lead: ${this.roster.get(best.id)?.name ?? "?"} ${best.k}` : "";
     }
     if(this.settings.mode==="flag") {
       const mine=this.roster.get(this.you ?? -1)?.team;
       this.els.objective.innerHTML=s.flags.map(f=>`<span class="flag-status team-${f.owner}">${TEAM_NAMES[f.owner]}: ${f.state==="carried"?esc(this.roster.get(f.carrier!)?.name ?? "carried"):f.state==="respawning"?"new flag arriving":f.state==="dropped"?"recover dropped flag":"flag at home"}</span>`).join("")+`<small>${mine===0||mine===1?`Take your own flag to the ${TEAM_NAMES[mine===0?1:0]} goal.`:"Teams carry their own flag to the opposing goal."}</small>`;
-    } else if(s.survival) this.els.objective.innerHTML=`<b>Wave ${s.survival.wave} · ${s.survival.remaining} enemies left</b><small>${s.survival.toSpawn} reinforcements · ${s.survival.cleared} waves cleared</small>`;
+    } else if(s.survival) {
+      const prep=s.survival.nextWaveTick>s.tick;
+      this.els.objective.innerHTML=prep?`<b>Wave ${s.survival.wave+1} in ${Math.ceil((s.survival.nextWaveTick-s.tick)/TICK_RATE)}s</b><small>Regroup · next wave restores health and revives teammates</small>`:`<b>Wave ${s.survival.wave} · ${s.survival.remaining} enemies left</b><small>${s.survival.toSpawn} reinforcements · ${s.survival.cleared} waves cleared</small>`;
+    }
     else this.els.objective.textContent="";
     if (me) {
+      this.trainingLesson(s,me);
+      const near=s.pickups.filter(pk=>pk.k==="weapon"&&pk.i&&Math.abs(pk.x-me.x)<=PICKUP_RADIUS&&pk.y>=me.y-heightOf({crouch:!!(me.f&PF.CROUCH)})-10&&pk.y<=me.y+20&&lineOfSight(this.map,me.x,me.y-12,pk.x,pk.y-1)&&!(WEAPONS[pk.i]?.category==="equipment"&&me.s.includes(pk.i))).sort((a,b)=>Math.abs(a.x-me.x)-Math.abs(b.x-me.x))[0];
+      const empty=me.s.indexOf(null),owned=empty<0&&near?me.s.indexOf(near.i):-1;
+      this.els.pickup.textContent=near&&me.f&PF.ALIVE?`${this.keyFor(Btn.PICKUP)} · ${WEAPONS[near.i!]?.name??near.i} · ${empty>=0?"slot "+(empty+1):owned>=0?"add ammunition":"replace "+(WEAPONS[me.s[me.a]??""]?.name??"selected slot")}`:"";
       const maxHp = me.maxHp ?? maxHealth(this.settings);
       this.els.hp.style.width = `${Math.max(0, (me.hp / maxHp) * 100)}%`;
       this.els.hpText.textContent = me.hp+" / "+maxHp;
@@ -428,19 +482,21 @@ export class GameSession {
       if(this.previousHp!==null&&me.hp<this.previousHp){this.healingUntil=0;this.els.regen.textContent="";}
       this.previousHp=me.hp;
       this.els.flash.hidden=me.flash<=0;
+      this.els.flash.style.background=this.hooks.prefs().lowFlash===true?"#262c32":"#fff";
       this.els.flash.style.opacity=String(Math.min(.92,me.flashStrength)*Math.min(1,me.flash/45));
       const slot = (i: 0 | 1 | 2) => {
         const w=me.s[i], state=me.slots[i], def=w?WEAPONS[w]:null;
         const active=me.a===i, offhand=me.dual&&me.dualSlot===i;
         const reload=state?Math.max(0,state.reloadEnd-s.tick):0;
         const key=Object.entries(this.bindings).find(([,bit])=>bit===[Btn.SLOT1,Btn.SLOT2,Btn.SLOT3][i])?.[0];
-        const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?"Reloading "+(reload/TICK_RATE).toFixed(1)+"s":state.mag+" / "+(this.settings.unlimitedAmmo?"∞":state.reserve);
+        const charge=state&&def?.chargeMs?Math.min(1,(state.chargeTicks??0)/(def.chargeMs*TICK_RATE/1000)):0;
+        const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?(def?.autoRefill?"Refilling ":"Reloading ")+(reload/TICK_RATE).toFixed(1)+"s":charge>0&&charge<1?"Charging "+Math.round(charge*100)+"%":state.mag+" / "+(def?.autoRefill?"auto":this.settings.unlimitedAmmo?"∞":state.reserve);
         return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b>${w?'<small style="font-size:.5rem;line-height:1.3" title="'+esc(weaponHandling(w))+'">'+esc(weaponRangeLabel(w))+(def?.oneHanded&&def.category!=="equipment"?' · Dual-ready':'')+'</small>':""}<span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
       };
       const nade=me.throwable;
       const totalGrenades=Object.values(me.throwables).reduce((total,n)=>total+n,0);
       const grenades=this.settings.throwables.map(id=>`<span class="grenade-chip ${id===nade?"selected":""}" data-grenade="${esc(id)}"><span class="grenade-dot ${esc(id)}"></span>${esc(id==="frag"?"Frag":id==="flash"?"Flash":id==="gas"?"Poison":id==="emp"?"EMP":"Mine")} <b>${me.throwables[id]??0}</b></span>`).join("");
-      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><span data-el="grenade-bag" class="grenade-bag" style="font-size:.58rem;white-space:nowrap" title="Walk over grenade pickups to collect automatically when the bag has space">Bag ${totalGrenades}/6${totalGrenades>=6?" · full":""}</span><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
+      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT · ${SCOPE_LABELS[this.scopes[me.s[me.a]??""]??0]} scope</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><span data-el="grenade-bag" class="grenade-bag" style="font-size:.58rem;white-space:nowrap" title="Walk over grenade pickups to collect automatically when the bag has space">Bag ${totalGrenades}/6${totalGrenades>=6?" · full":""}</span><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
       const alive = (me.f & PF.ALIVE) !== 0;
       this.els.center.innerHTML = alive||s.endTick<=s.tick?"":`<div style="text-align:center;white-space:normal;width:min(88vw,420px)">${this.settings.mode==="survival"?"Waiting for the next wave…":"Respawning in "+Math.ceil(me.rs/TICK_RATE)+"…"}<small style="display:block;font-size:.65em;line-height:1.5;margin-top:.4rem">${esc(this.deathDetail)}</small></div>`;
     } else {
@@ -450,12 +506,35 @@ export class GameSession {
     if (!this.els.board.classList.contains("hidden")) this.renderBoard(s);
   }
 
+  private trainingLesson(s:WorldSnapshot,me:PlayerSnap):void {
+    if(this.settings.mode!=="training"||this.map.id==="test-range"||this.hooks.prefs().trainingTipsHidden===true)return;
+    const count=Object.values(me.throwables).reduce((a,b)=>a+b,0);
+    this.lessonInitial??={slot:me.a,grenade:me.throwable,count};
+    if(me.f&PF.JETTING)this.lessonDone.add("flight");
+    if(me.f&PF.CROUCH)this.lessonDone.add("crouch");
+    if(me.a!==this.lessonInitial.slot)this.lessonDone.add("switch");
+    if(me.throwable!==this.lessonInitial.grenade)this.lessonDone.add("select");
+    if(this.lessonPreviousCount!==null&&count<this.lessonPreviousCount)this.lessonDone.add("throw");
+    this.lessonPreviousCount=count;
+    const tasks=[
+      ["flight",this.touch?"Push the left stick up to fly.":"Hold Space to fly; release to recover fuel."],
+      ["crouch",this.touch?"Push the left stick down on solid ground to crouch.":"Hold S on solid ground to crouch. Shift + S deliberately descends through marked platforms."],
+      ["switch",this.touch?"Tap Slot 2 or Swap to change your weapon.":"Press 2 or Tab to switch to your second weapon."],
+      ["select",this.touch?"Tap Type to select a different stocked grenade.":"Press T to select a different stocked grenade."],
+      ["throw",this.touch?"Aim, then tap Throw to throw the selected grenade.":"Aim, then press G to throw the selected grenade."],
+      ...(s.flags.length?[["delivery",s.flags.some(f=>f.carrier===me.id)?"Deliver your flag into the blue Tide goal.":"Collect your orange Ember flag, then carry it into the blue Tide goal."]]:[]),
+    ];
+    const next=tasks.find(([key])=>!this.lessonDone.has(key));
+    this.els.objective.innerHTML=`<span>${next?`Practice ${tasks.filter(([key])=>this.lessonDone.has(key)).length+1}/${tasks.length} · ${esc(next[1])}`:"Practice complete · explore, try equipment or start a room with friends."}</span> <button data-hide-tips aria-label="Hide practice tips">×</button>`;
+    this.els.objective.querySelector("button")!.onclick=()=>{this.els.objective.textContent="";void this.hooks.savePrefs({trainingTipsHidden:true});};
+  }
+
   private boardSnap: WorldSnapshot | null = null;
 
   private renderBoard(s: WorldSnapshot | null = this.boardSnap): void {
     if (!s) return;
     const team = TEAM_MODES.includes(this.settings.mode);
-    const rows = [...s.players]
+    const rows = [...(s.scores??s.players)]
       .sort((a, b) => (b.deliveries-a.deliveries)*10+(b.k-a.k)*2+b.as-a.as || a.d-b.d)
       .map((p) => {
         const r = this.roster.get(p.id);
@@ -470,6 +549,7 @@ export class GameSession {
   }
 
   private toggleMenu(): void {
+    if(this.editingTouch)return;
     const menu = this.els.menu;
     if (!menu.classList.contains("hidden")) {
       menu.classList.add("hidden");
@@ -482,16 +562,19 @@ export class GameSession {
       <p class="muted">The match keeps running while this is open.</p>
       <div class="menu-actions">
         <button data-act="resume" class="primary">Resume</button>
+        ${this.touch?'<button data-act="touch-layout">Arrange touch controls</button>':""}
         ${this.hooks.isHost() ? `<button data-act="rules">Next-round rules</button><button data-act="end">End round now</button>` : ""}
         <button data-act="leave" class="danger">Leave room</button>
       </div>
       <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake &amp; debris</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
       <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
+      <div class="checks"><label class="check"><input data-blood type="checkbox" ${this.hooks.prefs().reducedBlood===true?"checked":""}> Hide blood</label><label class="check"><input data-flash type="checkbox" ${this.hooks.prefs().lowFlash===true?"checked":""}> Dark flashbang obscuration</label><label class="check"><input data-look type="checkbox" ${this.hooks.prefs().cameraLookAhead!==false?"checked":""}> Look ahead while aiming</label></div>
       <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
       <details><summary>Default controls</summary>
         <ul class="controls">
-          <li><b>A / D</b> move, <b>W</b> jump, <b>Space</b> jetpack, <b>S</b> crouch or drop through a platform</li>
-          <li><b>Mouse</b> aim, <b>left click</b> fire, <b>right click</b> zoom; or hold <b>Num 2 / 4 / 6 / 8</b> to aim and fire. <b>Arrow keys</b> aim without firing. Combine two directions for diagonals</li>
+          <li><b>A / D</b> move, <b>W</b> jump, <b>Space</b> jetpack, <b>S</b> crouch. <b>Shift + S</b> descends through marked platforms.</li>
+          <li><b>Mouse</b> aim, <b>left click</b> fire, <b>right click / Z</b> cycle saved scope; or hold <b>Num 2 / 4 / 6 / 8</b> to aim and fire. <b>Arrow keys</b> aim without firing. Combine two directions for diagonals.</li>
+          <li>In space, <b>W / Space</b> thrust up, unsupported <b>S</b> thrusts down and <b>A / D</b> thrust sideways. Coast on release; counter-thrust to brake. Fuel is unlimited; EMP disables thrust.</li>
           <li><b>1 / 2 / 3</b> pick slot, <b>Tab / Q</b> cycle, <b>F</b> dual, <b>R</b> reload, <b>E</b> pick up, <b>X</b> drop</li>
           <li>Health recovers gradually after 6 seconds out of combat.</li><li><b>G</b> throw grenade, <b>T</b> next grenade type, <b>V</b> melee</li>
           <li><b>B / backquote</b> scoreboard, <b>Esc</b> this menu</li>
@@ -502,10 +585,17 @@ export class GameSession {
     menu.querySelector<HTMLInputElement>("[data-audio]")!.addEventListener("change",e=>{this.audio.muted=!(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({muted:this.audio.muted});this.unlockAudio();});
     menu.querySelector<HTMLInputElement>("[data-volume]")!.addEventListener("change",e=>{this.audio.volume=Number((e.target as HTMLInputElement).value);void this.hooks.savePrefs({volume:this.audio.volume});});
     menu.querySelector<HTMLInputElement>("[data-shake]")!.addEventListener("change",e=>{this.renderer.reducedShake=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedShake:this.renderer.reducedShake});});
+    menu.querySelector<HTMLInputElement>("[data-blood]")!.addEventListener("change",e=>{this.renderer.reducedBlood=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedBlood:this.renderer.reducedBlood});});
+    menu.querySelector<HTMLInputElement>("[data-flash]")!.addEventListener("change",e=>{void this.hooks.savePrefs({lowFlash:(e.target as HTMLInputElement).checked});});
+    menu.querySelector<HTMLInputElement>("[data-look]")!.addEventListener("change",e=>{void this.hooks.savePrefs({cameraLookAhead:(e.target as HTMLInputElement).checked});});
     menu.querySelector<HTMLInputElement>("[data-chat-mute]")!.addEventListener("change",e=>{void this.hooks.savePrefs({chatMuted:(e.target as HTMLInputElement).checked});});
     menu.querySelector<HTMLFormElement>("[data-chat-form]")!.addEventListener("submit",e=>{e.preventDefault();const el=menu.querySelector<HTMLInputElement>('input[name="message"]')!;if(el.value.trim())this.net.send({t:"chat",text:el.value.trim()});el.value="";});
     this.renderChat();
     menu.querySelector('[data-act="resume"]')!.addEventListener("click", () => menu.classList.add("hidden"));
+    menu.querySelector('[data-act="touch-layout"]')?.addEventListener("click",()=>{
+      menu.classList.add("hidden");this.editingTouch=true;
+      this.touch?.editLayout(layout=>{void this.hooks.savePrefs({touchLayout:layout});},()=>{this.editingTouch=false;this.input.enabled=true;});
+    });
     menu.querySelector('[data-act="rules"]')?.addEventListener("click",()=>this.hooks.editRules());
     menu.querySelector('[data-act="end"]')?.addEventListener("click", () => {
       menu.classList.add("hidden");

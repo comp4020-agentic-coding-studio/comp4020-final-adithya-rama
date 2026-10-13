@@ -26,7 +26,8 @@ describe("physical shields and one-hit machetes", () => {
     run(w, 1, () => hold(a.id, Btn.FIRE));
     expect(b.hp).toBe(100); expect(b.empUntil).toBe(0); expect(behind.hp).toBe(100);
     const shot = w.events.find((e) => e.t === "shot");
-    expect(shot).toMatchObject({ t: "shot", hit: false, x2: shieldBox(boxOf(b), b.aim).x });
+    expect(shot).toMatchObject({ t: "shot", hit: false, x2: weapon === "emp-gun" ? a.x + 32 : shieldBox(boxOf(b), b.aim).x });
+    if (weapon === "emp-gun") run(w, 25);
     expect(w.events.some((e) => e.t === "shield" && e.id === b.id)).toBe(true);
   });
 
@@ -76,8 +77,9 @@ describe("physical shields and one-hit machetes", () => {
 
   it("a saw disc is stopped by the physical panel", () => {
     const { w, a, b } = duel("saw-launcher");
-    run(w, 20, () => hold(a.id, Btn.FIRE));
-    expect(b.hp).toBe(100); expect(w.projectiles).toHaveLength(0);
+    run(w, 48, () => hold(a.id, Btn.FIRE));
+    expect(b.hp).toBeGreaterThan(0); expect(b.hp).toBeLessThan(100); expect(w.projectiles).toHaveLength(0);
+    expect(w.events.some((e) => e.t === "explode")).toBe(true);
     expect(w.events.some((e) => e.t === "shield")).toBe(true);
   });
 
@@ -179,7 +181,7 @@ describe("grenade collection and distinct stacks", () => {
 describe("authored weapon range", () => {
   it.each(["smaw", "rg6", "saw-launcher"])("%s emits an authoritative launch event for its sound and muzzle feedback", (weapon) => {
     const { w, a } = duel(weapon);
-    run(w, 1, () => hold(a.id, Btn.FIRE, -Math.PI / 2));
+    run(w, Math.max(1, Math.round((WEAPONS[weapon].chargeMs ?? 0) / 1000 * 60)), () => hold(a.id, Btn.FIRE, -Math.PI / 2));
     expect(w.events.find((e) => e.t === "shot" && e.w === weapon)).toMatchObject({ by: a.id, hit: false });
     expect(w.projectiles.some((pr) => pr.weapon === weapon)).toBe(true);
   });
@@ -191,10 +193,10 @@ describe("authored weapon range", () => {
     run(w, 1, () => hold(a.id, Btn.FIRE, head ? Math.atan2(b.y - 39 - m.y, b.x - m.x) : 0));
     return { w, a, b };
   }
-  it("full chest damage is limited to effective range, then falls off and stops at maximum range", () => {
+  it("Classic PC retains full chest damage through maximum range and stops beyond it", () => {
     expect(openShot(300).b.hp).toBe(10);
     const distant = openShot(WEAPONS.m93ba.range - 20);
-    expect(distant.b.hp).toBeGreaterThan(40); expect(distant.b.hp).toBeLessThan(55);
+    expect(distant.b.hp).toBe(10);
     expect(openShot(WEAPONS.m93ba.range + 30).b.hp).toBe(100);
   });
   it("an exposed headshot remains proportional to configured health", () => {

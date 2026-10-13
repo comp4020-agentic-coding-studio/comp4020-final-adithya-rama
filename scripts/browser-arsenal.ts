@@ -13,7 +13,11 @@ import { MAPS } from "../src/shared/maps.ts";
 
 const port = Number(process.env.ARSENAL_PORT ?? 8094);
 const base = `http://127.0.0.1:${port}`;
-const out = "test-results/browser-arsenal";
+const caseFilter=process.env.ARSENAL_CASES?.split(",");
+const included=(id:string)=>!caseFilter||caseFilter.includes(id);
+const reportName=process.env.ARSENAL_REPORT??"browser-arsenal";
+if(!/^[a-z0-9-]+$/.test(reportName))throw Error("Invalid arsenal report name");
+const out = "test-results/"+reportName;
 mkdirSync(out, { recursive: true });
 const databaseDir = mkdtempSync(join(tmpdir(), "jet-skirmish-browser-arsenal-"));
 const startedAt = new Date().toISOString();
@@ -130,7 +134,8 @@ async function moveTo(page: Page, x: number): Promise<void> {
     }
   } finally {
     if (held) await page.keyboard.up(held);
-    await page.waitForTimeout(150);
+    const releaseTick=current.latest!.tick;
+    await until(()=>current.latest!.tick>=releaseTick+12&&Math.abs(own().vx)<1,"walking input settles before inspecting inventory");
   }
 }
 
@@ -180,7 +185,7 @@ try {
   await page.locator("#practice").waitFor();
 
   const guns = Object.values(WEAPONS).filter((w) => w.category !== "equipment");
-  for (const weapon of [...guns, WEAPONS.machete]) {
+  for (const weapon of [...guns, WEAPONS.machete].filter(w=>included(w.id))) {
     try {
       await begin(page, weapon.id, [weapon.id, null, null]);
       const hudBefore = await page.locator(".hud-weapon").innerText();
@@ -188,7 +193,9 @@ try {
       const before = own().slots[0]!.mag;
       await page.keyboard.down("ArrowRight");
       await page.keyboard.down("KeyJ");
-      await page.waitForTimeout(600);
+      // Charge weapons must reach their authored wind-up before the trigger
+      // is released; the old 600ms sample ended before the 650ms minigun spun up.
+      await page.waitForTimeout(Math.max(600,(weapon.chargeMs??0)+350));
       await page.keyboard.up("KeyJ");
       await page.keyboard.up("ArrowRight");
       await page.waitForTimeout(180);
@@ -217,10 +224,10 @@ try {
     }
   }
 
-  try {
+  if(included("riot-shield"))try {
     await begin(page, "riot-shield", ["mini-eagle", "machete", "riot-shield"], 1, { weapons: ["riot-shield", "machete", "mini-eagle"] });
     await tap(page, "Digit3");
-    check(own().a === 2 && own().dual && own().dualSlot === 1, "shield: carried machete did not pair automatically");
+    await until(()=>own().a === 2 && own().dual && own().dualSlot === 1,"shield: carried machete pairs automatically");
     const deadline = Date.now() + 20000;
     while (!current.events.some((e) => e.t === "shield" && e.id === current.you) && Date.now() < deadline) {
       const me = own(), enemy = current.latest!.players.find((p) => p.id !== me.id && (p.f & 1));
@@ -250,7 +257,7 @@ try {
     try { await finish(page, "riot-shield"); } catch { /* Report below. */ }
   }
 
-  try {
+  if(included("three-slots"))try {
     await begin(page, "three-slots", ["mini-eagle", "uzi", "magnum"]);
     check(own().slots.length === 3, "third inventory slot missing in authoritative snapshot");
     check(await page.locator("[data-slot]").count() === 3, "HUD must show three weapon slots");
@@ -260,7 +267,7 @@ try {
     }
     const before = own().slots.map((slot) => slot?.mag);
     await tap(page, "KeyF");
-    check(own().dual && own().dualSlot === 0, "selected third slot must pair with first compatible slot");
+    await until(()=>own().dual && own().dualSlot === 0,"selected third slot must pair with first compatible slot");
     await page.keyboard.down("Numpad8");
     await page.waitForTimeout(450);
     await page.keyboard.up("Numpad8");
@@ -279,7 +286,7 @@ try {
     check(own().slots[2]!.mag === droppedAmmo, "dropped gun ammunition must survive pickup");
     const initialGrenade = own().throwable;
     await tap(page, "KeyT");
-    check(own().throwable !== initialGrenade, "grenade cycle must move off the default frag");
+    await until(()=>own().throwable !== initialGrenade,"grenade cycle must move off the default frag");
     await page.screenshot({ path: out + "/three-slots-game.png" });
     await finish(page, "three-slots");
     evidence.push({ item: "three-slots", status: "passed", magazineBefore: before, magazineAfter: after, droppedAmmo, ...traceEvidence() });
@@ -292,7 +299,7 @@ try {
 
   // Each effect gets an isolated round. Explicit allowlists include optional
   // EMP/mines, and spending before walking onto a pickup proves replenishment.
-  for (const id of Object.keys(THROWABLES)) {
+  for (const id of Object.keys(THROWABLES).filter(id=>included("throwable-"+id))) {
     const label = "throwable-" + id;
     try {
       await begin(page, label, ["mini-eagle", null, null], 0, { throwables: [id] });
@@ -307,6 +314,7 @@ try {
       await page.keyboard.up("Numpad8");
       await until(() => current.projectileKinds.has(id), id + " projectile snapshot");
       check(current.throwFrames > throwsBefore, id + ": no real throw input");
+      await until(()=>(own().throwables[id]??0)<before,`${id}: acknowledged inventory decreases from ${before}`);
       const afterThrow = own().throwables[id];
       check(afterThrow < before, id + ": grenade inventory did not decrease");
       if (id === "frag" || id === "emp") await until(
@@ -332,6 +340,7 @@ try {
       console.log("PASS browser throwable " + id);
     } catch (error) {
       problems.push(label + ": " + (error as Error).message);
+      evidence.push({item:label,status:"failed",...traceEvidence(),lastActor:current.latest?.players.find(p=>p.id===current.you)});
       await page.screenshot({ path: out + "/" + label + "-failed.png" });
       try { await finish(page, label); } catch { /* Report below. */ }
     }
@@ -340,7 +349,8 @@ try {
   const historyResponse = await page.request.get(`${base}/api/me/matches?limit=50`);
   check(historyResponse.ok(), "personal match history is unavailable");
   const history = await historyResponse.json() as { matches: { status: string }[] };
-  check(history.matches.length >= guns.length + 3 + Object.keys(THROWABLES).length && history.matches.every((match) => match.status === "completed"),
+  const expected=[...guns.map(w=>w.id),"machete","riot-shield","three-slots",...Object.keys(THROWABLES).map(id=>"throwable-"+id)].filter(included).length;
+  check(expected>0&&history.matches.length >= expected && history.matches.every((match) => match.status === "completed"),
     "expected all arsenal cases to have saved, completed training sessions");
   evidence.push({ item: "history", httpStatus: historyResponse.status(), completedMatches: history.matches.length });
   if (pageErrors.length) problems.push(...pageErrors.map((p) => "browser error: " + p));
@@ -362,5 +372,5 @@ if (problems.length) {
   for (const problem of problems) console.error("FAIL " + problem);
   process.exitCode = 1;
 } else {
-  console.log(`PASS browser arsenal: 21 firearms, machete, shield, three-slot inventory and five throwable types; evidence in ${out}`);
+  console.log(caseFilter?`PASS selected arsenal cases: ${caseFilter.join(", ")}; evidence in ${out}`:`PASS browser arsenal: 21 firearms, machete, shield, three-slot inventory and five throwable types; evidence in ${out}`);
 }

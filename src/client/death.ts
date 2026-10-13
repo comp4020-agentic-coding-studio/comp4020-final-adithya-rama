@@ -15,6 +15,7 @@ export class DeathCamera {
     this.following=true;
   }
   reset():void {this.killer=null;this.point=null;this.following=true;}
+  stopFollowing():void {this.following=false;}
   resolve(localAlive:boolean,actors:CameraActor[]):{point:CameraPoint;killer:number|null;following:boolean}|null {
     if(localAlive){this.reset();return null;}
     if(!this.point)return null;
@@ -69,7 +70,7 @@ export function appendDebris(current:DeathDebris[],added:DeathDebris[]):DeathDeb
 }
 
 /** Cosmetic small-body motion, with swept solid and one-way platform contact. */
-export function advanceDebris(parts:DeathDebris[],elapsedMs:number,map:Pick<MapDefinition,"solids"|"platforms"|"width"|"height">):DeathDebris[] {
+export function advanceDebris(parts:DeathDebris[],elapsedMs:number,map:Pick<MapDefinition,"solids"|"platforms"|"width"|"height"|"physics">):DeathDebris[] {
   const elapsed=Number.isFinite(elapsedMs)?Math.max(0,elapsedMs):0;
   for(const p of parts) {
     p.age+=elapsed;
@@ -77,7 +78,7 @@ export function advanceDebris(parts:DeathDebris[],elapsedMs:number,map:Pick<MapD
     let left=Math.min(250,elapsed)/1000;
     while(left>0) {
       const dt=Math.min(1/120,left);left-=dt;
-      p.vy+=640*dt;
+      p.vy+=(map.physics==="space"?0:640)*dt;
       const dx=p.vx*dt,dy=p.vy*dt;
       let t=1,nx=0,ny=0;
       for(const solid of map.solids) {

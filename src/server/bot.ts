@@ -1,8 +1,10 @@
-import { GRAVITY, JUMP_SPEED } from "../shared/constants.ts";
-import { lineOfSight, raycastMap } from "../shared/physics.ts";
+import { GRAVITY, JUMP_SPEED, SPACE_ACCEL } from "../shared/constants.ts";
+import { lineOfSight, maxFuel, raycastMap } from "../shared/physics.ts";
 import { dualPartner, isTeamMode, muzzleOf, type Player, rng, type World } from "../shared/sim.ts";
 import { Btn, type BotDifficulty, type InputFrame } from "../shared/types.ts";
 import { WEAPONS } from "../shared/weapons.ts";
+import { canSeePlayer } from "../shared/visibility.ts";
+import { botDestinations, planBotRoute } from "./bot-navigation.ts";
 
 // Errors persist across a burst instead of averaging away every tick. Values
 // are authored practice tuning, with limited sight and turning at every level.
@@ -28,6 +30,8 @@ export class Bot {
   private strafe = 1;
   private route: { x: number; y: number }[] = [];
   private nextPlan = 0;
+  private groundRoute = false;
+  private refuelling = false;
   private lastX = 0;
   private stuckTicks = 0;
 
@@ -68,7 +72,9 @@ export class Bot {
       }
       const reacted = w.tick - this.seenSince >= tuning.reaction;
       if (reacted && w.tick >= this.nextBurst) {
-        this.burstEnd = w.tick + tuning.burst;
+        const selected=me.slots[me.active];
+        const charge=selected?Math.ceil((WEAPONS[selected.weapon].chargeMs??0)*60/1000):0;
+        this.burstEnd = w.tick + charge + tuning.burst;
         this.nextBurst = this.burstEnd + tuning.pause;
         this.aimError = (rng(w) < .5 ? -1 : 1) * tuning.error * (.6 + rng(w) * .4);
       }
@@ -107,10 +113,10 @@ export class Bot {
       this.seenSince = -1;
       this.targetId = null;
       this.burstEnd = 0;
-      const nodes = w.map.navNodes;
+      const nodes = botDestinations(w.map);
       if (nodes.length === 0) return frame;
       let node = nodes[this.wanderTarget % nodes.length];
-      if (Math.abs(node.x - me.x) < 40) {
+      if (Math.hypot(node.x - me.x,node.y-me.y) < 40) {
         this.wanderTarget = Math.floor(rng(w) * nodes.length);
         node = nodes[this.wanderTarget];
       }
@@ -132,21 +138,42 @@ export class Bot {
         if (carrier) { goalX = carrier.x + this.strafe * 90; goalY = carrier.y; }
       }
     }
+    if(w.map.physics!=="space"&&w.settings.flight&&!w.settings.unlimitedFuel){
+      if(me.fuel<maxFuel(w.settings)*.16)this.refuelling=true;
+      if(me.fuel>maxFuel(w.settings)*.8)this.refuelling=false;
+      if(this.refuelling){
+        const landing=w.map.navNodes.filter(p=>p.y>=me.y-20&&Math.abs(p.x-me.x)<350&&
+          w.map.solids.some(r=>Math.abs(r.y-p.y)<.1&&p.x>r.x+11&&p.x<r.x+r.w-11)&&
+          lineOfSight(w.map,me.x,me.y-24,p.x,p.y-24))
+          .sort((a,b)=>Math.abs(a.x-me.x)+Math.abs(a.y-me.y)*.4-Math.abs(b.x-me.x)-Math.abs(b.y-me.y)*.4)[0];
+        if(landing){goalX=landing.x;goalY=landing.y;}
+      }
+    }
     const goal = this.navigate(w, me, goalX, goalY);
     goalX = goal.x; goalY = goal.y;
-    const dx = goalX - me.x;
-    if (Math.abs(dx) > 30) b |= dx > 0 ? Btn.RIGHT : Btn.LEFT;
-    const dir = dx > 0 ? 1 : -1;
-    const wallAhead = raycastMap(w.map, me.x, me.y - 20, dir, 0, 40) < 40;
-    if (wallAhead && me.onGround) b |= Btn.JUMP;
-    const needRise = goalY < me.y - 50 || (wallAhead && !me.onGround);
-    if (needRise && me.fuel > 8) b |= Btn.JET;
-    if (goalY > me.y + 80 && me.onGround) b |= Btn.CROUCH;
-    if (Math.abs(me.x - this.lastX) < 0.4 && Math.abs(dx) > 30) this.stuckTicks++; else this.stuckTicks = 0;
-    this.lastX = me.x;
-    if (this.stuckTicks > 35) { b |= Btn.JUMP; if (w.settings.flight && me.fuel > 20) b |= Btn.JET; }
-    if (this.stuckTicks > 120) { this.route = []; this.nextPlan = 0; this.stuckTicks = 0; }
-    if (me.onGround && goalY < me.y - 15) b |= Btn.JUMP;
+    const dx = goalX - me.x,dy=goalY-me.y;
+    if(w.map.physics==="space"){
+      // Opposite thrust brakes inertia; coasting is not terrestrial friction.
+      // Desired speed shrinks before a junction so we do not cut rock corners.
+      const acceleration=SPACE_ACCEL*w.settings.thrust;
+      const desired=(distance:number)=>Math.sign(distance)*Math.min(300,Math.sqrt(2*acceleration*Math.max(0,Math.abs(distance)-6))*.72);
+      const ex=desired(dx)-me.vx,ey=desired(dy)-me.vy;
+      if(Math.abs(ex)>10)b|=ex>0?Btn.RIGHT:Btn.LEFT;
+      if(Math.abs(ey)>10)b|=ey>0?Btn.CROUCH:Btn.JET;
+    }else{
+      if (Math.abs(dx) > 18) b |= dx > 0 ? Btn.RIGHT : Btn.LEFT;
+      const dir = dx > 0 ? 1 : -1;
+      const wallAhead = raycastMap(w.map, me.x, me.y - 20, dir, 0, 34) < 34;
+      if (wallAhead && me.onGround && !this.refuelling) b |= Btn.JUMP;
+      const needRise = goalY < me.y - (me.onGround?12:-12) || (wallAhead && !me.onGround);
+      if (needRise && me.fuel > 8 && w.settings.flight && !this.groundRoute && !this.refuelling) b |= Btn.JET;
+      if (goalY > me.y + 65 && me.onGround) b |= Btn.DESCEND;
+      if (Math.abs(me.x - this.lastX) < .4 && Math.abs(dx) > 18) this.stuckTicks++; else this.stuckTicks = 0;
+      this.lastX = me.x;
+      if (this.stuckTicks > 35 && !this.refuelling) { b |= Btn.JUMP; if (w.settings.flight && me.fuel > 20 && !this.groundRoute) b |= Btn.JET; }
+      if (this.stuckTicks > 120) { this.route = []; this.nextPlan = 0; this.stuckTicks = 0; this.wanderTarget=Math.floor(rng(w)*botDestinations(w.map).length); }
+      if (me.onGround && goalY < me.y - 12 && !this.refuelling) b |= Btn.JUMP;
+    }
     // Do not immediately pick the just-dropped shield back up, or replace a
     // usable combat weapon with whatever happens to lie underfoot.
     const hasLoadedGun = me.slots.some((slot) => slot && WEAPONS[slot.weapon].category !== "equipment" &&
@@ -159,6 +186,18 @@ export class Bot {
   }
 
   private navigate(w: World, me: Player, x: number, y: number): { x: number; y: number } {
+    if (w.map.version) {
+      if(w.tick>=this.nextPlan){
+        this.nextPlan=w.tick+30;
+        // A walkable route is fuel-independent and safer through low doorways.
+        const ground=w.map.physics!=="space"?planBotRoute(w.map,{...w.settings,flight:false},me,{x,y}):[];
+        this.groundRoute=ground.length>0;
+        this.route=this.groundRoute?ground:planBotRoute(w.map,w.settings,me,{x,y});
+      }
+      const threshold=w.map.physics==="space"?22:28;
+      while(this.route.length&&Math.hypot(this.route[0].x-me.x,this.route[0].y-me.y)<threshold)this.route.shift();
+      return this.route[0]??{x,y};
+    }
     if (w.tick >= this.nextPlan) {
       this.nextPlan = w.tick + 15;
       const nodes = [{ x: me.x, y: me.y }, ...w.map.navNodes, { x, y }];
@@ -200,7 +239,8 @@ export class Bot {
     let bestD = Infinity;
     for (const o of w.players.values()) {
       if (o === me || !o.alive) continue;
-      if ((isTeamMode(w.settings) || w.settings.mode === "survival") && o.team === me.team) continue;
+      if ((isTeamMode(w.settings) || w.settings.mode === "survival" || w.settings.mode === "training") && o.team === me.team) continue;
+      if(!canSeePlayer(me,o,w.map,w.tick,{teamMode:isTeamMode(w.settings)||w.settings.mode==="survival"||w.settings.mode==="training",carryingFlag:w.flags.some(f=>f.carrier===o.id)}))continue;
       const d = Math.hypot(o.x - me.x, o.y - me.y);
       const muzzle = muzzleOf(me);
       if (d > BOT_TUNING[this.difficulty].sight || !lineOfSight(w.map, muzzle.x, muzzle.y, o.x, o.y - 26)) continue;

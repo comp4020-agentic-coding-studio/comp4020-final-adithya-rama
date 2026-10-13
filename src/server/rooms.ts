@@ -11,10 +11,13 @@ import {
   TICK_RATE,
 } from "../shared/constants.ts";
 import type { ClientMessage, Profile, RoomListing, RoomState, RoomView, RosterEntry, SaveStatus, ServerMessage } from "../shared/protocol.ts";
-import { MODE_NAMES, PVP_MODES, sanitizeSettings, TEAM_MODES } from "../shared/settings.ts";
+import { defaultSettings, MODE_NAMES, PVP_MODES, sanitizeSettings, TEAM_MODES } from "../shared/settings.ts";
 import { addPlayer, computeResult, contributionScore, createWorld, dropFlags, snapshot, stepWorld, type World } from "../shared/sim.ts";
+import { snapshotForViewer } from "./visibility.ts";
 import { ALL_BUTTONS, type GameEvent, type InputFrame, type MatchResult, type RoomSettings, type Team } from "../shared/types.ts";
 import { Bot } from "./bot.ts";
+import { prewarmBotNavigation } from "./bot-navigation.ts";
+import { MAPS } from "../shared/maps.ts";
 import type { Db } from "./db.ts";
 import { log } from "./log.ts";
 
@@ -78,6 +81,10 @@ export class Room {
   private bots: Bot[] = [];
   private hiddenBodies = new Set<number>();
   private events: GameEvent[] = [];
+  private deathFollow = new Map<number, number>();
+  private endKillerFollow(id:number):void {
+    for(const [victim,killer] of this.deathFollow)if(killer===id)this.deathFollow.delete(victim);
+  }
   private lastCheckpoint = 0;
   private absentSince: [number | null, number | null] = [null, null];
   private finalizing = false;
@@ -130,6 +137,14 @@ export class Room {
   }
 
   listing(): RoomListing {
+    const s=this.settings, defaults=sanitizeSettings({mode:s.mode,map:s.map},defaultSettings());
+    const rules:string[]=[];
+    if(s.map==="lunarcy")rules.push("Zero gravity · unlimited boost");
+    else if(!s.flight)rules.push("Flight off");
+    else if(s.unlimitedFuel)rules.push("Unlimited boost");
+    if(s.friendlyFire)rules.push("Friendly fire");
+    if(s.unlimitedAmmo)rules.push("Unlimited ammo");
+    if((Object.keys(defaults) as (keyof RoomSettings)[]).some(k=>!["map","mode","capacity","durationMin","bots","botDifficulty"].includes(k)&&JSON.stringify(s[k])!==JSON.stringify(defaults[k])))rules.push("Custom rules");
     return {
       code: this.code,
       name: this.name,
@@ -140,6 +155,9 @@ export class Room {
       capacity: this.settings.capacity,
       hasPassword: this.hasPassword,
       spectators: [...this.members.values()].filter((m) => m.spectator).length,
+      humans:this.fighters().length,
+      bots:s.mode==="survival"?0:s.bots,
+      rules,
     };
   }
 
@@ -306,6 +324,7 @@ export class Room {
     m.last = null;
     client.room = null;
     if (this.world && m.playerId !== null) {
+      this.endKillerFollow(m.playerId);
       const p = this.world.players.get(m.playerId);
       if (p) { p.connected = false; p.reserved = true; dropFlags(this.world, p.id); }
     }
@@ -324,6 +343,7 @@ export class Room {
 
   private removeMember(m: Member): void {
     this.members.delete(m.key);
+    if(m.playerId!==null){this.endKillerFollow(m.playerId);this.deathFollow.delete(m.playerId);}
     if (this.world && m.playerId !== null) {
       const p = this.world.players.get(m.playerId);
       if (p) {
@@ -484,6 +504,10 @@ export class Room {
     this.starting = true;
     const matchId = randomUUID();
     try {
+      // Retain the active-room reservation while warming bounded graph variants.
+      // No simulation or match announcement begins until every needed graph exists.
+      if (this.settings.bots > 0 || this.settings.mode === "survival")
+        await prewarmBotNavigation(MAPS[this.settings.map], this.settings);
       await this.db.call("createMatch", {
         id: matchId,
         roomCode: this.code,
@@ -508,6 +532,7 @@ export class Room {
     this.matchId = matchId;
     this.result = null;
     this.events = [];
+    this.deathFollow.clear();
     this.absentSince = [null, null];
     this.saveAttempts = 0;
     this.lastCheckpoint = Date.now();
@@ -552,6 +577,14 @@ export class Room {
     stepWorld(w, inputs);
     if (w.players.size !== beforeIds) this.broadcast({ t: "roster", roster: this.roster() });
     if (w.events.length > 0) {
+      for(const event of w.events){
+        if(event.t==="kill"){
+          this.endKillerFollow(event.victim);
+          const killer=event.attacker===undefined?event.killer:event.attacker;
+          this.deathFollow.delete(event.victim);
+          if(killer!==null&&killer!==event.victim&&w.players.get(killer)?.alive&&w.players.get(killer)?.connected)this.deathFollow.set(event.victim,killer);
+        } else if(event.t==="spawn")this.deathFollow.delete(event.id);
+      }
       this.events.push(...w.events);
       w.events = [];
     }
@@ -566,7 +599,6 @@ export class Room {
       const player = w.players.get(p.id);
       return player?.connected || player?.alive;
     });
-    const base = JSON.stringify(state);
     this.events = [];
     for (const m of this.members.values()) {
       const ws = m.client?.ws;
@@ -577,7 +609,8 @@ export class Room {
         continue;
       }
       m.stalledSince = null;
-      ws.send(`{"t":"snap","ack":${m.ack},${base.slice(1)}`);
+      const personal=snapshotForViewer(w,state,m.playerId,m.playerId===null?null:this.deathFollow.get(m.playerId)??null,m.ack);
+      ws.send(JSON.stringify({t:"snap",...personal}));
     }
   }
 

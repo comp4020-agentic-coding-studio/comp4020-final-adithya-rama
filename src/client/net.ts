@@ -1,6 +1,7 @@
 import type { ClientMessage, ServerMessage } from "../shared/protocol.ts";
+import { PROTOCOL_VERSION } from "../shared/constants.ts";
 
-export type NetStatus = "connecting" | "open" | "reconnecting";
+export type NetStatus = "connecting" | "open" | "reconnecting" | "outdated";
 
 // One WebSocket for the whole app. If it drops, it reconnects with backoff and
 // rejoins the room it was in; the server holds the seat for 30 seconds.
@@ -16,7 +17,7 @@ export class Net {
 
   connect(): void {
     this.stopped = false;
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws?v=${PROTOCOL_VERSION}`;
     const ws = new WebSocket(url);
     this.ws = ws;
     this.emitStatus(this.attempt === 0 ? "connecting" : "reconnecting");
@@ -32,10 +33,12 @@ export class Net {
       } catch {
         return;
       }
+      if(msg.t==="welcome"&&msg.v!==PROTOCOL_VERSION){this.stopped=true;this.emitStatus("outdated");ws.close(1002,"Reload the game");return;}
       for (const l of this.listeners) l(msg);
     };
     ws.onclose = (e) => {
       if (this.ws !== ws || this.stopped) return;
+      if(e.code===1002){this.stopped=true;this.emitStatus("outdated");return;}
       if (e.code === 4000) {
         // replaced by another tab: don't fight it
         this.roomCode = null;

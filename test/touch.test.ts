@@ -23,6 +23,10 @@ describe("touch input cleanup", () => {
     dom = new JSDOM("<!doctype html><body></body>", { pretendToBeVisual: true });
     vi.stubGlobal("window", dom.window);
     vi.stubGlobal("document", dom.window.document);
+    vi.stubGlobal("getComputedStyle",dom.window.getComputedStyle.bind(dom.window));
+    vi.stubGlobal("ResizeObserver",class {observe(){}disconnect(){}});
+    const bounds={x:0,y:0,left:0,top:0,width:390,height:844,right:390,bottom:844,toJSON(){}};
+    dom.window.HTMLElement.prototype.getBoundingClientRect=()=>bounds;
     root = document.createElement("div");
     const canvas = document.createElement("div");
     document.body.append(root);
@@ -106,6 +110,33 @@ describe("touch input cleanup", () => {
       expect(input.sampleButtons()).toBe(bit);
       expect(input.sampleButtons()).toBe(0);
     }
+  });
+
+  it("editing releases input and dragging an action never generates a gameplay tap",()=>{
+    pointer(".stick.right","pointerdown",1);expect(input.buttons()&Btn.FIRE).toBeTruthy();
+    const save=vi.fn(),done=vi.fn(()=>{input.enabled=true;});touch.editLayout(save,done);
+    expect(input.enabled).toBe(false);expect(input.sampleButtons()).toBe(0);
+    pointer(`[data-b="${Btn.THROW}"]`,"pointerdown",2);
+    pointer(`[data-b="${Btn.THROW}"]`,"pointermove",2);
+    pointer(`[data-b="${Btn.THROW}"]`,"pointerup",2);
+    expect(input.sampleButtons()).toBe(0);
+    window.dispatchEvent(new dom.window.Event("blur"));
+    expect([...captures.values()].every(set=>set.size===0)).toBe(true);
+    root.querySelector<HTMLButtonElement>("[data-layout-cancel]")!.click();
+    expect(save).not.toHaveBeenCalled();expect(done).toHaveBeenCalledOnce();expect(input.enabled).toBe(true);expect(input.sampleButtons()).toBe(0);
+    pointer(`[data-b="${Btn.SLOT3}"]`,"pointerdown",3);pointer(`[data-b="${Btn.SLOT3}"]`,"pointerup",3);expect(input.sampleButtons()).toBe(Btn.SLOT3);
+  });
+
+  it("saves size and opacity, cancels later changes, and restores the prior input state",()=>{
+    const save=vi.fn();touch.editLayout(save);
+    const size=root.querySelector<HTMLInputElement>("[data-layout-size]")!;size.value="1.2";size.dispatchEvent(new dom.window.Event("input"));
+    const opacity=root.querySelector<HTMLInputElement>("[data-layout-opacity]")!;opacity.value=".5";opacity.dispatchEvent(new dom.window.Event("input"));
+    root.querySelector<HTMLButtonElement>("[data-layout-save]")!.click();
+    expect(save).toHaveBeenCalledWith({scale:1.2,opacity:.5,positions:{}});expect(input.enabled).toBe(true);
+    touch.editLayout(save);root.querySelector<HTMLButtonElement>("[data-layout-reset]")!.click();root.querySelector<HTMLButtonElement>("[data-layout-cancel]")!.click();
+    touch.editLayout(save);expect(root.querySelector<HTMLInputElement>("[data-layout-size]")!.value).toBe("1.2");expect(root.querySelector<HTMLInputElement>("[data-layout-opacity]")!.value).toBe("0.5");
+    root.querySelector<HTMLButtonElement>("[data-layout-cancel]")!.click();
+    input.enabled=false;touch.editLayout(save);root.querySelector<HTMLButtonElement>("[data-layout-cancel]")!.click();expect(input.enabled).toBe(false);
   });
 
   it("destroy unsubscribes the control reset listener", () => {

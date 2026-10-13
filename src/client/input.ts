@@ -1,7 +1,7 @@
 import { Btn } from "../shared/types.ts";
 export const CLIENT_ACTIONS = { ZOOM:-1, SCOREBOARD:-2, MENU:-3, AIM_LEFT:-4, AIM_RIGHT:-5, AIM_UP:-6, AIM_DOWN:-7, FIRE_LEFT:-8, FIRE_RIGHT:-9, FIRE_UP:-10, FIRE_DOWN:-11 } as const;
 export const ACTION_LABELS: Record<number,string> = {
-  [Btn.LEFT]:"Move left",[Btn.RIGHT]:"Move right",[Btn.JUMP]:"Jump",[Btn.JET]:"Fly",[Btn.CROUCH]:"Crouch / descend",
+  [Btn.LEFT]:"Move left",[Btn.RIGHT]:"Move right",[Btn.JUMP]:"Jump",[Btn.JET]:"Fly",[Btn.CROUCH]:"Crouch",[Btn.DESCEND]:"Descend through marked platform",
   [Btn.FIRE]:"Fire",[Btn.RELOAD]:"Reload",[Btn.PICKUP]:"Pick up",[Btn.DROP]:"Drop equipment",[Btn.SWITCH]:"Cycle weapons",
   [Btn.SLOT1]:"Weapon slot 1",[Btn.SLOT2]:"Weapon slot 2",[Btn.SLOT3]:"Weapon slot 3",[Btn.THROW]:"Throw grenade",[Btn.NEXT_THROWABLE]:"Next grenade",
   [Btn.MELEE]:"Melee",[Btn.DUAL]:"Dual wield",[-1]:"Zoom",[-2]:"Scoreboard",[-3]:"Menu",[-4]:"Aim left",[-5]:"Aim right",[-6]:"Aim up",[-7]:"Aim down",[-8]:"Aim + fire left",[-9]:"Aim + fire right",[-10]:"Aim + fire up",[-11]:"Aim + fire down",
@@ -72,7 +72,15 @@ export class Input {
     const t=e.target as HTMLElement|null;
     if(t&&(t.matches?.("input,select,textarea")||t.isContentEditable)) {if(!down)this.pressed.delete(e.code);return;}
     if(t?.tagName==="BUTTON"&&!this.enabled&&(e.code==="Space"||e.code==="Enter"))return;
-    const action=this.bindings[e.code];if(action===undefined)return;
+    // Shift + the bound crouch key is the deliberate platform descent chord.
+    // An independently remapped DESCEND action also works. S alone only crouches.
+    const action=this.bindings[e.code];
+    if(action===undefined){
+      if(e.code==="ShiftLeft"||e.code==="ShiftRight"){
+        if(down&&this.enabled)this.pressed.add(e.code);else this.pressed.delete(e.code);
+      }
+      return;
+    }
     if(action===CLIENT_ACTIONS.MENU) {e.preventDefault();if(down&&!e.repeat)this.cb.onMenu();return;}
     if(!this.enabled){if(!down)this.pressed.delete(e.code);return;}
     e.preventDefault();
@@ -105,6 +113,7 @@ export class Input {
     if(!this.enabled)return 0;
     let b=this.touchHeld|this.tapBits|(this.mouseFire?Btn.FIRE:0);
     for(const key of this.pressed){const n=this.bindings[key];if(n>0)b|=n;}
+    if(b&Btn.CROUCH&&["ShiftLeft","ShiftRight"].some(k=>this.pressed.has(k)&&this.bindings[k]===undefined))b|=Btn.DESCEND;
     const {x,y}=this.keyboardAim();
     if((x||y)&&[...this.pressed].some(key=>this.bindings[key]<=-8))b|=Btn.FIRE|Btn.CONTINUOUS_FIRE;
     return b;

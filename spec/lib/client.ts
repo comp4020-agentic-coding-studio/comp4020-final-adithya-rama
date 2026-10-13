@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { PROTOCOL_VERSION } from "../../src/shared/constants.ts";
 import type { ClientMessage, Profile, ServerMessage } from "../../src/shared/protocol.ts";
 
 // A scripted player: an HTTP session plus a WebSocket, the same way a browser
@@ -48,6 +49,7 @@ export class TestPlayer {
 
   connect(): Promise<void> {
     const url = new URL("/ws", this.baseUrl);
+    url.searchParams.set("v",String(PROTOCOL_VERSION));
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(url, { headers: { Cookie: this.cookie, Origin: this.origin } });
     this.ws = ws;

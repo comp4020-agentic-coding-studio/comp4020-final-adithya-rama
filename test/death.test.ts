@@ -15,6 +15,10 @@ describe("death camera",()=>{
     const camera=new DeathCamera();camera.died(victim,attacker);
     expect(camera.resolve(false,[{id:2,x:900,y:100,alive:true}])).toEqual({point:{x:40,y:70},killer:null,following:false});
   });
+  it("honors the server ending a follow even if the killer reappears between snapshots",()=>{
+    const camera=new DeathCamera();camera.died(victim,9);camera.resolve(false,[{id:9,x:450,y:110,alive:true}]);
+    camera.stopFollowing();expect(camera.resolve(false,[{id:9,x:900,y:100,alive:true}])).toEqual({point:{x:450,y:110},killer:9,following:false});
+  });
   it("releases the camera immediately when the local pilot respawns",()=>{
     const camera=new DeathCamera();camera.died(victim,9);
     expect(camera.resolve(true,[{id:9,x:450,y:110,alive:true}])).toBeNull();

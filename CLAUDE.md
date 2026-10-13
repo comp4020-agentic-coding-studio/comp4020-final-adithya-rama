@@ -2,7 +2,8 @@
 
 These rules come from the agreed plan in `docs/IMPLEMENTATION_PLAN.md`. If a
 rule here and the plan disagree, the plan wins. Later direct user instructions
-take precedence; the current authorized amendment is docs/REVISION_2026_10_13.md.
+take precedence; the current amendment is docs/REVISION_2026_10_14_PLAN.md, with
+chosen behavior recorded in docs/decisions/0004-classic-pc-gameplay.md.
 
 ## Before working
 

@@ -94,6 +94,9 @@ export interface RoomListing {
   capacity: number;
   hasPassword?: boolean;
   spectators?: number;
+  humans?: number;
+  bots?: number;
+  rules?: string[];
 }
 
 export interface HistoryEntry {

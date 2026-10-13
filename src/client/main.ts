@@ -6,6 +6,8 @@ import type { MatchResult, RoomSettings } from "../shared/types.ts";
 import { api, esc, hex, toast } from "./dom.ts";
 import { GameSession } from "./game.ts";
 import { Net } from "./net.ts";
+import { ProfileWrites } from "./profile-writes.ts";
+import { capacityOptions, botOptions, spaceRules, syncRuleFields } from "./rule-controls.ts";
 import { WEAPONS, THROWABLES, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
 import { ACTION_LABELS, BINDABLE_CODE, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
 import { avatarOf, avatarSvg, weaponIcon, weaponName } from "./art.ts";
@@ -26,20 +28,23 @@ let historyCursor: string | null = null;
 let presets:RoomPreset[]=[];
 const messages:{name:string;text:string}[]=[];
 
-async function savePrefs(patch:Record<string,unknown>):Promise<void> {
-  try {
-    profile=(await api<{profile:Profile}>("/api/me",{method:"PATCH",body:{prefs:{...profile.prefs,...patch}}})).profile;
-    // Profile broadcasts can rerender the lobby before this HTTP response.
-    // Reconcile preference controls after the saved value becomes authoritative.
+const profileWrites = new ProfileWrites(
+  async patch => (await api<{profile:Profile}>("/api/me",{method:"PATCH",body:patch})).profile,
+  saved => {
+    profile = saved;
     for(const input of document.querySelectorAll<HTMLInputElement>("[data-chat-mute]"))input.checked=profile.prefs.chatMuted===true;
     renderChatLog();
-  }
-  catch(e){toast((e as Error).message,"error");}
+  },
+);
+async function savePrefs(patch:Record<string,unknown>):Promise<void> {
+  try { await profileWrites.write({prefs:patch}); }
+  catch(e) { toast((e as Error).message,"error"); }
 }
 
 const isHost = (): boolean => !!room && room.members.some((m) => m.key === room!.you && m.host);
 const reducedShake = (): boolean => profile?.prefs?.reducedShake === true;
 const mapName = (id: string): string => MAPS[id]?.name ?? id;
+const physicsBrief=(s:RoomSettings):string=>spaceRules(s)?'<p class="rules-note">SPACE RULES · Zero gravity, unlimited fuel, mandatory thrusters. Coast on release; counter-thrust to brake.</p>':"";
 
 function setScreen(s: typeof screen): void {
   screen = s;
@@ -71,9 +76,10 @@ function previewScenery(map:typeof MAPS[string]):string {
 function arenaPreview(mapId:string):string {
   const map=MAPS[mapId]??MAPS["outpost-yard"];
   const rock=hex(map.theme.rock),accent=hex(map.theme.accent);
-  return '<svg class="arena-preview" viewBox="0 0 '+map.width+' '+map.height+'" preserveAspectRatio="xMidYMid slice" role="img" aria-label="'+esc(map.name)+' arena preview">'+
+  return '<svg class="arena-preview" viewBox="0 0 '+map.width+' '+map.height+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="'+esc(map.name)+' arena preview">'+
     '<rect width="100%" height="100%" fill="'+hex(map.theme.sky)+'"/><circle cx="'+map.width*.73+'" cy="'+map.height*.2+'" r="'+map.height*.13+'" fill="#f6deb0" opacity=".8"/>'+
     '<path d="M0 '+map.height*.62+' Q'+map.width*.2+' '+map.height*.15+' '+map.width*.4+' '+map.height*.58+' T'+map.width+' '+map.height*.4+' V'+map.height+' H0Z" fill="#263f42" opacity=".3"/>'+
+    (map.backgrounds??[]).map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" fill="'+rock+'" opacity=".28"/>').join("")+
     map.solids.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+r.h+'" fill="'+rock+'" stroke="#20313a" stroke-width="8"/><path d="M'+r.x+' '+r.y+'h'+r.w+'" stroke="'+accent+'" stroke-width="12"/>').join("")+
     map.platforms.map(r=>'<rect x="'+r.x+'" y="'+r.y+'" width="'+r.w+'" height="'+Math.max(10,r.h)+'" rx="4" fill="'+hex(map.theme.platform)+'" stroke="#20313a" stroke-width="6"/>').join("")+
     previewScenery(map)+
@@ -88,7 +94,7 @@ function renderHome(): void {
     <nav class="home-nav"><a class="wordmark" href="/" aria-label="Jet Skirmish home">JET <span>SKIRMISH</span><small>THE ARENA IS YOURS</small></a><button id="profile-button" class="pilot-chip" aria-haspopup="dialog"><span class="pilot-chip-art">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</span><span><small>YOUR PILOT</small><b>${esc(profile.name)}</b></span><span aria-hidden="true">⚙</span></button></nav>
     <main class="home">
       <section class="hero-stage">
-        <div class="hero-landscape">${arenaPreview("outpost-yard")}</div>
+        <div class="hero-landscape">${arenaPreview("outpost")}</div>
         <div class="hero-copy"><span class="eyebrow">2D JETPACK COMBAT · UP TO 8 PILOTS</span><h1>Small squads.<br><em>Big air.</em></h1><p>Find your crew. Pick your arsenal.<br>Make the whole arena your playground.</p></div>
         <div class="hero-pilot" aria-hidden="true">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
         <div class="arena-caption"><span class="live-dot"></span><b>OUTPOST YARD</b><span>One of six original arenas</span></div>
@@ -139,6 +145,9 @@ function renderHome(): void {
           <label>Sound volume <input type="range" name="volume" min="0" max="1" step=".05" value="${Number(profile.prefs.volume??.35)}"></label>
           <label class="check"><input type="checkbox" name="chatMuted" ${profile.prefs.chatMuted===true?"checked":""}> Mute room chat</label>
           <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce shake & debris</label>
+          <label class="check"><input type="checkbox" name="reducedBlood" ${profile.prefs.reducedBlood===true?"checked":""}> Hide blood</label>
+          <label class="check"><input type="checkbox" name="lowFlash" ${profile.prefs.lowFlash===true?"checked":""}> Dark flashbang obscuration</label>
+          <label class="check"><input type="checkbox" name="cameraLookAhead" ${profile.prefs.cameraLookAhead!==false?"checked":""}> Look ahead while aiming</label>
           <button>Save</button>
         </form>
         <button id="bindings">Keyboard controls</button>
@@ -149,7 +158,7 @@ function renderHome(): void {
         <div class="section-heading row"><div><span class="eyebrow">FIND YOUR CREW</span><h2>Open rooms</h2></div><button id="refresh-rooms" class="quiet">Refresh</button></div>
         <ul id="room-list" class="list"><li class="muted">Looking…</li></ul>
       </section>
-      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start. Compare silhouettes, reach and handling below.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${esc(weaponRangeLabel(w.id))} · ${w.category==="equipment"?esc(weaponHandling(w.id)):w.mag+" rounds"}</small><span class="armoury-range" aria-label="Relative maximum reach"><i style="width:${Math.max(2,w.range/1600*100)}%"></i></span>${w.category!=="equipment"?`<small>${esc(weaponHandling(w.id))} · ${Math.round(60000/w.cooldownMs)} shots/min</small>`:""}</div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. Walk over grenades to collect them when your six-item bag has room. T changes type; G throws. F pairs compatible small guns. A shield pairs with a machete; selecting a firearm drops the shield. EMP and mines are advanced room options.</p></details></section>
+      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start. Compare silhouettes, reach and handling below.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${esc(weaponRangeLabel(w.id))} · ${w.category==="equipment"?esc(weaponHandling(w.id)):w.mag+" rounds"}</small><span class="armoury-range" aria-label="Relative maximum reach"><i style="width:${Math.max(2,w.range/1600*100)}%"></i></span>${w.category!=="equipment"?`<small>${esc(weaponHandling(w.id))} · ${w.burstCount?w.burstCount+"-round burst":w.chargeMs?"Charge "+(w.chargeMs/1000).toFixed(2)+"s":w.autoRefill?"Automatic refill":w.auto?"Automatic fire":"Single shot"}</small>`:""}</div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. Walk over grenades to collect them when your six-item bag has room. T changes type; G throws. F pairs compatible small guns. A shield pairs with a machete; selecting a firearm drops the shield. EMP and mines are advanced room options.</p></details></section>
       <section class="card history">
         <div class="section-heading"><span class="eyebrow">YOUR FLIGHT LOG</span><h2>Recent matches</h2></div>
         <ul id="history" class="list"><li class="muted">Loading…</li></ul>
@@ -206,11 +215,9 @@ function renderHome(): void {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
     try {
-      const { profile: p } = await api<{ profile: Profile }>("/api/me", {
-        method: "PATCH",
-        body: { name: fd.get("name"), color: Number(fd.get("color") ?? profile.color), prefs: { ...profile.prefs, reducedShake: fd.get("reducedShake") === "on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} } },
+      await profileWrites.write({
+        name: String(fd.get("name") ?? ""), color: Number(fd.get("color") ?? profile.color), prefs: { reducedShake: fd.get("reducedShake") === "on",reducedBlood:fd.get("reducedBlood")==="on",lowFlash:fd.get("lowFlash")==="on",cameraLookAhead:fd.get("cameraLookAhead")==="on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} },
       });
-      profile = p;
       drawer.close();renderHome();toast("Pilot saved. Ready for takeoff.");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -218,7 +225,7 @@ function renderHome(): void {
   });
   app.querySelector("#range")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Weapon range",isPublic:false,settings:{mode:"training",map:"test-range",bots:0}}});autoStart=true;joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
   app.querySelector("#bindings")!.addEventListener("click",openBindings);
-  app.querySelector("#survival")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Survival squad",isPublic:true,settings:{mode:"survival",map:"outpost-yard",capacity:4,bots:0}}});joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
+  app.querySelector("#survival")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Survival squad",isPublic:true,settings:{mode:"survival",map:"outpost",capacity:4,bots:0}}});joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
   app.querySelector("#profile-form")!.addEventListener("input",e=>{const fd=new FormData(e.currentTarget as HTMLFormElement);app.querySelector("#avatar-preview")!.innerHTML=avatarSvg(avatarOf({helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")}),Number(fd.get("color")??profile.color));});
   void loadWeaponStats();
   app.querySelector("#more")!.addEventListener("click", () => void loadHistory(false));
@@ -241,8 +248,9 @@ async function loadRooms(): Promise<void> {
         : rooms
             .map(
               (r) => `<li class="room-row room-card">
-                <span><b>${esc(r.name)} <span class="room-status ${r.state}">${r.players>=r.capacity?"FULL":r.state==="playing"?"LIVE":r.state==="results"?"REMATCH":"LOBBY"}</span></b><small>${MODE_NAMES[r.mode]} · ${esc(mapName(r.map))} · ${r.hasPassword?"Password required":"Open entry"}</small></span>
-                <span class="count"><b>${r.players}/${r.capacity}</b><small>pilots</small></span>
+                <span class="room-thumb" aria-hidden="true">${arenaPreview(r.map)}</span>
+                <span class="room-description"><b>${esc(r.name)} <span class="room-status ${r.state}">${r.players>=r.capacity?"FULL":r.state==="playing"?"LIVE":r.state==="results"?"REMATCH":"LOBBY"}</span></b><small>${MODE_NAMES[r.mode]} · ${esc(mapName(r.map))} · ${r.hasPassword?"Password required":"Open entry"}</small><small>${r.humans??r.players} human${r.humans===1?"":"s"}${r.bots?" · "+r.bots+" bots":""}${r.mode==="survival"?" · wave enemies":""}${r.rules?.length?" · "+r.rules.map(esc).join(" · "):""}</small></span>
+                <span class="count"><b>${r.players}/${r.capacity}</b><small>seats</small></span>
                 <span class="room-join"><button data-code="${r.code}" data-password="${!!r.hasPassword}" ${r.players >= r.capacity ? "disabled" : ""}>Join</button><button data-watch="${r.code}" data-password="${!!r.hasPassword}">Watch</button></span>
               </li>`,
             )
@@ -410,25 +418,25 @@ function renderLobby(): void {
         <div class="settings-grid">
           ${settingSelect("mode", AVAILABLE_MODES.map((m) => [m, MODE_NAMES[m]]), s.mode, dis)}
           ${settingSelect("map", Object.values(MAPS).filter(m=>s.mode==="training"||m.id!=="test-range").map((m) => [m.id, m.name]), s.map, dis)}
-          ${settingSelect("capacity",Array.from({length:s.mode==="survival"?4:s.mode==="training"?1:8},(_,i)=>[i+1,String(i+1)]),s.capacity,dis)}
+          ${settingSelect("capacity",capacityOptions(s),s.capacity,dis||s.mode==="training")}
           ${settingSelect("durationMin", DURATIONS.map((d) => [d, `${d} minutes`]), s.durationMin, dis)}
           ${settingSelect("scoreLimit", [0, 10, 20, 30, 50].map((n) => [n, n === 0 ? "None" : `${n}`]), s.scoreLimit, dis)}
-          ${settingSelect("bots", Array.from({ length: s.mode === "training" ? 4 : 8 }, (_, i) => [i, `${i}`]), s.bots, dis)}
+          ${settingSelect("bots", botOptions(s), s.bots, dis||s.mode==="survival")}
           ${settingSelect("botDifficulty", [["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"]], s.botDifficulty, dis)}
-        </div><p class="bot-explainer">Easy gives you breathing room. Normal reacts faster; Hard is a sharper challenge.</p>
+        </div>${physicsBrief(s)}<p class="bot-explainer">Easy gives you breathing room. Normal reacts faster; Hard is a sharper challenge. Changing lobby rules clears readiness for everyone.</p>
         <details class="advanced-rules"><summary>Advanced movement & combat</summary><div class="settings-grid">
           ${settingSelect("respawnSec", [1, 2, 3, 5, 10].map((n) => [n, `${n} s`]), s.respawnSec, dis)}
-          ${settingSelect("gravity", multOpts, s.gravity, dis)}
+          ${spaceRules(s)?'<label>Gravity <input value="Zero gravity" disabled></label>':settingSelect("gravity", multOpts, s.gravity, dis)}
           ${settingSelect("moveSpeed", multOpts, s.moveSpeed, dis)}
           ${settingSelect("thrust", multOpts, s.thrust, dis)}
-          ${settingSelect("fuelCapacity", multOpts, s.fuelCapacity, dis)}
-          ${settingSelect("recharge", multOpts, s.recharge, dis)}
+          ${settingSelect("fuelCapacity", multOpts, s.fuelCapacity, dis||spaceRules(s))}
+          ${settingSelect("recharge", multOpts, s.recharge, dis||spaceRules(s))}
           ${settingSelect("health", multOpts, s.health, dis)}
           ${settingSelect("damage", multOpts, s.damage, dis)}
         </div>
         <div class="checks">
-          ${settingCheck("flight", s.flight, dis)}
-          ${settingCheck("unlimitedFuel", s.unlimitedFuel, dis)}
+          ${settingCheck("flight", s.flight, dis||spaceRules(s))}
+          ${settingCheck("unlimitedFuel", s.unlimitedFuel, dis||spaceRules(s))}
           ${settingCheck("unlimitedAmmo", s.unlimitedAmmo, dis)}
           ${settingCheck("friendlyFire", s.friendlyFire, dis || !teamMode)}
           ${settingCheck("mapPickups", s.mapPickups, dis)}
@@ -553,10 +561,12 @@ net.on((m) => {
       if(profile.prefs.chatMuted!==true){messages.push({name:m.name,text:m.text});if(messages.length>40)messages.shift();renderChatLog();}
       break;
     case "welcome":
-      profile = m.profile;
+      profileWrites.receive(m.profile);
       break;
     case "room":
       room = m.room;
+      const rulesDialog=document.querySelector<HTMLElement>("[data-next-rules]");
+      if(rulesDialog)syncRuleControls(rulesDialog,room.nextSettings??room.settings);
       net.spectating=room.members.find(p=>p.key===room!.you)?.spectator===true;
       if (room.state === "lobby") {
         game?.destroy();
@@ -611,7 +621,8 @@ net.on((m) => {
 });
 
 net.onStatus((s) => {
-  game?.setConnection(s === "open" ? null : "Connection lost. Reconnecting…");
+  game?.setConnection(s === "open" ? null : s==="outdated"?"Game updated. Reload this page to reconnect.":"Connection lost. Reconnecting…");
+  if(s==="outdated")toast("Game updated. Reload this page to reconnect.","error");
 });
 
 async function boot(): Promise<void> {
@@ -678,7 +689,10 @@ function openBindings():void {
     };
   };
   d.querySelector("[data-reset]")!.addEventListener("click",()=>{current={...DEFAULT_BINDINGS};paint();});
-  d.querySelector("[data-save]")!.addEventListener("click",async()=>{await savePrefs({bindings:current});d.close();toast("Keyboard controls saved.");});
+  d.querySelector("[data-save]")!.addEventListener("click",async()=>{
+    try { await profileWrites.write({prefs:{bindings:current}});d.close();toast("Keyboard controls saved."); }
+    catch(e) { toast((e as Error).message,"error"); }
+  });
   paint();
 }
 async function loadWeaponStats():Promise<void> {
@@ -764,11 +778,13 @@ function openNextRules():void {
   const opts=MULTIPLIERS.map((m):[number,string]=>[m,m+"×"]);
   const d=dialog("Next-round rules",'<p class="muted">The current round keeps its rules. These changes apply on rematch.</p><div class="settings-grid">'+
     settingSelect("mode",AVAILABLE_MODES.map(m=>[m,MODE_NAMES[m]]),s.mode,false)+settingSelect("map",Object.values(MAPS).filter(m=>m.id!=="test-range"||s.mode==="training").map(m=>[m.id,m.name]),s.map,false)+
-    settingSelect("capacity",[1,2,3,4,5,6,7,8].map(n=>[n,String(n)]),s.capacity,false)+
+    settingSelect("capacity",capacityOptions(s),s.capacity,s.mode==="training")+
     settingSelect("durationMin",DURATIONS.map(n=>[n,n+" minutes"]),s.durationMin,false)+settingSelect("scoreLimit",[0,5,10,20,30,50].map(n=>[n,n?String(n):"None"]),s.scoreLimit,false)+
     (["gravity","moveSpeed","thrust","fuelCapacity","recharge","health","damage"] as const).map(k=>settingSelect(k,opts,s[k],false)).join("")+
-    settingSelect("bots",[0,1,2,3,4,5,6,7].map(n=>[n,String(n)]),s.bots,false)+settingSelect("botDifficulty",[["easy","Easy"],["normal","Normal"],["hard","Hard"]],s.botDifficulty,false)+settingSelect("respawnSec",[1,2,3,5,10].map(n=>[n,n+" seconds"]),s.respawnSec,false)+'</div><div class="checks">'+
+    settingSelect("bots",botOptions(s),s.bots,s.mode==="survival")+settingSelect("botDifficulty",[["easy","Easy"],["normal","Normal"],["hard","Hard"]],s.botDifficulty,false)+settingSelect("respawnSec",[1,2,3,5,10].map(n=>[n,n+" seconds"]),s.respawnSec,false)+'</div><div data-physics-brief>'+physicsBrief(s)+'</div><div class="checks">'+
     (["flight","unlimitedFuel","unlimitedAmmo","friendlyFire","mapPickups"] as const).map(k=>settingCheck(k,s[k],false)).join("")+'</div>'+arsenalSettings(s,false));
+  d.dataset.nextRules="";
+  syncRuleControls(d,s);
   for(const el of d.querySelectorAll<HTMLInputElement|HTMLSelectElement>("[data-setting]"))el.addEventListener("change",()=>{
     const key=el.dataset.setting as keyof RoomSettings;
     const staged=room?.nextSettings??room?.settings??s;
@@ -776,6 +792,11 @@ function openNextRules():void {
     net.send({t:"settings",settings:{[key]:value} as Partial<RoomSettings>});
   });
   bindArsenal(d,s);
+}
+
+function syncRuleControls(root:HTMLElement,s:RoomSettings):void {
+  syncRuleFields(root,s);
+  const note=root.querySelector("[data-physics-brief]");if(note)note.innerHTML=physicsBrief(s);
 }
 
 void boot();

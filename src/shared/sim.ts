@@ -5,7 +5,8 @@ import {
   DEFAULT_FRAGS,
   DROPPED_WEAPON_TTL_TICKS,
   DT,
-  GRAVITY,
+  GAMEPLAY_VERSION,
+  CONCEAL_REVEAL_TICKS,
   HEALTH_REGEN_DELAY_TICKS,
   HEALTH_REGEN_INTERVAL_TICKS,
   LAG_COMP_MAX_TICKS,
@@ -16,7 +17,9 @@ import {
   OUT_OF_BOUNDS_MARGIN,
   PICKUP_RADIUS,
   PLAYER_W,
+  PLAYER_H,
   SPAWN_PROTECT_TICKS,
+  SPACE_SPEED,
   TICK_RATE,
 } from "./constants.ts";
 import { MAPS } from "./maps.ts";
@@ -24,11 +27,13 @@ import { headHit, shieldBox } from "./combat-geometry.ts";
 import {
   boxOf,
   groundBelow,
+  gravityFor,
   heightOf,
   lineOfSight,
   maxFuel,
   type MoveState,
   pointInSolid,
+  overlaps,
   raycastMap,
   rayRect,
   stepMovement,
@@ -55,7 +60,7 @@ import {
   type Team,
   type WorldSnapshot,
 } from "./types.ts";
-import { THROWABLES, WEAPONS } from "./weapons.ts";
+import { equippedMovementMultiplier, THROWABLES, WEAPONS } from "./weapons.ts";
 
 export interface Player extends MoveState {
   id: number;
@@ -90,6 +95,7 @@ export interface Player extends MoveState {
   flashUntil: number;
   flashStrength: number;
   regenAt: number;
+  revealUntil: number;
   weaponStats: Record<string, WeaponStats>;
 }
 
@@ -107,6 +113,8 @@ export interface Projectile {
   stuck?: boolean;
   bounces?: number;
   traveled?: number;
+  hitIds?: number[];
+  radius?: number;
 }
 export interface GasArea {
   id: number;
@@ -129,12 +137,15 @@ export interface Pickup {
   availableAt: number;
   expiresAt: number;
   slot: SlotState | null;
+  vx?: number;
+  vy?: number;
 }
 
 interface HistoryEntry {
   tick: number;
   boxes: Map<number, Rect>;
   shields: Map<number, Rect>;
+  crouched: Set<number>;
 }
 
 export interface World {
@@ -189,7 +200,9 @@ export function createWorld(settings: RoomSettings, seed = 1): World {
     over: false,
     overReason: null,
     history: [],
-    flags: settings.mode === "flag" ? ([0, 1] as const).map((owner) => {
+    flags: (settings.mode === "flag" || (settings.mode === "training" &&
+      [0, 1].every(team => map.flagHomes.some(home => home.team === team) && map.goals.some(goal => goal.team === team))))
+      ? ([0, 1] as const).map((owner) => {
       const home = map.flagHomes.find((h) => h.team === owner) ?? map.spawns.find((sp) => sp.team === owner) ?? map.spawns[0];
       return { owner, state: "home", carrier: null, x: home.x, y: home.y, vx: 0, vy: 0, generation: 0, availableTick: 0 };
     }) : [],
@@ -219,7 +232,7 @@ export function createWorld(settings: RoomSettings, seed = 1): World {
 
 export function freshSlot(weapon: string): SlotState {
   const def = WEAPONS[weapon];
-  return { weapon, mag: def.mag, reserve: def.reserve, reloadEnd: 0, cooldownUntil: 0 };
+  return { weapon, mag: def.mag, reserve: def.reserve, reloadEnd: 0, cooldownUntil: 0, burstRemaining: 0, nextBurstTick: 0, chargeTicks: 0 };
 }
 
 export function addPlayer(
@@ -263,9 +276,10 @@ export function addPlayer(
     flashUntil: 0,
     flashStrength: 0,
     regenAt: w.tick + HEALTH_REGEN_DELAY_TICKS,
+    revealUntil: 0,
     weaponStats: {},
   };
-  if (w.settings.mode === "survival") p.team = p.bot ? 1 : 0;
+  if (w.settings.mode === "survival" || w.settings.mode === "training") p.team = p.bot ? 1 : 0;
   w.nextId = Math.max(w.nextId, p.id + 1);
   w.players.set(p.id, p);
   respawn(w, p);
@@ -273,20 +287,61 @@ export function addPlayer(
 }
 
 const sameTeam = (w: World, a: Player, b: Player): boolean =>
-  (isTeamMode(w.settings) || w.settings.mode === "survival") && a.team !== -1 && a.team === b.team;
+  (isTeamMode(w.settings) || w.settings.mode === "survival" || w.settings.mode === "training") && a.team !== -1 && a.team === b.team;
 
 const enemies = (w: World, a: Player, b: Player): boolean => a !== b && !sameTeam(w, a, b);
 
+/** A deterministic safety heuristic, not a guarantee against an incoming attack. */
+function spawnHazards(w: World, p: Player, x: number, y: number): number {
+  const cy = y - PLAYER_H / 2;
+  const canHarm = (ownerId: number): boolean => {
+    const owner = w.players.get(ownerId);
+    return !owner || owner === p || !sameTeam(w, p, owner) || w.settings.friendlyFire;
+  };
+  let hazards = 0;
+  for (const area of w.areas) {
+    if (area.until > w.tick && canHarm(area.owner) &&
+        Math.hypot(x - area.x, cy - area.y) <= area.radius + PLAYER_W / 2 &&
+        lineOfSight(w.map, area.x, area.y, x, cy)) hazards++;
+  }
+  for (const pr of w.projectiles) {
+    if (pr.explodeTick <= w.tick || !canHarm(pr.owner)) continue;
+    const wd = pr.weapon ? WEAPONS[pr.weapon] : undefined, td = THROWABLES[pr.kind];
+    if (!wd && !td) continue;
+    const seconds = pr.stuck ? 0 : Math.min(.5, (pr.explodeTick - w.tick) / TICK_RATE);
+    let dx = pr.vx * seconds, dy = pr.vy * seconds;
+    const length = Math.hypot(dx, dy);
+    if (length > 0) {
+      const distance = raycastMap(w.map, pr.x, pr.y, dx / length, dy / length, length);
+      dx *= distance / length; dy *= distance / length;
+    }
+    const t = dx || dy ? Math.max(0, Math.min(1, ((x - pr.x) * dx + (cy - pr.y) * dy) / (dx * dx + dy * dy))) : 0;
+    const hx = pr.x + dx * t, hy = pr.y + dy * t;
+    const radius = wd?.blastRadius ?? td?.radius ?? PLAYER_W;
+    if (Math.hypot(x - hx, cy - hy) <= radius + PLAYER_W / 2 && lineOfSight(w.map, hx, hy, x, cy)) hazards++;
+  }
+  return hazards;
+}
+
 export function respawn(w: World, p: Player): void {
   const s = w.settings;
-  const teamSpawns = w.map.spawns.filter((sp) => (isTeamMode(s) || s.mode === "survival" ? sp.team === p.team : true));
+  const teamSpawns = w.map.spawns.filter((sp) => (isTeamMode(s) || s.mode === "survival" || s.mode === "training" ? sp.team === p.team : true));
   const spawns = teamSpawns.length > 0 ? teamSpawns : w.map.spawns;
   const foes = [...w.players.values()].filter((o) => o.alive && enemies(w, p, o));
   let best = spawns[0];
   let bestScore = -Infinity;
   for (const sp of spawns) {
-    const nearest = foes.reduce((m, o) => Math.min(m, Math.hypot(o.x - sp.x, o.y - sp.y)), 5000);
-    const score = nearest + rng(w) * 60;
+    const body = { x: sp.x - PLAYER_W / 2, y: sp.y - PLAYER_H, w: PLAYER_W, h: PLAYER_H };
+    if (w.map.solids.some(solid => overlaps(body, solid))) continue;
+    let nearest = 5000, exposure = 0;
+    for (const foe of foes) {
+      const distance = Math.hypot(foe.x - sp.x, foe.y - sp.y);
+      nearest = Math.min(nearest, distance);
+      const range = WEAPONS[foe.slots[foe.active]?.weapon ?? "mini-eagle"].range;
+      if (distance < range && lineOfSight(w.map, foe.x, foe.y - heightOf(foe) / 2, sp.x, sp.y - PLAYER_H / 2))
+        exposure += (range - distance) * 1.25;
+    }
+    const score = nearest - exposure - spawnHazards(w, p, sp.x, sp.y) * 20_000 + rng(w) * 60;
     if (score > bestScore) {
       bestScore = score;
       best = sp;
@@ -317,6 +372,7 @@ export function respawn(w: World, p: Player): void {
     flashUntil: 0,
     flashStrength: 0,
     regenAt: w.tick + HEALTH_REGEN_DELAY_TICKS,
+    revealUntil: 0,
     prevButtons: 0,
   });
   p.slots = [freshSlot(s.loadout[0]), s.loadout[1] ? freshSlot(s.loadout[1]) : null, s.loadout[2] ? freshSlot(s.loadout[2]) : null];
@@ -369,11 +425,12 @@ export function killPlayer(w: World, victim: Player, killer: Player | null, weap
   victim.alive = false;
   victim.hp = 0;
   victim.jetting = false;
+  for (const slot of victim.slots) if (slot) { slot.chargeTicks = 0; slot.burstRemaining = 0; slot.reloadEnd = 0; }
   victim.deaths++;
   victim.respawnTick = w.tick + w.settings.respawnSec * TICK_RATE;
 
   const held = victim.slots[victim.active];
-  if (held && !w.settings.loadout.includes(held.weapon)) dropWeapon(w, victim.x, victim.y - 10, { ...held, reloadEnd: 0 });
+  if (held && !w.settings.loadout.includes(held.weapon)) dropWeapon(w, victim.x, victim.y - 12, { ...held, reloadEnd: 0 }, victim.vx, victim.vy);
 
   const credited = killer !== null && enemies(w, killer, victim);
   if (credited) {
@@ -396,8 +453,8 @@ export function killPlayer(w: World, victim: Player, killer: Player | null, weap
   w.events.push({ t: "kill", killer: credited ? killer.id : null, attacker: killer?.id ?? null, victim: victim.id, w: weapon });
 }
 
-function dropWeapon(w: World, x: number, y: number, slot: SlotState): void {
-  const gy = groundBelow(w.map, x, y);
+function dropWeapon(w: World, x: number, y: number, slot: SlotState, vx = 0, vy = 0): void {
+  const gy = w.map.physics === "space" ? y : groundBelow(w.map, x, y);
   if (gy > w.map.height) return;
   w.pickups.push({
     id: w.nextId++,
@@ -405,11 +462,13 @@ function dropWeapon(w: World, x: number, y: number, slot: SlotState): void {
     item: slot.weapon,
     x,
     y: gy,
+    vx: w.map.physics === "space" ? vx : 0,
+    vy: w.map.physics === "space" ? vy : 0,
     spawnIndex: -1,
     respawnTicks: 0,
     availableAt: 0,
     expiresAt: w.tick + DROPPED_WEAPON_TTL_TICKS,
-    slot,
+    slot: { ...slot, reloadEnd: 0, burstRemaining: 0, nextBurstTick: 0, chargeTicks: 0 },
   });
 }
 
@@ -425,10 +484,12 @@ function nearPickup(w: World, p: Player, pk: Pickup): boolean {
     lineOfSight(w.map, p.x, p.y - 12, pk.x, pk.y - 1);
 }
 
-function startReload(w: World, p: Player, slot: SlotState): void {
+function startReload(w: World, p: Player, slot: SlotState, automatic = false): void {
   const def = WEAPONS[slot.weapon];
-  if (def.category === "equipment" || slot.reloadEnd !== 0 || slot.mag >= def.mag) return;
-  if (!w.settings.unlimitedAmmo && slot.reserve <= 0) return;
+  if (def.category === "equipment" || slot.reloadEnd !== 0 || slot.mag >= def.mag || (def.autoRefill && !automatic)) return;
+  if (!def.autoRefill && !w.settings.unlimitedAmmo && slot.reserve <= 0) return;
+  slot.burstRemaining = 0;
+  slot.chargeTicks = 0;
   slot.reloadEnd = w.tick + ticks(def.reloadMs);
   w.events.push({ t: "reload", id: p.id });
 }
@@ -436,9 +497,9 @@ function startReload(w: World, p: Player, slot: SlotState): void {
 function finishReload(w: World, slot: SlotState): void {
   const def = WEAPONS[slot.weapon];
   const need = def.mag - slot.mag;
-  const take = w.settings.unlimitedAmmo ? need : Math.min(need, slot.reserve);
+  const take = def.autoRefill || w.settings.unlimitedAmmo ? need : Math.min(need, slot.reserve);
   slot.mag += take;
-  if (!w.settings.unlimitedAmmo) slot.reserve -= take;
+  if (!def.autoRefill && !w.settings.unlimitedAmmo) slot.reserve -= take;
   slot.reloadEnd = 0;
 }
 
@@ -450,7 +511,7 @@ function equipSelected(w: World, p: Player): void {
     for (const index of [0, 1, 2] as const) {
       const slot = p.slots[index];
       if (slot?.weapon !== "riot-shield") continue;
-      dropWeapon(w, p.x, p.y - 10, { ...slot, reloadEnd: 0 });
+      dropWeapon(w, p.x, p.y - 12, { ...slot, reloadEnd: 0 }, p.vx, p.vy);
       p.slots[index] = null;
     }
   } else if (selected.weapon === "riot-shield" || selected.weapon === "machete") {
@@ -463,7 +524,7 @@ function switchTo(w: World, p: Player, idx: SlotIndex): void {
   if (!p.slots[idx]) return;
   if (idx !== p.active) {
     const cur = p.slots[p.active];
-    if (cur && !p.dual) cur.reloadEnd = 0;
+    if (cur) { cur.burstRemaining = 0; cur.chargeTicks = 0; }
     p.active = idx;
   }
   equipSelected(w, p);
@@ -539,6 +600,7 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
   p.cooldownUntil = slot.cooldownUntil;
   p.protectUntil = 0;
   statsFor(p, def.id).shots++;
+  p.revealUntil = w.tick + CONCEAL_REVEAL_TICKS;
   combat(w, p);
   if (def.behavior === "melee") { melee(w, p, def.damage, def.range, def.id); return; }
   slot.mag--;
@@ -582,13 +644,9 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
         }
         if (def.behavior === "flame" && burned.has(hit.p.id)) continue;
         burned.add(hit.p.id);
-        const falloffStart = def.effectiveRange ?? def.range * .65;
-        const minimum = def.minRangeDamage ?? (def.category === "shotgun" ? .3 : .55);
-        const falloff = def.behavior === "hitscan" && hit.distance > falloffStart
-          ? 1 - (1 - minimum) * Math.min(1, (hit.distance - falloffStart) / Math.max(1, def.range - falloffStart)) : 1;
-        const headMultiplier = headHit(hit.body, oy + dy * hit.distance) ? def.headshotMultiplier ?? 1 : 1;
-        if (def.behavior === "emp") disableFlight(w, hit.p, def.empMs!, p.id);
-        landed = applyDamage(w, hit.p, p.id, def.damage * falloff * headMultiplier * w.settings.damage, def.id) > 0 || landed;
+        const crouched = rewound ? rewound.crouched.has(hit.p.id) : hit.p.crouch;
+        const headMultiplier = !crouched && headHit(hit.body, oy + dy * hit.distance) ? def.headshotMultiplier ?? 1 : 1;
+        landed = applyDamage(w, hit.p, p.id, def.damage * headMultiplier * w.settings.damage, def.id) > 0 || landed;
         if (def.behavior !== "beam") { dist = hit.distance; break; }
       }
       suppressNearShot(w, p, ox, oy, ox + dx * dist, oy + dy * dist);
@@ -601,6 +659,7 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
 
 function melee(w: World, p: Player, damage = MELEE_DAMAGE, range = MELEE_RANGE, weapon = "melee"): void {
   p.meleeUntil = w.tick + MELEE_COOLDOWN_TICKS;
+  p.revealUntil = w.tick + CONCEAL_REVEAL_TICKS;
   combat(w, p);
   suppressNearShot(w, p, p.x, p.y - heightOf(p) / 2, p.x + Math.cos(p.aim) * range, p.y - heightOf(p) / 2, 60);
   p.protectUntil = 0;
@@ -627,6 +686,7 @@ function throwGrenade(w: World, p: Player): void {
   const thrown = p.throwable;
   p.throwables[thrown]--;
   statsFor(p, def.id).shots++;
+  p.revealUntil = w.tick + CONCEAL_REVEAL_TICKS;
   combat(w, p);
   p.throwUntil = w.tick + 24;
   p.protectUntil = 0;
@@ -683,7 +743,7 @@ function tryPickupWeapon(w: World, p: Player): void {
       switchTo(w, p, empty as SlotIndex);
     } else {
       const old = p.slots[p.active]!;
-      dropWeapon(w, p.x, p.y - 10, { ...old, reloadEnd: 0 });
+      dropWeapon(w, p.x, p.y - 12, { ...old, reloadEnd: 0 }, p.vx, p.vy);
       p.slots[p.active] = incoming;
       equipSelected(w, p);
     }
@@ -696,7 +756,7 @@ function tryPickupWeapon(w: World, p: Player): void {
 function dropActive(w: World, p: Player): void {
   const slot = p.slots[p.active];
   if (!slot) return;
-  dropWeapon(w, p.x, p.y - 10, { ...slot, reloadEnd: 0 });
+  dropWeapon(w, p.x, p.y - 12, { ...slot, reloadEnd: 0 }, p.vx, p.vy);
   p.slots[p.active] = null;
   p.dual = false;
   cycleSlot(w, p);
@@ -749,16 +809,20 @@ function advanceProjectile(w: World, pr: Projectile, maxDistance = Infinity): { 
   const wd = pr.weapon ? WEAPONS[pr.weapon] : undefined;
   const td = THROWABLES[pr.kind];
   const gravity = wd?.projectileGravity ?? 1;
-  pr.vy += GRAVITY * w.settings.gravity * gravity * DT;
+  pr.vy += gravityFor(w.map, w.settings) * gravity * DT;
   const dx = pr.vx * DT, dy = pr.vy * DT, length = Math.hypot(dx, dy);
   if (length === 0) return { x: pr.x, y: pr.y, wall: false, distance: 0 };
   const ux = dx / length, uy = dy / length;
   let distance = Math.min(length, maxDistance), hit: Rect | null = null;
-  for (const r of w.map.solids) {
+  for (const solid of w.map.solids) {
+    const radius = pr.radius ?? 0;
+    const r = radius ? { x: solid.x - radius, y: solid.y - radius, w: solid.w + radius * 2, h: solid.h + radius * 2 } : solid;
     const d = rayRect(pr.x, pr.y, ux, uy, r);
     if (d <= distance) { distance = d; hit = r; }
   }
-  if (dy > 0) for (const r of w.map.platforms) {
+  if (dy > 0) for (const platform of w.map.platforms) {
+    const radius = pr.radius ?? 0;
+    const r = { ...platform, x: platform.x - radius, y: platform.y - radius, w: platform.w + radius * 2 };
     if (pr.y > r.y + .01) continue;
     const d = (r.y - pr.y) / uy, x = pr.x + ux * d;
     if (d >= 0 && d <= distance && x >= r.x && x <= r.x + r.w) { distance = d; hit = r; }
@@ -783,12 +847,13 @@ function advanceProjectile(w: World, pr: Projectile, maxDistance = Infinity): { 
 
 function stepProjectiles(w: World): void {
   const keep: Projectile[] = [];
+  const disarmed = new Set<number>();
   for (const pr of w.projectiles) {
     const wd = pr.weapon ? WEAPONS[pr.weapon] : undefined;
     const td = THROWABLES[pr.kind];
     if (!wd && !td) continue;
     const ox = pr.x, oy = pr.y;
-    let wall = false, shieldHit = false, playerHit: Player | null = null;
+    let wall = false, blockedByShield = false, playerHit: Player | null = null;
     if (!pr.stuck) {
       const step = advanceProjectile(w, pr, wd ? Math.max(0, wd.range - (pr.traveled ?? 0)) : Infinity);
       if (wd) pr.traveled = (pr.traveled ?? 0) + step.distance;
@@ -796,43 +861,75 @@ function stepProjectiles(w: World): void {
       if (shooter && wd) suppressNearShot(w, shooter, ox, oy, step.x, step.y, 110);
       wall = step.wall;
       if (wd) {
-        const distance = Math.hypot(step.x - ox, step.y - oy);
-        if (distance > 0) {
-          const dx = (step.x - ox) / distance, dy = (step.y - oy) / distance;
-          let nearest = distance + .001;
-          const owner = w.players.get(pr.owner);
+        const length = Math.hypot(step.x - ox, step.y - oy);
+        if (length > 0) {
+          const dx = (step.x - ox) / length, dy = (step.y - oy) / length;
+          const hits: { player: Player; at: number; shield: boolean }[] = [];
           for (const victim of w.players.values()) {
-            if (!victim.alive || victim.id === pr.owner || (owner && sameTeam(w, owner, victim) && !w.settings.friendlyFire)) continue;
+            if (!victim.alive || victim.id === pr.owner || pr.hitIds?.includes(victim.id) ||
+                (shooter && sameTeam(w, shooter, victim) && !w.settings.friendlyFire)) continue;
             const body = boxOf(victim);
-            const hitAt = rayRect(ox, oy, dx, dy, body);
-            if (hitAt < nearest) { nearest = hitAt; playerHit = victim; shieldHit = false; }
-            if (wd.id === "saw-launcher" && shieldRaised(victim)) {
-              const panelAt = rayRect(ox, oy, dx, dy, shieldBox(body, victim.aim));
-              if (panelAt < nearest) { nearest = panelAt; playerHit = victim; shieldHit = true; }
-            }
+            const at = rayRect(ox, oy, dx, dy, body);
+            const shieldAt = ["saw-launcher", "m14", "emp-gun"].includes(wd.id) && shieldRaised(victim)
+              ? rayRect(ox, oy, dx, dy, shieldBox(body, victim.aim)) : Infinity;
+            const nearest = Math.min(at, shieldAt);
+            if (nearest <= length) hits.push({ player: victim, at: nearest, shield: shieldAt <= at });
           }
-          if (playerHit) { pr.x = ox + dx * nearest; pr.y = oy + dy * nearest; }
+          hits.sort((a, b) => a.at - b.at || a.player.id - b.player.id);
+          const first = hits[0];
+          // A pulse is consumed by its first mine or actor; a wall already bounds the segment.
+          let mine: { id: number; at: number } | undefined;
+          if (wd.id === "emp-gun") for (const candidate of w.projectiles) {
+            if (candidate.kind !== "mine" || disarmed.has(candidate.id)) continue;
+            const mineOwner = w.players.get(candidate.owner);
+            if (shooter && mineOwner && mineOwner !== shooter && sameTeam(w, shooter, mineOwner) && !w.settings.friendlyFire) continue;
+            const at = rayRect(ox, oy, dx, dy, { x: candidate.x - 9, y: candidate.y - 9, w: 18, h: 18 });
+            if (at <= length && (!mine || at < mine.at)) mine = { id: candidate.id, at };
+          }
+          if (mine && (!first || mine.at < first.at)) { disarmed.add(mine.id); continue; }
+          if (wd.id === "saw-launcher") {
+            pr.hitIds ??= [];
+            for (const hit of hits) {
+              if (hit.shield) {
+                w.events.push({ t: "shield", id: hit.player.id }); combat(w, hit.player);
+                pr.x = ox + dx * hit.at; pr.y = oy + dy * hit.at; blockedByShield = true; break;
+              }
+              applyDamage(w, hit.player, pr.owner, wd.damage * w.settings.damage, wd.id);
+              pr.hitIds.push(hit.player.id);
+            }
+          } else if (first) {
+            playerHit = first.player;
+            pr.x = ox + dx * first.at; pr.y = oy + dy * first.at;
+            blockedByShield = first.shield;
+          }
         }
       }
       if (td?.effect === "mine" && wall) {
-        pr.stuck = true; pr.vx = 0; pr.vy = 0;
-        pr.armedAt = w.tick + ticks(td.armMs!);
+        pr.stuck = true; pr.vx = 0; pr.vy = 0; pr.armedAt = w.tick + ticks(td.armMs!);
       }
     }
     if (pr.x < -OUT_OF_BOUNDS_MARGIN || pr.x > w.map.width + OUT_OF_BOUNDS_MARGIN ||
         pr.y > w.map.height + OUT_OF_BOUNDS_MARGIN || pr.y < -OUT_OF_BOUNDS_MARGIN) continue;
     if (wd?.id === "saw-launcher") {
+      if (wall) pr.bounces = (pr.bounces ?? 0) + 1;
+      if (blockedByShield || (pr.bounces ?? 0) >= 4 || w.tick >= pr.explodeTick ||
+          (pr.traveled ?? 0) >= wd.range || (pr.hitIds?.length ?? 0) >= 32) {
+        explode(w, pr); continue;
+      }
+    } else if (wd?.id === "m14" || wd?.id === "emp-gun") {
       if (playerHit) {
-        if (shieldHit) { w.events.push({ t: "shield", id: playerHit.id }); combat(w, playerHit); }
-        else applyDamage(w, playerHit, pr.owner, wd.damage * w.settings.damage, wd.id);
+        if (blockedByShield) { w.events.push({ t: "shield", id: playerHit.id }); combat(w, playerHit); }
+        else {
+          if (wd.id === "emp-gun") disableFlight(w, playerHit, wd.empMs!, pr.owner);
+          applyDamage(w, playerHit, pr.owner, wd.damage * w.settings.damage, wd.id);
+        }
         continue;
       }
-      if (wall) pr.bounces = (pr.bounces ?? 0) + 1;
-      if ((pr.bounces ?? 0) >= 4 || w.tick >= pr.explodeTick || (pr.traveled ?? 0) >= wd.range) continue;
+      if (wall || w.tick >= pr.explodeTick || (pr.traveled ?? 0) >= wd.range) continue;
     } else if (wd && (playerHit || (wall && wd.id !== "rg6") || w.tick >= pr.explodeTick || (pr.traveled ?? 0) >= wd.range)) {
       explode(w, pr); continue;
     } else if (td?.effect === "mine") {
-      if (w.tick >= pr.explodeTick) continue;
+      if (w.tick >= pr.explodeTick || disarmed.has(pr.id)) continue;
       if (pr.stuck && w.tick >= (pr.armedAt ?? Infinity)) {
         const owner = w.players.get(pr.owner);
         const triggered = [...w.players.values()].some((target) => target.alive && target.id !== pr.owner &&
@@ -843,7 +940,7 @@ function stepProjectiles(w: World): void {
     } else if (td && w.tick >= pr.explodeTick) { explode(w, pr); continue; }
     keep.push(pr);
   }
-  w.projectiles = keep;
+  w.projectiles = keep.filter((p) => !disarmed.has(p.id));
 }
 
 function explode(w: World, pr: Projectile): void {
@@ -875,14 +972,24 @@ function explode(w: World, pr: Projectile): void {
   }
   w.events.push({ t: "explode", x: Math.round(pr.x), y: Math.round(pr.y), r: radius });
   const ey = pr.y - 2;
+  const owner = w.players.get(pr.owner);
   for (const other of w.players.values()) {
     if (!other.alive) continue;
-    const cy = other.y - heightOf(other) / 2;
+    const cy = other.y - 22;
     const d = Math.hypot(other.x - pr.x, cy - ey);
     if (d > radius || !lineOfSight(w.map, pr.x, ey, other.x, cy)) continue;
     if (td?.effect === "emp") disableFlight(w, other, td.durationMs!, pr.owner);
     const maximum = wd?.damage ?? td.maxDamage, minimum = wd ? maximum * .15 : td.minDamage;
-    const dmg = maximum - (maximum - minimum) * (d / radius);
+    const crouchFactor = other.crouch && other.onGround && td?.effect !== "emp" ? .65 : 1;
+    const dmg = (maximum - (maximum - minimum) * (d / radius)) * crouchFactor;
+    if (w.tick >= other.protectUntil && !(owner && owner !== other && sameTeam(w, owner, other) && !w.settings.friendlyFire) && td?.effect !== "emp") {
+      const impulse = 420 * (1 - d / radius);
+      const dx = other.x - pr.x, dy = cy - ey;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      other.vx = Math.max(-650, Math.min(650, other.vx + dx / length * impulse));
+      other.vy = Math.max(-650, Math.min(650, other.vy + (length === 1 && dx === 0 && dy === 0 ? -1 : dy / length) * impulse));
+      other.onGround = false;
+    }
     applyDamage(w, other, pr.owner, dmg * w.settings.damage, wd?.id ?? td.id);
   }
 }
@@ -914,6 +1021,11 @@ export function dropFlags(w: World, playerId: number): void {
   for (const flag of w.flags) {
     if (flag.state !== "carried" || flag.carrier !== playerId) continue;
     Object.assign(flag, { state: "dropped", carrier: null, x: p?.x ?? flag.x, y: p ? p.y - 12 : flag.y, vx: p?.vx ?? 0, vy: p?.vy ?? 0 });
+    if (w.map.physics === "space") {
+      // Keep inertia, bounded below the slowest equipped player's thrust cap.
+      const speed = Math.hypot(flag.vx, flag.vy), cap = SPACE_SPEED * w.settings.moveSpeed * .55;
+      if (speed > cap) { flag.vx *= cap / speed; flag.vy *= cap / speed; }
+    }
     w.events.push({ t: "flag", owner: flag.owner, action: "drop", by: playerId });
   }
 }
@@ -927,7 +1039,7 @@ function prepareFlags(w: World): void {
     }
     if (flag.state !== "dropped") continue;
     // Dropped flags are physical objects without any return timer.
-    const body: Projectile = { id: -1, kind: "mine", owner: -1, x: flag.x, y: flag.y, vx: flag.vx, vy: flag.vy, explodeTick: Infinity };
+    const body: Projectile = { id: -1, kind: "mine", owner: -1, x: flag.x, y: flag.y, vx: flag.vx, vy: flag.vy, explodeTick: Infinity, radius: w.map.physics === "space" ? 10 : 0 };
     advanceProjectile(w, body);
     flag.x = body.x; flag.y = body.y; flag.vx = body.vx; flag.vy = body.vy;
     if (flag.x < 0 || flag.x > w.map.width || flag.y < 0 || flag.y > w.map.height) {
@@ -1021,13 +1133,14 @@ function stepSurvival(w: World): void {
 }
 
 function recordHistory(w: World): void {
-  const boxes = new Map<number, Rect>(), shields = new Map<number, Rect>();
+  const boxes = new Map<number, Rect>(), shields = new Map<number, Rect>(), crouched = new Set<number>();
   for (const p of w.players.values()) if (p.alive) {
     const body = boxOf(p);
     boxes.set(p.id, body);
+    if (p.crouch) crouched.add(p.id);
     if (shieldRaised(p)) shields.set(p.id, shieldBox(body, p.aim));
   }
-  w.history.push({ tick: w.tick, boxes, shields });
+  w.history.push({ tick: w.tick, boxes, shields, crouched });
   if (w.history.length > LAG_COMP_MAX_TICKS + 2) w.history.shift();
 }
 
@@ -1047,7 +1160,8 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
     if (p.connected && inp && Number.isFinite(inp.aim)) p.aim = Math.atan2(Math.sin(inp.aim), Math.cos(inp.aim));
     const pressed = b & ~p.prevButtons;
     p.prevButtons = b;
-    stepMovement(p, w.tick < p.empUntil ? b & ~Btn.JET : b, w.map, w.settings);
+    stepMovement(p, b, w.map, w.settings, { thrustDisabled: w.tick < p.empUntil,
+      movementMultiplier: equippedMovementMultiplier(p.slots, p.active, p.dual ? dualPartner(p) : null) });
     actions.set(p.id, { b, pressed, inp });
   }
   // Collecting ends protection before this tick's damage is resolved.
@@ -1066,15 +1180,44 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
     for (const slot of p.slots) if (slot && slot.reloadEnd > 0 && w.tick >= slot.reloadEnd) finishReload(w, slot);
     const partner = p.dual ? dualPartner(p) : null;
     const activeSlots = partner === null ? [p.slots[p.active]] : [p.slots[p.active], p.slots[partner]];
+    for (const slot of p.slots) {
+      if (!slot) continue;
+      if (!activeSlots.includes(slot) || !p.connected || !inp) { slot.burstRemaining = 0; slot.chargeTicks = 0; }
+    }
     for (const slot of activeSlots) {
       if (!slot) continue;
-      if (pressed & Btn.RELOAD) startReload(w, p, slot);
       const def = WEAPONS[slot.weapon];
-      const wantFire = def.auto || (b & Btn.CONTINUOUS_FIRE) !== 0 ? (b & Btn.FIRE) !== 0 : (pressed & Btn.FIRE) !== 0;
-      if (wantFire && w.tick >= slot.cooldownUntil && slot.reloadEnd === 0) {
-        if (slot.mag > 0 || def.category === "equipment") fire(w, p, slot, inp?.view);
-        else startReload(w, p, slot);
+      if (pressed & Btn.RELOAD) startReload(w, p, slot);
+      const held = !!(b & Btn.FIRE);
+      const continuous = def.auto || !!(b & Btn.CONTINUOUS_FIRE);
+      const trigger = continuous ? held : !!(pressed & Btn.FIRE);
+      if (!held) slot.chargeTicks = Math.max(0, (slot.chargeTicks ?? 0) - 2);
+      if (slot.reloadEnd !== 0) continue;
+      if (def.chargeMs && held && (continuous || trigger || (slot.chargeTicks ?? 0) > 0)) {
+        slot.chargeTicks = Math.min(ticks(def.chargeMs), (slot.chargeTicks ?? 0) + 1);
       }
+      const charged = !def.chargeMs || (slot.chargeTicks ?? 0) >= ticks(def.chargeMs);
+      if (def.burstCount) {
+        if (trigger && !slot.burstRemaining && w.tick >= slot.cooldownUntil) {
+          slot.burstRemaining = def.burstCount;
+          slot.nextBurstTick = w.tick;
+        }
+        // A click commits one finite burst. Released input completes it; a
+        // missing input, switch, reload or disconnected actor cancels it above.
+        if (slot.burstRemaining && w.tick >= (slot.nextBurstTick ?? 0)) {
+          if (slot.mag > 0) {
+            fire(w, p, slot, inp?.view);
+            slot.burstRemaining--;
+            slot.nextBurstTick = w.tick + ticks(def.burstIntervalMs ?? 90);
+          } else startReload(w, p, slot, true);
+        }
+      } else if (charged && held && (trigger || !!def.chargeMs) && w.tick >= slot.cooldownUntil) {
+        if (slot.mag > 0 || def.category === "equipment") {
+          fire(w, p, slot, inp?.view);
+          if (def.chargeMs && !def.auto) slot.chargeTicks = 0;
+        } else startReload(w, p, slot, true);
+      }
+      if (def.autoRefill && slot.mag === 0) startReload(w, p, slot, true);
     }
     if (pressed & Btn.MELEE && w.tick >= p.meleeUntil) {
       const blade = activeSlots.some((slot) => slot?.weapon === "machete");
@@ -1085,12 +1228,20 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
     if (pressed & Btn.PICKUP) tryPickupWeapon(w, p);
     if (pressed & Btn.DROP) dropActive(w, p);
     if (p.alive) autoPickups(w, p);
-    if (p.alive && (p.y > w.map.height + OUT_OF_BOUNDS_MARGIN || p.x < -OUT_OF_BOUNDS_MARGIN || p.x > w.map.width + OUT_OF_BOUNDS_MARGIN)) {
+    if (p.alive && ((w.map.physics === "space" && p.y < -OUT_OF_BOUNDS_MARGIN) || p.y > w.map.height + OUT_OF_BOUNDS_MARGIN || p.x < -OUT_OF_BOUNDS_MARGIN || p.x > w.map.width + OUT_OF_BOUNDS_MARGIN)) {
       p.protectUntil = 0;
       applyDamage(w, p, null, p.hp, "fall");
     }
   }
   stepProjectiles(w);
+  if (w.map.physics === "space") for (const pickup of w.pickups) {
+    if (pickup.spawnIndex >= 0) continue;
+    const body: Projectile = { id: pickup.id, kind: "mine", owner: -1, x: pickup.x, y: pickup.y,
+      vx: pickup.vx ?? 0, vy: pickup.vy ?? 0, explodeTick: Infinity, radius: 6 };
+    advanceProjectile(w, body);
+    Object.assign(pickup, { x: body.x, y: body.y, vx: body.vx, vy: body.vy });
+    if (pickup.x < 0 || pickup.x > w.map.width || pickup.y < 0 || pickup.y > w.map.height) pickup.expiresAt = w.tick;
+  }
   stepAreas(w);
   regenerate(w);
   // All attacks and environmental damage resolve before either team's deliveries.
@@ -1192,6 +1343,8 @@ export function computeResult(
     endedAt: new Date().toISOString(),
     scoringNote: scoringNote(mode),
     wavesCleared: w.survival?.cleared,
+    rulesVersion: GAMEPLAY_VERSION,
+    mapVersion: w.map.version ?? 1,
   };
 }
 
@@ -1208,6 +1361,7 @@ export function snapPlayer(w: World, p: Player): PlayerSnap {
     (p.connected ? PF.CONNECTED : 0);
   return {
     id: p.id,
+    revealUntil: p.revealUntil,
     x: r2(p.x),
     y: r2(p.y),
     vx: r2(p.vx),

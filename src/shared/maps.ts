@@ -1,3 +1,4 @@
+import { REFERENCE_MAPS } from "./reference-maps.ts";
 import type { MapDefinition, Rect } from "./types.ts";
 
 // Terrain is authored as a union of rectangles. The renderer outlines that exact
@@ -185,4 +186,4 @@ const testRange:MapDefinition={id:"test-range",name:"Test Range",width:1800,heig
     ...["frag","flash","gas","emp","mine"].map((item,i)=>({x:180+i*320,y:900,kind:"throwable" as const,item,respawnSec:5}))],
   goals:[],flagHomes:[],navNodes:Array.from({length:11},(_,i)=>({x:100+150*i,y:900})),scenery:[{kind:"crate",x:60,y:900,w:30,h:30}],
 };
-export const MAPS:Record<string,MapDefinition>={[cryptworks.id]:cryptworks,[crosscurrent.id]:crosscurrent,[skyshaft.id]:skyshaft,[outpostYard.id]:outpostYard,[siroccoDunes.id]:siroccoDunes,[sunspirePalace.id]:sunspirePalace,[testRange.id]:testRange};
+export const MAPS:Record<string,MapDefinition>={...REFERENCE_MAPS,[cryptworks.id]:cryptworks,[crosscurrent.id]:crosscurrent,[skyshaft.id]:skyshaft,[outpostYard.id]:outpostYard,[siroccoDunes.id]:siroccoDunes,[sunspirePalace.id]:sunspirePalace,[testRange.id]:testRange};

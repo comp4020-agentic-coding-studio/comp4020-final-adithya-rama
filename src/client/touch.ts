@@ -1,5 +1,7 @@
 import { Btn } from "../shared/types.ts";
 import type { Input } from "./input.ts";
+import { TouchLayoutEditor } from "./touch-layout.ts";
+import type { TouchLayout } from "../shared/touch-layout.ts";
 
 const DEAD = 0.25;
 const FIRE_AT = 0.55;
@@ -17,6 +19,7 @@ interface Stick {
 // Mini Militia-style twin sticks: the left stick runs, flies (up) and crouches
 // (down); the right stick aims and fires when pushed past FIRE_AT.
 export class TouchControls {
+  private layoutEditor: TouchLayoutEditor;
   private left: Stick;
   private right: Stick;
   private buttons = 0;
@@ -26,35 +29,36 @@ export class TouchControls {
   private unsubscribeClear: () => void;
   readonly root: HTMLElement;
   private input: Input;
-  private actions: { scoreboard(): void; menu(): void; zoom(on: boolean): void };
+  private actions: { scoreboard(): void; menu(): void; zoom(on: boolean): void; scope?():void };
 
-  constructor(parent: HTMLElement, input: Input, actions: { scoreboard(): void; menu(): void; zoom(on: boolean): void }) {
+  constructor(parent: HTMLElement, input: Input, actions: { scoreboard(): void; menu(): void; zoom(on: boolean): void; scope?():void }, layout?:unknown) {
     this.input = input;
     this.actions = actions;
     this.root = document.createElement("div");
     this.root.className = "touch";
     this.root.setAttribute("aria-label","Touch game controls");
     this.root.innerHTML = `
-      <div class="stick left"><div class="knob"></div></div>
-      <div class="stick right"><div class="knob"></div></div>
+      <div class="stick left" data-control="move"><div class="knob"></div></div>
+      <div class="stick right" data-control="aim"><div class="knob"></div></div>
       <div class="tbtns">
-        <button data-b="${Btn.JUMP}">Jump</button>
-        <button data-b="${Btn.RELOAD}">Reload</button>
-        <button data-b="${Btn.SWITCH}">Swap</button>
-        <button data-b="${Btn.DUAL}">Dual</button>
-        <button data-b="${Btn.SLOT1}">Slot 1</button>
-        <button data-b="${Btn.SLOT2}">Slot 2</button>
-        <button data-b="${Btn.SLOT3}">Slot 3</button>
-        <button data-b="${Btn.THROW}">Throw</button>
-        <button data-b="${Btn.NEXT_THROWABLE}">Type</button>
-        <button data-b="${Btn.MELEE}">Melee</button>
-        <button data-b="${Btn.PICKUP}">Pick up</button>
-        <button data-b="${Btn.DROP}">Drop</button>
-        <button data-zoom>Zoom</button>
+        <button data-control="jump" data-b="${Btn.JUMP}">Jump</button>
+        <button data-control="reload" data-b="${Btn.RELOAD}">Reload</button>
+        <button data-control="swap" data-b="${Btn.SWITCH}">Swap</button>
+        <button data-control="dual" data-b="${Btn.DUAL}">Dual</button>
+        <button data-control="slot1" data-b="${Btn.SLOT1}">Slot 1</button>
+        <button data-control="slot2" data-b="${Btn.SLOT2}">Slot 2</button>
+        <button data-control="slot3" data-b="${Btn.SLOT3}">Slot 3</button>
+        <button data-control="throw" data-b="${Btn.THROW}">Throw</button>
+        <button data-control="type" data-b="${Btn.NEXT_THROWABLE}">Type</button>
+        <button data-control="melee" data-b="${Btn.MELEE}">Melee</button>
+        <button data-control="pickup" data-b="${Btn.PICKUP}">Pick up</button>
+        <button data-control="drop" data-b="${Btn.DROP}">Drop</button>
+        <button data-control="descend" data-b="${Btn.DESCEND}">Descend</button>
+        <button data-control="scope" data-zoom>Scope</button>
       </div>
       <div class="tmeta">
-        <button data-score>Score</button>
-        <button data-menu>Menu</button>
+        <button data-control="score" data-score>Score</button>
+        <button data-control="menu" data-menu>Menu</button>
       </div>`;
     parent.appendChild(this.root);
     this.root.querySelector(".stick.left")?.setAttribute("aria-label","Move left or right; push up to fly; down to crouch");
@@ -70,6 +74,7 @@ export class TouchControls {
     for (const b of this.root.querySelectorAll<HTMLButtonElement>("[data-b]")) {
       const bit = Number(b.dataset.b);
       b.addEventListener("pointerdown", (e) => {
+        if(!this.input.enabled)return;
         e.preventDefault();
         b.setPointerCapture(e.pointerId);
         this.buttonPointers.set(e.pointerId, { el: b, bit });
@@ -89,17 +94,22 @@ export class TouchControls {
     const zoom = this.root.querySelector<HTMLButtonElement>("[data-zoom]")!;
     this.zoomButton = zoom;
     zoom.addEventListener("click", () => {
+      if(!this.input.enabled)return;
+      if(this.actions.scope){this.actions.scope();return;}
       this.zoomed = !this.zoomed;
       zoom.classList.toggle("on", this.zoomed);
       this.actions.zoom(this.zoomed);
     });
-    this.root.querySelector("[data-score]")!.addEventListener("click", () => this.actions.scoreboard());
-    this.root.querySelector("[data-menu]")!.addEventListener("click", () => this.actions.menu());
+    this.root.querySelector("[data-score]")!.addEventListener("click", () => {if(this.input.enabled)this.actions.scoreboard();});
+    this.root.querySelector("[data-menu]")!.addEventListener("click", () => {if(this.input.enabled)this.actions.menu();});
     this.unsubscribeClear = this.input.onClear(() => this.reset());
+    this.layoutEditor = new TouchLayoutEditor(this.root);
+    this.layoutEditor.set(layout);
   }
 
   private bindStick(s: Stick): void {
     s.el.addEventListener("pointerdown", (e) => {
+      if(!this.input.enabled)return;
       e.preventDefault();
       s.el.setPointerCapture(e.pointerId);
       const r = s.el.getBoundingClientRect();
@@ -181,7 +191,19 @@ export class TouchControls {
     }
   }
 
+  setLayout(value:unknown):void {this.layoutEditor.set(value);}
+
+  resetLayout():void {this.input.clear();this.layoutEditor.reset();}
+
+  editLayout(onSave:(layout:TouchLayout)=>void,onDone?:()=>void):void {
+    if(this.layoutEditor.active)return;
+    const wasEnabled=this.input.enabled;
+    this.input.enabled=false;this.input.clear();
+    this.layoutEditor.edit(onSave,()=>{this.input.clear();if(onDone)onDone();else this.input.enabled=wasEnabled;});
+  }
+
   destroy(): void {
+    this.layoutEditor.destroy();
     this.unsubscribeClear();
     this.reset();
     this.root.remove();

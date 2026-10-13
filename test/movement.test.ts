@@ -58,11 +58,14 @@ describe("movement", () => {
     expect(q.y).toBe(900);
   });
 
-  it("lands on a one-way platform from above, rises through it from below, and drops through with crouch", () => {
+  it("lands on a one-way platform from above, rises through it from below, and drops through only with deliberate descent", () => {
     const p = at(400, 700);
     for (let i = 0; i < 60; i++) stepMovement(p, 0, FLAT, s);
     expect(p.y).toBe(800);
     for (let i = 0; i < 30; i++) stepMovement(p, Btn.CROUCH, FLAT, s);
+    expect(p.y).toBe(800);
+    expect(p.crouch).toBe(true);
+    stepMovement(p, Btn.DESCEND, FLAT, s);
     for (let i = 0; i < 60; i++) stepMovement(p, 0, FLAT, s);
     expect(p.y).toBe(900);
     for (let i = 0; i < 40; i++) stepMovement(p, Btn.JET, FLAT, s);
@@ -99,12 +102,15 @@ describe("movement", () => {
     expect(p.deaths).toBe(1);
   });
 
-  it("every map's spawns stand on ground", () => {
+  it("terrestrial spawns land while space spawns remain stationary", () => {
     for (const map of Object.values(MAPS)) {
       if (map.id === FLAT.id) continue;
       for (const sp of map.spawns) {
         const p = at(sp.x, sp.y - 1);
         for (let i = 0; i < 10; i++) stepMovement(p, 0, map, { ...s, map: map.id });
+        if (map.physics === "space") {
+          expect(p.y).toBe(sp.y - 1); expect(p.vy).toBe(0); continue;
+        }
         expect(p.onGround, `${map.id} spawn at ${sp.x},${sp.y}`).toBe(true);
         expect(p.y).toBe(sp.y);
       }

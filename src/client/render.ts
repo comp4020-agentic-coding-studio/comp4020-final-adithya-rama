@@ -1,10 +1,11 @@
+import { playArea } from "./play-area.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
 import { WEAPONS } from "../shared/weapons.ts";
 import type { AreaSnap, FlagState, MapDefinition, PickupSnap, ProjectileSnap, Team } from "../shared/types.ts";
 import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar, SKIN } from "./art.ts";
 import { advanceDebris, appendDebris, isRocketDeath, rocketDebris, type DeathDebris } from "./death.ts";
-import { drawBackdropLayer, drawScenery, drawTerrain } from "./environment-art.ts";
+import { drawBackdropLayer, drawScenery, drawTerrain, drawConcealment } from "./environment-art.ts";
 
 
 interface RenderProbe {
@@ -67,6 +68,13 @@ export interface RenderPlayer {
   avatar?: Avatar;
   vx?:number;
   vy?:number;
+  /** Normalized authoritative slot state, used only for presentation. */
+  charge?:number;
+  reload?:number;
+  otherCharge?:number;
+  otherReload?:number;
+  concealed?:boolean;
+  classicCover?:boolean;
 }
 
 interface Fx {
@@ -95,6 +103,8 @@ export class Renderer {
   private mapG = new Graphics();
   private pickupG = new Graphics();
   private playerG = new Graphics();
+  private concealmentG = new Graphics();
+  private outlineG = new Graphics();
   private projG = new Graphics();
   private fxG = new Graphics();
   private flagG = new Graphics();
@@ -108,8 +118,10 @@ export class Renderer {
   private map: MapDefinition | null = null;
   private scale = 1;
   private cam = { x: 0, y: 0 };
+  private cameraAt=0;
   shake = 0;
   reducedShake = false;
+  reducedBlood = false;
   private probe:RenderProbe|null=null;
   private resizeQuality:(()=>void)|null=null;
 
@@ -154,7 +166,7 @@ export class Renderer {
     this.backdrop.addChild(this.backdropSky,...this.backdropLayers);
     this.app.stage.addChild(this.backdrop, this.world);
     this.staticWorld.addChild(this.mapG,this.decor);
-    this.world.addChild(this.staticWorld, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.fxG, this.labelLayer);
+    this.world.addChild(this.staticWorld, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.concealmentG, this.outlineG, this.fxG, this.labelLayer);
   }
 
   get canvas(): HTMLCanvasElement {
@@ -163,7 +175,10 @@ export class Renderer {
 
   setMap(map: MapDefinition, showObjectives = false): void {
     this.map = map;
-    this.debris=[];this.debrisAt=0;
+    this.debris=[];this.debrisAt=0;this.cameraAt=0;
+    this.actors.clear();
+    for(const label of this.labels.values())label.visible=false;
+    drawConcealment(this.concealmentG,map);
     if(this.softwareStaticCache)this.staticWorld.cacheAsTexture(false);
     this.app.renderer.background.color = map.theme.sky;
     const g = this.mapG;
@@ -197,20 +212,36 @@ export class Renderer {
     if(this.softwareStaticCache)this.staticWorld.cacheAsTexture({resolution:1,antialias:false});
   }
 
-  // How much of the world shows: landscape screens see ~1050 world px across,
-  // portrait phones ~620, and zoom widens the view.
-  private playableHeight(): number {
-    const controls=this.canvas.closest(".game")?.querySelector<HTMLElement>(".touch .tbtns");
-    if(!controls)return this.app.screen.height;
-    // Position the camera above the actual responsive action bank. The canvas
-    // still fills the screen, so backdrop and terrain continue behind controls.
-    const top=controls.getBoundingClientRect().top-this.canvas.getBoundingClientRect().top;
-    return Math.max(140,Math.min(this.app.screen.height,top-20));
+  // Portrait pilots are framed in the clear band between HUD and touch controls.
+  // The canvas still fills the screen, keeping terrain visible behind the UI.
+  private playArea():{top:number;height:number} {
+    const game=this.canvas.closest(".game"),touch=game?.querySelector<HTMLElement>(".touch");
+    const canvasTop=this.canvas.getBoundingClientRect().top;
+    let bottom=this.app.screen.height,hudBottom=0;
+    const reserved=Number(touch?.dataset.playableBottom);
+    if(Number.isFinite(reserved)&&reserved>0)bottom=reserved;
+    else {
+      const controls=touch?.querySelector<HTMLElement>(".tbtns");
+      if(controls)bottom=controls.getBoundingClientRect().top-canvasTop-20;
+    }
+    if(touch&&this.app.screen.width<this.app.screen.height){
+      for(const el of game!.querySelectorAll<HTMLElement>(".hud-bars,.hud-top,.hud-weapon,.objective")){
+        const rect=el.getBoundingClientRect();
+        if(rect.height>0)hudBottom=Math.max(hudBottom,rect.bottom-canvasTop);
+      }
+    }
+    return playArea(this.app.screen.height,bottom,hudBottom);
   }
 
-  private computeScale(zoom: number, playableHeight: number): number {
+  viewport():{width:number;height:number;playableHeight:number;playableTop:number} {
+    const area=this.playArea();
+    return {width:this.app.screen.width,height:this.app.screen.height,playableHeight:area.height,playableTop:area.top};
+  }
+
+  private computeScale(zoom: number, playableHeight: number, visibleWidth?:number): number {
     const w = this.app.screen.width;
     const h = this.app.screen.height;
+    if(visibleWidth!==undefined&&Number.isFinite(visibleWidth)&&visibleWidth>0)return w/visibleWidth;
     const visibleW = (w >= h ? 1050 : 620) * zoom;
     // Portrait play is width-limited; reserving controls must not make pilots
     // smaller. In landscape, also fit the available vertical play area.
@@ -256,11 +287,11 @@ export class Renderer {
         {id:p.id,x:p.x,y:p.y,vx:p.vx??0,vy:p.vy??0,height:h},
         {armor,skin:SKIN[avatar.face],helmet:avatar.helmet==="cap"?0x89966b:0x788878},
         this.reducedShake,
-      ));
-    } else if(!this.reducedShake) {
+      ).filter(part=>!this.reducedBlood||part.kind==="helmet"||part.kind==="vest"));
+    } else if(!this.reducedBlood) {
       for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-h*.55,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
     }
-    if(!this.reducedShake) {
+    if(!this.reducedBlood) {
       const floor=[...(this.map?.solids??[]),...(this.map?.platforms??[])].filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
       if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:isRocketDeath(weapon)?3800:2500});
     }
@@ -271,6 +302,7 @@ export class Renderer {
     this.debrisAt=now;
     if(!this.map)return;
     if(this.reducedShake)this.debris=[];
+    else if(this.reducedBlood)this.debris=this.debris.filter(p=>p.kind==="helmet"||p.kind==="vest");
     this.debris=advanceDebris(this.debris,elapsed,this.map);
     const g=this.fxG;
     for(const p of this.debris) {
@@ -302,7 +334,7 @@ export class Renderer {
   }
 
   frame(
-    camera: { x: number; y: number },
+    camera: { x: number; y: number; visibleWidth?:number; smoothingMs?:number; snap?:boolean },
     zoom: number,
     players: RenderPlayer[],
     projectiles: ProjectileSnap[],
@@ -314,16 +346,20 @@ export class Renderer {
     if (!map) return;
     const drawStarted=this.probe?performance.now():0;
     const now = performance.now();
-    const playableHeight=this.playableHeight();
-    const s = this.computeScale(zoom,playableHeight);
+    const area=this.playArea(),playableHeight=area.height;
+    const s = this.computeScale(zoom,playableHeight,camera.visibleWidth);
     this.scale = s;
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
     const halfW = sw / s / 2;
     const halfH = playableHeight / s / 2;
     const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
-    this.cam.x += (clamp(camera.x, halfW, map.width - halfW) - this.cam.x) * 0.25;
-    this.cam.y += (clamp(camera.y, halfH, map.height - halfH) - this.cam.y) * 0.25;
+    const elapsed=this.cameraAt?Math.min(100,Math.max(0,now-this.cameraAt)):0;
+    const duration=camera.smoothingMs??58;
+    const blend=!this.cameraAt||camera.snap||duration<=0?1:1-Math.exp(-elapsed/duration);
+    this.cam.x += (clamp(camera.x, halfW, map.width - halfW) - this.cam.x) * blend;
+    this.cam.y += (clamp(camera.y, halfH, map.height - halfH) - this.cam.y) * blend;
+    this.cameraAt=now;
     let ox = 0;
     let oy = 0;
     if (!this.reducedShake && this.shake > 0.2) {
@@ -332,7 +368,7 @@ export class Renderer {
       this.shake *= 0.86;
     }
     this.world.scale.set(s);
-    this.world.position.set(sw / 2 - this.cam.x * s + ox, playableHeight / 2 - this.cam.y * s + oy);
+    this.world.position.set(sw / 2 - this.cam.x * s + ox, area.top + playableHeight / 2 - this.cam.y * s + oy);
 
     this.drawBackdrop(map, sw, sh);
     this.drawPickups(pickups, now);
@@ -347,6 +383,10 @@ export class Renderer {
       else if(pr.k==="saw-launcher" || pr.k==="saw") {
         pg.star(pr.x,pr.y,10,12,7,now/70).fill(0xd6e4e6).stroke({width:2,color:0x5f7583});
         pg.circle(pr.x,pr.y,3).fill(0xedb963);
+      } else if(pr.k==="m14") {
+        const a=Math.atan2(pr.vy,pr.vx),c=Math.cos(a),ss=Math.sin(a);
+        pg.moveTo(pr.x-c*15,pr.y-ss*15).lineTo(pr.x,pr.y).stroke({width:2,color:0xffecc0});
+        pg.circle(pr.x,pr.y,2).fill(0xfff8db);
       } else if(pr.k==="emp-gun") {
         pg.circle(pr.x,pr.y,14).fill({color:0x81ccff,alpha:.18}).stroke({width:2,color:0xa9e8ff});
         pg.circle(pr.x,pr.y,5).fill(0xd0f7ff);
@@ -359,7 +399,7 @@ export class Renderer {
 
     const fg = this.fxG;
     fg.clear();
-    this.fx = this.fx.filter((f) => now - f.born < f.ttl).slice(-180);
+    this.fx = this.fx.filter((f) => now - f.born < f.ttl&&(!this.reducedBlood||!["blood","stain"].includes(f.kind))).slice(-180);
     for (const f of this.fx) {
       const t = (now - f.born) / f.ttl;
       if(f.kind==="tracer") {
@@ -390,7 +430,7 @@ export class Renderer {
           fg.circle(f.x1+Math.cos(a)*dist,f.y1+Math.sin(a)*dist,rr*(.36-t*.12)).fill({color:flash?0xfff4d0:i%2?0xf0a256:0xb78457,alpha:(flash?.3:.5)*(1-t)});
         }
         fg.circle(f.x1,f.y1,rr*.28).fill({color:0xffefaa,alpha:.7*(1-t)});
-      } else fg.arc(f.x1,f.y1,22,-1,1).stroke({width:3,color:f.color,alpha:1-t});
+      } else fg.moveTo(f.x1+Math.cos(-1)*22,f.y1+Math.sin(-1)*22).arc(f.x1,f.y1,22,-1,1).stroke({width:3,color:f.color,alpha:1-t});
     }
     this.drawDebris(now);
     if(this.probe) {this.probe.drawCpuMs.push(performance.now()-drawStarted);if(this.probe.drawCpuMs.length>1200)this.probe.drawCpuMs.shift();}
@@ -452,6 +492,8 @@ export class Renderer {
   private drawPlayers(players: RenderPlayer[], now: number): void {
     const g = this.playerG;
     g.clear();
+    this.outlineG.clear();
+    const local=players.find(p=>p.local);
     const seen = new Set<number>();
     for (const p of players) {
       if(!p.alive) {this.actors.delete(p.id);continue;}
@@ -460,6 +502,15 @@ export class Renderer {
       const top = p.y - h;
       const facing = Math.cos(p.aim) >= 0 ? 1 : -1;
       const body = p.team === -1 ? p.color : TEAM_COLORS[p.team];
+      const inFoliage=(this.map?.concealment??[]).some(r=>p.x+11>r.x&&p.x-11<r.x+r.w&&p.y>r.y&&top<r.y+r.h);
+      const concealed=p.concealed??(p.crouch&&!p.jetting&&Math.abs(p.vy??0)<2&&(this.map?.concealment??[]).some(r=>p.x-11>=r.x&&p.x+11<=r.x+r.w&&top>=r.y&&p.y<=r.y+r.h));
+      const friendly=p.local||!!(local&&local.team!==-1&&p.team===local.team);
+      if(inFoliage&&friendly) {
+        const outline=this.outlineG,color=p.local?0xfff3cb:body;
+        outline.ellipse(p.x,top+Math.min(8,h*.25),9,Math.min(9,h*.28)).stroke({width:1.5,color,alpha:.65});
+        outline.roundRect(p.x-10,top+h*.38,20,h*.52,4).stroke({width:1.5,color,alpha:.58});
+        outline.moveTo(p.x-6,p.y-5).lineTo(p.x-9,p.y).moveTo(p.x+5,p.y-5).lineTo(p.x+10,p.y).stroke({width:1.5,color,alpha:.6});
+      }
       const alpha = p.protected ? 0.45 + 0.35 * Math.sin(now / 80) : 1;
       let state=this.actors.get(p.id);
       if(!state) {state={x:p.x,y:p.y,hp:p.hp,alive:true,walk:0,at:now,hitUntil:0,recoilUntil:0,regenUntil:0};this.actors.set(p.id,state);}
@@ -467,9 +518,9 @@ export class Renderer {
       if(Math.abs(delta)<35)state.walk+=Math.abs(delta)*.17;
       if(p.hp<state.hp) {
         state.hitUntil=now+130;
-        if(!this.reducedShake)for(let i=0;i<5;i++)this.fx.push({kind:"blood",x1:p.x,y1:top+22,x2:(i-2)*24,y2:-30-i*7,color:0xa14f3b,born:now,ttl:600});
+        if(!this.reducedBlood)for(let i=0;i<5;i++)this.fx.push({kind:"blood",x1:p.x,y1:top+22,x2:(i-2)*24,y2:-30-i*7,color:0xa14f3b,born:now,ttl:600});
         const floor=this.map?.solids.filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
-        if(floor&&!this.reducedShake)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
+        if(floor&&!this.reducedBlood)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:7000});
       } else if(p.hp>state.hp&&p.hp-state.hp<20&&now>state.regenUntil) {
         state.regenUntil=now+450;
         this.fx.push({kind:"regen",x1:p.x+17,y1:top+20,x2:0,y2:0,color:0x9fd6a8,born:now,ttl:650});
@@ -478,7 +529,9 @@ export class Renderer {
       g.ellipse(p.x,p.y+2,15,3).fill({color:0x24382c,alpha:airborne?.1:.22});
       drawPilot(g,{x:p.x,y:p.y,h,color:body,avatar:avatarOf(p.avatar),aim:p.aim,walk:moving?Math.sin(state.walk):0,
         airborne,jetting:p.jetting,alpha,recoil:Math.max(0,(state.recoilUntil-now)/100),weapon:p.weapon,
-        otherWeapon:p.dual?p.otherWeapon:null,now,hit:state.hitUntil>now});
+        otherWeapon:p.dual?p.otherWeapon:null,now,hit:state.hitUntil>now,
+        charge:p.charge,reload:p.reload,otherCharge:p.otherCharge,otherReload:p.otherReload});
+      if(p.classicCover&&p.crouch)g.moveTo(p.x-13,top+8).arc(p.x,top+8,13,Math.PI,2*Math.PI).stroke({width:2,color:0xb9e0d8,alpha:.55});
       state.x=p.x;state.y=p.y;state.hp=p.hp;state.at=now;
       if(p.emp>0) {
         g.circle(p.x,top+h/2,28).stroke({width:2,color:0x82ddff,alpha:.4+.25*Math.sin(now/65)});
@@ -487,7 +540,7 @@ export class Renderer {
       if(p.protected) g.ellipse(p.x,top+h/2,22,h*.67).stroke({width:2,color:0xdaf6ff,alpha:.45});
       if (p.local) {
         g.moveTo(p.x - 5, top - 16).lineTo(p.x + 5, top - 16).lineTo(p.x, top - 9).fill(0xffffff);
-      } else {
+      } else if(!concealed) {
         const frac = Math.max(0, p.hp / p.maxHp);
         g.rect(p.x - 16, top - 12, 32, 4).fill({ color: 0x000000, alpha: 0.4 });
         g.rect(p.x - 16, top - 12, 32 * frac, 4).fill(frac > 0.35 ? 0x5cd65c : 0xe04f3c);
@@ -501,10 +554,13 @@ export class Renderer {
         this.labelLayer.addChild(label);
       }
       if (label.text !== p.name) label.text = p.name;
-      label.visible = !p.local;
+      label.visible = !p.local&&!concealed;
       label.position.set(p.x, top - 15);
     }
     for (const [id, label] of this.labels) label.visible = label.visible && seen.has(id);
+    // Concealed/disconnected actors can vanish from a viewer snapshot; no stale
+    // animation trail should expose them when they next become visible.
+    for(const id of this.actors.keys())if(!seen.has(id))this.actors.delete(id);
   }
 
 

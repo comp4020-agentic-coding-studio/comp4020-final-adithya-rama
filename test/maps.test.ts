@@ -51,7 +51,7 @@ describe("authored map validity", () => {
     }
   });
 
-  it.each(arenas.filter((map) => map.flagHomes.length === 2).map((map) => map.id))(
+  it.each(arenas.filter((map) => map.flagHomes.length === 2 && map.physics !== "space").map((map) => map.id))(
     "%s permits both flag deliveries with flight off, double gravity and half running speed", (id) => {
       for (const team of [0, 1] as const) {
         const w = createWorld(sanitizeSettings({ ...defaultSettings(), map: id, mode: "flag",

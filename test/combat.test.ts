@@ -63,7 +63,7 @@ describe("weapons", () => {
     expect(a.slots[0]!.reserve).toBe(WEAPONS.spas12.reserve - WEAPONS.spas12.mag);
   });
 
-  it("switching weapons cancels a reload in progress", () => {
+  it("switching weapons preserves a reload and completes it once", () => {
     const w = world({ mode: "ffa" });
     const a = player(w, -1, { x: 200, y: 900 });
     a.slots = [{ ...freshSlot("ak47"), mag: 3 }, freshSlot("uzi"), null];
@@ -72,8 +72,13 @@ describe("weapons", () => {
     expect(a.slots[0]!.reloadEnd).toBeGreaterThan(0);
     run(w, 2, () => hold(a.id, Btn.SWITCH));
     expect(a.active).toBe(1);
-    expect(a.slots[0]!.reloadEnd).toBe(0);
+    expect(a.slots[0]!.reloadEnd).toBeGreaterThan(w.tick);
     expect(a.slots[0]!.mag).toBe(3);
+    const total = a.slots[0]!.mag + a.slots[0]!.reserve;
+    run(w, 200);
+    expect(a.slots[0]!.reloadEnd).toBe(0);
+    expect(a.slots[0]!.mag).toBe(WEAPONS[a.slots[0]!.weapon].mag);
+    expect(a.slots[0]!.mag + a.slots[0]!.reserve).toBe(total);
   });
 
   it("shotgun fires several pellets per shot", () => {

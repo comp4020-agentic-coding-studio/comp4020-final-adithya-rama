@@ -18,7 +18,7 @@ export const PVP_MODES: readonly Mode[] = ["ffa", "tdm", "flag"];
 
 export function defaultSettings(): RoomSettings {
   return {
-    map: "outpost-yard",
+    map: "outpost",
     mode: "tdm",
     capacity: MAX_ROOM_PLAYERS,
     durationMin: 5,
@@ -79,11 +79,11 @@ export function sanitizeSettings(input: unknown, base: RoomSettings = defaultSet
     capacity: mode === "training" ? 1 : mode === "survival" ? int(o.capacity, 1, 4, Math.min(4, base.capacity)) : int(o.capacity, 2, MAX_ROOM_PLAYERS, Math.max(2, Math.min(MAX_ROOM_PLAYERS, base.capacity))),
     durationMin: DURATIONS.includes(o.durationMin as 2) ? (o.durationMin as 2 | 5 | 10 | 15) : base.durationMin,
     scoreLimit: int(o.scoreLimit, 0, 200, base.scoreLimit),
-    flight: bool(o.flight, base.flight),
+    flight: MAPS[map].physics==="space"||bool(o.flight, base.flight),
     thrust: mult(o.thrust, base.thrust),
     fuelCapacity: mult(o.fuelCapacity, base.fuelCapacity),
     recharge: mult(o.recharge, base.recharge),
-    unlimitedFuel: bool(o.unlimitedFuel, base.unlimitedFuel),
+    unlimitedFuel: MAPS[map].physics==="space"||bool(o.unlimitedFuel, base.unlimitedFuel),
     gravity: mult(o.gravity, base.gravity),
     moveSpeed: mult(o.moveSpeed, base.moveSpeed),
     health: mult(o.health, base.health),

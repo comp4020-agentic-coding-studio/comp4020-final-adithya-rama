@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const TICK_RATE = 60;
 export const DT = 1 / TICK_RATE;
@@ -16,7 +16,8 @@ export const MAX_MESSAGE_BYTES = 4096;
 
 export const PLAYER_W = 22;
 export const PLAYER_H = 44;
-export const PLAYER_CROUCH_H = 30;
+export const PLAYER_CROUCH_H = 28;
+export const STEP_UP_HEIGHT = 24;
 export const BASE_HEALTH = 100;
 export const BASE_FUEL = 100;
 
@@ -55,3 +56,10 @@ export const CHECKPOINT_MS = 5_000;
 // Combat postpones discrete healing; hidden reconnect bodies never heal.
 export const HEALTH_REGEN_DELAY_TICKS = 6 * TICK_RATE;
 export const HEALTH_REGEN_INTERVAL_TICKS = TICK_RATE / 4;
+
+// Authored Classic PC movement/combat profile; persisted with new results.
+export const GAMEPLAY_VERSION = "classic-pc-2026-10-14";
+export const SPACE_ACCEL = 700;
+export const SPACE_SPEED = 430;
+export const CONCEAL_REVEAL_TICKS = 60;
+export const CONCEAL_DETECT_RADIUS = 80;

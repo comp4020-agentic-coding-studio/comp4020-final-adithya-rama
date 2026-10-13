@@ -53,6 +53,15 @@ describe("desktop aiming and weapon controls",()=>{
     key("KeyB");expect(score).toHaveBeenLastCalledWith(true);expect(input.buttons()).toBe(0);
     key("KeyB",false);expect(score).toHaveBeenLastCalledWith(false);
   });
+  it("crouches without descent and requires an explicit Shift chord or remapped descent",()=>{
+    key("KeyS");expect(input.sampleButtons()).toBe(Btn.CROUCH);
+    key("ShiftLeft");expect(input.sampleButtons()).toBe(Btn.CROUCH|Btn.DESCEND);
+    key("ShiftLeft",false);expect(input.sampleButtons()).toBe(Btn.CROUCH);
+    key("KeyS",false);key("ShiftLeft");expect(input.sampleButtons()).toBe(0);
+    input.destroy();input=new Input(canvas,{onScoreboard:score,onMenu:menu},{KeyC:Btn.DESCEND,KeyS:Btn.CROUCH,ShiftLeft:Btn.RELOAD});
+    key("KeyC");expect(input.sampleButtons()).toBe(Btn.DESCEND);key("KeyC",false);
+    key("KeyS");key("ShiftLeft");expect(input.sampleButtons()).toBe(Btn.CROUCH|Btn.RELOAD);
+  });
   it("allows Tab navigation while menus are open and ignores typed chat controls",()=>{
     input.enabled=false;expect(key("Tab").defaultPrevented).toBe(false);expect(input.buttons()).toBe(0);
     key("Escape");expect(menu).toHaveBeenCalledOnce();

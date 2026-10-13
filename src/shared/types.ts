@@ -52,8 +52,9 @@ export const Btn = {
   SLOT3: 65536,
   // Combined with FIRE by held keyboard aim-fire; mouse retains press-to-fire.
   CONTINUOUS_FIRE: 131072,
+  DESCEND: 262144,
 } as const;
-export const ALL_BUTTONS = 262143;
+export const ALL_BUTTONS = 524287;
 
 export interface InputFrame {
   seq: number;
@@ -91,7 +92,11 @@ export interface MapDefinition {
   name: string;
   width: number;
   height: number;
-  biome?: "jungle" | "snow" | "cavern" | "coast" | "range" | "desert" | "palace";
+  physics?: "terrestrial" | "space";
+  concealment?: Rect[];
+  backgrounds?: Rect[];
+  version?: number;
+  biome?: "space" | "industrial" | "jungle" | "snow" | "cavern" | "coast" | "range" | "desert" | "palace";
   scenery?: Array<{ kind: "palm" | "pine" | "fern" | "bunker" | "crate" | "lantern" | "crystal" | "bones" | "bridge" | "cactus" | "urn" | "column" | "banner" | "dome"; x: number; y: number; w?: number; h?: number; flip?: boolean }>;
   theme: { sky: number; rock: number; platform: number; accent: number };
   solids: Rect[];
@@ -134,6 +139,11 @@ export interface WeaponDefinition {
   heavy: boolean;
   color: number;
   behavior: "hitscan" | "projectile" | "beam" | "flame" | "emp" | "melee" | "shield";
+  burstCount?: number;
+  burstIntervalMs?: number;
+  chargeMs?: number;
+  autoRefill?: boolean;
+  movementMultiplier?: number;
   projectileSpeed?: number;
   projectileGravity?: number;
   blastRadius?: number;
@@ -173,6 +183,9 @@ export interface SlotState {
   reserve: number;
   reloadEnd: number;
   cooldownUntil: number;
+  burstRemaining?: number;
+  nextBurstTick?: number;
+  chargeTicks?: number;
 }
 
 export interface WeaponStats { shots: number; hits: number; damage: number; kills: number }
@@ -215,9 +228,12 @@ export interface MatchResult {
   endedAt: string;
   scoringNote: string;
   wavesCleared?: number;
+  rulesVersion?: string;
+  mapVersion?: number;
 }
 
 export interface PlayerSnap {
+  revealUntil?: number;
   id: number;
   x: number;
   y: number;
@@ -286,6 +302,8 @@ export type GameEvent =
   | { t: "shield"; id: number };
 
 export interface WorldSnapshot {
+  following?: number | null;
+  scores?: Pick<PlayerSnap, "id" | "k" | "d" | "as" | "deliveries" | "f">[];
   tick: number;
   ack: number;
   endTick: number;

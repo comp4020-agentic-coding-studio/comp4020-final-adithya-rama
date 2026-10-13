@@ -17,6 +17,9 @@ import {
   PLAYER_H,
   PLAYER_W,
   RUN_SPEED,
+  SPACE_ACCEL,
+  SPACE_SPEED,
+  STEP_UP_HEIGHT,
 } from "./constants.ts";
 import { Btn, type MapDefinition, type Rect, type RoomSettings } from "./types.ts";
 
@@ -69,86 +72,115 @@ function onPlatform(p: MoveState, map: MapDefinition): boolean {
 const approach = (v: number, target: number, step: number): number =>
   v < target ? Math.min(target, v + step) : Math.max(target, v - step);
 
-export function stepMovement(p: MoveState, b: number, map: MapDefinition, s: RoomSettings): void {
+export interface MovementOptions {
+  movementMultiplier?: number;
+  thrustDisabled?: boolean;
+}
+export const gravityFor = (map: MapDefinition, settings: RoomSettings): number =>
+  map.physics === "space" ? 0 : GRAVITY * settings.gravity;
+
+function supported(p: MoveState, map: MapDefinition): boolean {
+  const left = p.x - PLAYER_W / 2, right = p.x + PLAYER_W / 2;
+  return [...map.solids, ...(p.dropTicks ? [] : map.platforms)].some((r) =>
+    Math.abs(p.y - r.y) < .05 && left < r.x + r.w - EPS && right > r.x + EPS);
+}
+
+export function stepMovement(p: MoveState, b: number, map: MapDefinition, s: RoomSettings, options: MovementOptions = {}): void {
+  const space = map.physics === "space";
   const dir = (b & Btn.RIGHT ? 1 : 0) - (b & Btn.LEFT ? 1 : 0);
   const down = (b & Btn.CROUCH) !== 0;
-
-  if (down && p.onGround && p.dropTicks === 0 && onPlatform(p, map)) {
+  const handling = options.movementMultiplier ?? 1;
+  // Confirm support, including rest in zero gravity. Posture never creates a
+  // solid overlap, including boost/jump attempts inside a crawl passage.
+  p.onGround = p.vy >= 0 && supported(p, map);
+  if (b & Btn.DESCEND && p.onGround && p.dropTicks === 0 && onPlatform(p, map)) {
     p.dropTicks = DROP_THROUGH_TICKS;
     p.onGround = false;
-  } else if (down && p.onGround) {
-    p.crouch = true;
-  } else if (p.crouch && (!down || !p.onGround)) {
-    const standing = { ...p, crouch: false };
-    if (!blocked(map, boxOf(standing))) p.crouch = false;
+    if (space && !options.thrustDisabled) p.vy = Math.max(p.vy, 100);
   }
-
-  const speed = RUN_SPEED * s.moveSpeed * (p.crouch ? 0.45 : 1);
-  p.vx = approach(p.vx, dir * speed, (p.onGround ? GROUND_ACCEL : AIR_ACCEL) * DT);
-
-  if (b & Btn.JUMP && p.onGround && !p.crouch) {
-    p.vy = -JUMP_SPEED;
-    p.onGround = false;
-  }
-
-  p.vy = Math.min(p.vy + GRAVITY * s.gravity * DT, MAX_FALL);
+  if (down && p.onGround) p.crouch = true;
+  else if (p.crouch && !blocked(map, boxOf({ ...p, crouch: false }))) p.crouch = false;
 
   const fuelMax = maxFuel(s);
-  p.jetting = (b & Btn.JET) !== 0 && s.flight && (s.unlimitedFuel || p.fuel > 0);
-  if (p.jetting) {
-    p.crouch = false;
-    p.vy = Math.max(p.vy - (GRAVITY * s.gravity + JET_LIFT * s.thrust) * DT, -JET_MAX_RISE * s.thrust);
-    if (!s.unlimitedFuel) p.fuel = Math.max(0, p.fuel - FUEL_DRAIN * DT);
-    p.jetCooldown = FUEL_REGEN_DELAY_TICKS;
-  } else if (p.jetCooldown > 0) {
-    p.jetCooldown--;
-  } else {
-    const regen = (p.onGround ? FUEL_REGEN_GROUND : FUEL_REGEN_AIR) * s.recharge;
-    p.fuel = Math.min(fuelMax, p.fuel + regen * DT);
-  }
-  if (s.unlimitedFuel) p.fuel = fuelMax;
-
-  // x axis
-  p.x += p.vx * DT;
-  let box = boxOf(p);
-  for (const r of map.solids) {
-    if (!overlaps(box, r)) continue;
-    const pushLeft = box.x + box.w - r.x;
-    const pushRight = r.x + r.w - box.x;
-    if (p.vx > 0 || (p.vx === 0 && pushLeft < pushRight)) p.x = r.x - PLAYER_W / 2;
-    else p.x = r.x + r.w + PLAYER_W / 2;
-    p.vx = 0;
-    box = boxOf(p);
-  }
-
-  // y axis
-  const prevY = p.y;
-  p.y += p.vy * DT;
-  p.onGround = false;
-  box = boxOf(p);
-  const h = heightOf(p);
-  for (const r of map.solids) {
-    if (!overlaps(box, r)) continue;
-    if (p.vy >= 0) {
-      p.y = r.y;
-      p.onGround = true;
-    } else {
-      p.y = r.y + r.h + h;
+  if (space) {
+    const vertical = (down && !p.onGround ? 1 : 0) - (b & (Btn.JET | Btn.JUMP) ? 1 : 0);
+    const magnitude = Math.hypot(dir, vertical);
+    p.jetting = magnitude > 0 && !options.thrustDisabled;
+    if (p.jetting) {
+      const crawl = p.crouch && p.onGround && vertical >= 0 ? .45 : 1;
+      const acceleration = SPACE_ACCEL * s.thrust * handling * crawl * DT;
+      p.vx += dir / magnitude * acceleration;
+      p.vy += vertical / magnitude * acceleration;
+      const speed = Math.hypot(p.vx, p.vy), limit = SPACE_SPEED * s.moveSpeed * handling * crawl;
+      if (speed > limit) { p.vx *= limit / speed; p.vy *= limit / speed; }
+      if (vertical < 0 && p.crouch && !blocked(map, boxOf({ ...p, crouch: false }))) p.crouch = false;
     }
-    p.vy = 0;
-    box = boxOf(p);
+    // EMP disables thrust, not momentum. The map supplies unlimited fuel.
+    p.fuel = fuelMax;
+    p.jetCooldown = 0;
+  } else {
+    const speed = RUN_SPEED * s.moveSpeed * handling * (p.crouch ? .45 : 1);
+    p.vx = approach(p.vx, dir * speed, (p.onGround ? GROUND_ACCEL : AIR_ACCEL) * DT);
+    if (b & Btn.JUMP && p.onGround && !p.crouch) {
+      p.vy = -JUMP_SPEED;
+      p.onGround = false;
+    }
+    p.vy = Math.min(p.vy + gravityFor(map, s) * DT, MAX_FALL);
+    p.jetting = (b & Btn.JET) !== 0 && !options.thrustDisabled && s.flight && (s.unlimitedFuel || p.fuel > 0);
+    if (p.jetting) {
+      if (p.crouch && !blocked(map, boxOf({ ...p, crouch: false }))) p.crouch = false;
+      p.vy = Math.max(p.vy - (gravityFor(map, s) + JET_LIFT * s.thrust * handling) * DT, -JET_MAX_RISE * s.thrust * handling);
+      if (!s.unlimitedFuel) p.fuel = Math.max(0, p.fuel - FUEL_DRAIN * DT);
+      p.jetCooldown = FUEL_REGEN_DELAY_TICKS;
+    } else if (p.jetCooldown > 0) p.jetCooldown--;
+    else p.fuel = Math.min(fuelMax, p.fuel + (p.onGround ? FUEL_REGEN_GROUND : FUEL_REGEN_AIR) * s.recharge * DT);
+    if (s.unlimitedFuel) p.fuel = fuelMax;
   }
-  if (p.dropTicks > 0) {
-    p.dropTicks--;
-  } else if (p.vy >= 0) {
-    for (const r of map.platforms) {
-      if (prevY <= r.y + EPS && p.y >= r.y && box.x < r.x + r.w && box.x + box.w > r.x) {
+
+  // Bound each axis sweep below the actor width, so narrow rock cannot be
+  // crossed by a fast jet/impulse. Both prediction and authority use this path.
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(p.vx), Math.abs(p.vy)) * DT / (PLAYER_W / 3)));
+  const dt = DT / steps;
+  for (let i = 0; i < steps; i++) {
+    const canStep = p.onGround && p.vy >= 0;
+    p.x += p.vx * dt;
+    let box = boxOf(p);
+    for (const r of map.solids) {
+      if (!overlaps(box, r)) continue;
+      const rise = p.y - r.y;
+      // Small terrain contour steps are walkable, but only with support and
+      // clearance for the entire current body. Airborne actors cannot wall-climb.
+      if (canStep && p.vx !== 0 && rise > EPS && rise <= STEP_UP_HEIGHT &&
+          !blocked(map, { ...box, y: r.y - box.h })) {
         p.y = r.y;
         p.vy = 0;
-        p.onGround = true;
+        box = boxOf(p);
+        continue;
+      }
+      const pushLeft = box.x + box.w - r.x, pushRight = r.x + r.w - box.x;
+      p.x = p.vx > 0 || (p.vx === 0 && pushLeft < pushRight) ? r.x - PLAYER_W / 2 : r.x + r.w + PLAYER_W / 2;
+      p.vx = 0;
+      box = boxOf(p);
+    }
+    const prevY = p.y;
+    p.y += p.vy * dt;
+    p.onGround = false;
+    box = boxOf(p);
+    for (const r of map.solids) {
+      if (!overlaps(box, r)) continue;
+      if (p.vy >= 0) { p.y = r.y; p.onGround = true; }
+      else p.y = r.y + r.h + heightOf(p);
+      p.vy = 0;
+      box = boxOf(p);
+    }
+    if (p.dropTicks === 0 && p.vy >= 0) for (const r of map.platforms) {
+      if (prevY <= r.y + EPS && p.y >= r.y && box.x < r.x + r.w && box.x + box.w > r.x) {
+        p.y = r.y; p.vy = 0; p.onGround = true;
       }
     }
+    if (p.vy === 0 && supported(p, map)) p.onGround = true;
   }
+  if (p.dropTicks > 0) p.dropTicks--;
 }
 
 // Slab test: distance along a unit ray to rect r, or Infinity.

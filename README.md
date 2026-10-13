@@ -65,6 +65,16 @@ tradeoff, see why a shield blocks a shot, and distinguish arenas by routes and
 architecture. Recorded firearm and hurt/death clips replace generic beeps;
 [their credits](/audio/CREDITS.md) distinguish them from Mini Militia's own audio.
 
+The [October 14 research](docs/RESEARCH_MINI_MILITIA_2026_10_14.md) separates v4,
+current Classic guides and our PC adaptations. The resulting
+[Classic PC decision](docs/decisions/0004-classic-pc-gameplay.md) makes physical
+crouching, usable weapon views and real concealment explicit. Good means that a
+visible passage fits the player's body, a long-range weapon has an appropriate
+view, and a hidden opponent is hidden from both the client and the bots. The six
+new reference layouts are Outpost, High Tower, Ice Box, Pyramid, Lunarcy and
+Catacombs. Their geometry and art are authored reconstructions, not extracted
+original assets or a claim of exact historical collision parity.
+
 ## What informed these choices
 
 Adithya's memories of the older game and explicit own-flag rules establish the
@@ -84,6 +94,15 @@ for directional fire (combine keys for diagonals). Move to face that direction.
 Use 1/2/3 to select carried weapons, Tab to cycle and R to reload early. Empty
 magazines reload automatically; a held directional trigger resumes afterward.
 B shows the scoreboard. Touch uses two sticks, three slots and action buttons.
+S crouches and crawls; Shift+S deliberately descends through marked one-way
+platforms. Solid floors remain solid. Right click or Z cycles saved per-weapon
+scope levels. The touch menu can rearrange, resize and fade the controls.
+
+Lunarcy is a special zero-gravity arena: A/D thrust sideways, W/Space upward,
+and unsupported S downward. Releasing controls coasts; opposite thrust brakes.
+Boost is unlimited there, while EMP still disables powered thrust. Fully covered
+grounded crouching can conceal a pilot in bushes; firing or carrying a flag
+reveals them. Spectators have an explicit all-player observer view.
 
 Practice starts with forgiving Easy bots; Normal and Hard offer faster reactions
 and more accurate bursts. Frag, flashbang and poison smoke are the standard
@@ -92,7 +111,10 @@ up to six; T changes type and G throws. F pairs compatible small guns. A shield
 pairs with a machete; switching to a firearm drops the shield. After a death,
 the camera follows your attacker until respawn. Health slowly recovers after six seconds without combat. Your pilot,
 preferences and history live in the profile panel. In a room, choose a team and
-mark yourself ready; the host can start once everyone is ready.
+mark yourself ready; the host can start once everyone is ready. Changed lobby
+rules clear readiness so the squad can review them. Practice includes movement,
+equipment and own-flag tasks. Survival restores the surviving squad and revives
+fallen teammates when the next wave starts.
 
 See [development and controls](docs/DEVELOPMENT.md), the
 [implementation plan](docs/IMPLEMENTATION_PLAN.md), and [process account](PROCESS.md).

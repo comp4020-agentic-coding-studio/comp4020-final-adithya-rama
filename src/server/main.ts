@@ -351,7 +351,8 @@ server.on("upgrade", async (req, socket, head) => {
     socket.write(`HTTP/1.1 ${code} ${why}\r\nConnection: close\r\n\r\n`);
     socket.destroy();
   };
-  if (new URL(req.url ?? "/", "http://localhost").pathname !== "/ws") return refuse(404, "Not Found");
+  const requested=new URL(req.url ?? "/", "http://localhost");
+  if (requested.pathname !== "/ws") return refuse(404, "Not Found");
   if (!sameOrigin(req)) return refuse(403, "Forbidden");
   if (wss.clients.size >= MAX_CONNECTED_CLIENTS) return refuse(503, "Service Unavailable");
   let profile: Profile | null;
@@ -363,7 +364,14 @@ server.on("upgrade", async (req, socket, head) => {
   if (!profile) return refuse(401, "Unauthorized");
   if (wss.clients.size >= MAX_CONNECTED_CLIENTS || socket.destroyed) return refuse(503, "Service Unavailable");
   const p = profile;
-  wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, p));
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    if(requested.searchParams.get("v")!==String(PROTOCOL_VERSION)){
+      ws.send(JSON.stringify({t:"error",message:"The game has been updated. Reload this page to reconnect."}));
+      ws.close(1002,"Reload for the new game version");
+      return;
+    }
+    onConnection(ws,p);
+  });
 });
 
 function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
