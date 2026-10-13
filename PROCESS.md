@@ -278,3 +278,48 @@ This is research and a proposal, not a gameplay release. The isolated geometry
 probe and camera calculations are distinguished from full test-suite/browser
 acceptance. No original v4 play session, audio resemblance assessment or human
 playtest is invented. Crit 9 reflection and decision commits remain unchanged.
+
+## October 14: implementation and corrections after the research
+
+The subsequent instruction to implement turned the proposal into coordinated
+work. One integrator owned the shared interfaces and release; separate agents
+owned map/navigation work, combat/physics review, and art/touch rendering.
+[ADR 0004](docs/decisions/0004-classic-pc-gameplay.md) resolves physical crouch
+versus historical head interception and keeps Adithya's custom own-flag,
+shield/knife, keyboard and Lunarcy rules explicit. No additional game modes,
+economy or paid content were inferred from the reference research.
+
+The first baseline passed 201 unit tests. Implementation added tests that exposed
+blocked bot routes, an M4 burst cancelled by quick clicks, charge weapons that
+Easy bots could not fire, and a cold navigation pause. Those failures changed
+geometry/navigation, the burst state machine, bot timing and pre-match preparation.
+Actual phone flight then revealed an equipment panel covering the pilot; the
+camera now uses the clear band between HUD and controls. Spawn screenshots alone
+had missed that problem.
+
+The implementation is committed in
+[`e05240a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/e05240a).
+The final local source checkpoint passed typecheck and 334 unit tests. Running
+server/browser, latency, constrained memory and native rendering evidence is
+being recorded in [the acceptance record](docs/REVISION_2026_10_14_VALIDATION.md),
+including failed first attempts and their explanations. The source and tests
+changed together because shared protocol, movement prediction and rendering must
+agree. The research commit remains a separate historical checkpoint.
+
+No private session credential, original-game asset pack or personal reflection
+was generated as evidence. Sixteen credited CC0 sound replacements remain the
+approved alternative. Human judgements about resemblance and fun are still for
+Adithya and actual players to supply; automated success is reported separately.
+
+After Adithya enabled Docker, the actual production image passed 334 unit tests
+and 35 server/storage checks. Two independent one-CPU/256-MB containers each ran
+for thirty minutes on Catacombs: eight-player PvP and four-human Survival with
+up to eight enemies. They saved 15/18 rounds with no failures or restarts,
+maximum RSS 143/145 MB and highest sampled simulation p95 2.75/2.35 ms.
+Survival used Easy bots without flight; this is bounded endurance evidence.
+The separate native desktop run averaged 59.62 rendered FPS over ten minutes.
+All thirty new-map/mode combinations passed the network matrix; the actual-app
+browser exercised the new layouts and saved controls at both marking viewports.
+The final arsenal run plus its focused shield retry are reported together,
+without hiding the earlier snapshot-timing failures. Publication/live checks
+follow this local checkpoint and are recorded separately.

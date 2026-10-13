@@ -7,6 +7,17 @@ checks actually performed on Fly. Human playtesting is a separate requirement.
 
 ## Current release boundary
 
+The **14 October revision is in local acceptance and is not yet verified live**.
+It adds six authored reference layouts, physical crouch/explicit descent,
+space inertia, a Classic PC damage/handling profile, saved scope levels,
+server-filtered foliage concealment, navigation-aware bots, training tasks and
+editable touch controls. [ADR 0004](decisions/0004-classic-pc-gameplay.md) records
+the chosen rules; [the revision plan](REVISION_2026_10_14_PLAN.md) retains the
+full requirements. Current evidence and remaining gates are recorded in
+[14 October validation](REVISION_2026_10_14_VALIDATION.md).
+
+### Previous deployed boundary
+
 The [13 October revision](REVISION_2026_10_13.md) adds distinct weapon
 silhouettes, role-based range tuning, recorded audio, physical shield/knife
 handling, automatic grenade collection, an attacker-follow death camera,
@@ -34,9 +45,11 @@ Palace added.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Run, jump, crouch, drop through platforms | tested locally | movement tests; desktop/phone practice |
+| Run, jump, physical crouch/crawl, explicit platform descent | tested locally | movement/researched-gameplay tests; S never descends; Shift+S/Descend is deliberate |
 | Directional flight, fuel use/recharge | tested locally | movement tests; browser practice |
-| Weapon-dependent zoom | tested locally | weapon range/HUD; rendering uses weapon data |
+| Saved weapon-dependent Near/Field/Far/Range views | tested locally | camera reach/legibility tests; scope persistence in both browser viewports |
+| Zero-gravity inertia and unlimited Lunarcy boost | tested locally | actor/projectile/equipment/flag regressions; forced room rules; actual arena browser rounds |
+| Bush concealment and server-filtered enemy positions | tested locally | visibility serialization and bot perception tests; public scores omit coordinates |
 | Health, damage, deaths, respawns | tested locally | combat/full-game tests; browser rounds |
 | Gradual health recovery after combat delay | tested locally | gameplay-refresh tests; observed browser damage and one-point recovery |
 | Distinct Easy / Normal / Hard bot reactions and bursts | tested locally | bot tuning and navigation tests; human balance remains pending |
@@ -45,12 +58,12 @@ Palace added.
 | Independent compatible dual wielding | tested locally | dual ammunition/reload tests |
 | Heavy exclusion; shield pairs only with a carried machete | tested locally | combat revision tests; shield browser; selecting a firearm drops the shield as a pickup |
 | Manual pickups, swapping, dropping | tested locally | combat tests; browser range traversal |
-| Automatic and manual reload | tested locally | combat/full-game tests; browser ammunition |
+| Automatic/manual reload; holstered reload continues | tested locally | per-slot reload and drop cancellation tests; PHASR/flame automatically refill |
 | Health, ammo, fuel pickups | tested locally | full-game tests |
 | Six-item throwable cap; start with two frag, one flash, one poison | tested locally | combat revision tests; four of six spaces occupied at spawn |
 | Automatic allowed grenade pickup; T cycles stock, G throws | tested locally | wall/full-capacity/allowlist simulation cases; browser throwable rounds; last-item auto-selection |
 | Remappable keys, numpad aim/fire, movement facing, aim-only arrows | tested locally | input regressions; eight-flow preferences and revision browsers |
-| All touch actions | implemented | two sticks, thirteen action buttons, scoreboard/menu; practice movement/fire tested |
+| All touch actions and saved layout editor | tested locally | 18 controls; real drag/overlap/reset/rotation checks; profile restoration after reload |
 | Focus loss clears held inputs | tested locally | input handlers; server stale-input test |
 
 ## Complete arsenal
@@ -69,20 +82,20 @@ assertions belong to simulation tests; an observed shot alone is not that proof.
 | Tec-9 | tested locally | one-handed SMG with different cadence/range |
 | MP5 | tested locally | two-handed, tighter SMG |
 | AK-47 | tested locally | rifle, stronger individual shots |
-| M4 | tested locally | faster rifle |
+| M4 | tested locally | one press commits three rounds; held directional input repeats after cooldown |
 | Tavor X95 | tested locally | tighter precision-oriented rifle |
 | XM8 | tested locally | faster rifle with larger magazine |
-| M14 | tested locally | semi-automatic precision rifle |
+| M14 | tested locally | semi-automatic finite-travel precision projectile |
 | M93BA | tested locally | long-range heavy precision rifle; 1.5× exposed-head hit damage |
 | SPAS-12 | tested locally | seven-pellet pump shotgun |
 | AA-20 | tested locally | automatic six-pellet shotgun |
-| Minigun | tested locally | sustained high-rate fire |
+| Minigun | tested locally | 650ms spin-up before sustained high-rate fire |
 | SMAW | tested locally | swept rocket with blast falloff |
 | RG6 | tested locally | bouncing timed explosive projectile |
-| Saw launcher | tested locally | swept ricocheting disc |
-| Flamethrower | tested locally | short cone, one damage application per target per burst |
-| PHASR beam | tested locally | penetrates players, stops at walls |
-| EMP gun | tested locally | damage plus temporary flight disable |
+| Saw launcher | tested locally | wind-up, swept ricochet, bounded piercing and terminal explosion |
+| Flamethrower | tested locally | short cone, one damage application per target per burst; automatic refill |
+| PHASR beam | tested locally | penetrates players, stops at walls; automatic refill |
+| EMP gun | tested locally | travelling pulse, flight disable and mine disarming |
 | Machete | tested locally | one valid strike kills; range, walls, protection and friendly-fire checks still apply |
 | Riot shield | tested locally | physical front panel blocks intersecting direct fire; head/rear stay exposed; blast, flame and gas bypass it |
 | Fragmentation | tested locally | blast falloff and wall occlusion |
@@ -95,8 +108,8 @@ Each entry has a pickup, original visual, HUD representation, replicated behavio
 and inventory handling. All 23 weapon/equipment entries use distinct authored
 outlines shared by held art and HUD icons; identification does not depend only
 on colour. Equipment correctly avoids firearm ammunition/reload rules. Authored
-range classes and damage falloff are tested locally; they are not recovered
-historical v4 statistics.
+range classes and flat bullet damage through maximum reach are tested locally;
+explosions retain distance falloff. These are not recovered historical v4 statistics.
 
 ## Modes and results
 
@@ -113,7 +126,7 @@ historical v4 statistics.
 | Damage before delivery; simultaneous final-tick/limit scoring | tested locally | full-game tests |
 | Attacker-follow camera until respawn, with self/environment and missing-attacker handling | tested locally | death attribution regressions; real-network browser camera checks |
 | Bounded rocket-death fragments and separate ordinary death effects | tested locally | death-effects tests; browser screenshots; effects do not alter combat |
-| Training: one human and zero–three bots | tested locally | all arsenal browser sessions; practice round |
+| Training: one human and zero–three bots, equipment/movement/own-flag lessons | tested locally | authoritative arena flags; checklist reacts to input and delivery events; Test Range remains flag-free |
 | Survival: one–four humans, waves, max eight active enemies | tested locally | full-game tests; two-browser survival |
 | Kills/deaths/assists/deliveries, team scores, MVP | tested locally | full-game tests; results browser |
 | Assist threshold/window, mode-specific contribution, shared MVP ties | tested locally | combat/full-game tests |
@@ -124,12 +137,14 @@ historical v4 statistics.
 
 | Feature | Status | Evidence |
 |---|---|---|
+| Outpost, High Tower, Ice Box, Pyramid, Lunarcy, Catacombs | tested locally | new stable IDs/version1; six original layered terrain reconstructions; both-team ground/flight routes and highest-pickup reach tests; both browser viewports |
+| Hazard-aware spawning and bounded bot navigation prewarm | tested locally | spawn danger tests; yielded cache preparation before the match clock starts |
 | Cryptworks, Outpost Yard, Crosscurrent, Skyshaft, Sirocco Dunes, Sunspire Palace | tested locally | six arena choices in both browser viewports; authored map previews |
 | Connected catacombs, jungle canyon, snowy forts, coastal spans, desert mesas and palace galleries | tested locally | collision-matched terrain; independent visual inspection; palace stair traversal |
 | Ground route to flags/goals with no flight, double gravity, half speed | tested locally | all six arenas in map tests |
 | Spawn collision checks and navigation nodes | tested locally | map tests; six-arena bot routes for both teams with flight on/off |
 | Full-catalogue Test Range | tested locally | all arsenal browser sessions; restricted from Flag Delivery |
-| Public listings and quick join | tested locally | APIs and room admission |
+| Public listings and quick join | implemented | map thumbnails, human/bot counts, state/password/custom-rule labels; admission checks |
 | Private codes/invites, optional passwords | tested locally | room/API checks |
 | Ready-up, team selection, host controls/transfer | tested locally | room/network checks |
 | Spectators, late join, rematches | tested locally | room checks; browser mode flows |
@@ -151,7 +166,7 @@ historical v4 statistics.
 | Colour, helmet, face and emblem customisation | implemented | original renderer + profile API; persistence checks |
 | History pagination, match details, weapon statistics | tested locally | storage/API/browser history |
 | CC0 recorded firearm shots and human hurt/death voices; authored special effects | tested locally | [audio credits](../src/client/public/audio/CREDITS.md), source/hash mapping and browser decode/playback scheduling; subjective quality remains unverified |
-| Mute, volume and reduced shake/effects | tested locally | preferences and death-effects checks; physical-device and listening assessment remain pending |
+| Mute, volume, shake, independent blood and low-flash choices | tested locally | persisted profile settings; equivalent dark flash exposure in both browser viewports; physical-device/listening assessment pending |
 | Team names/markers and readable identifiers | implemented | renderer/HUD/results |
 | Room chat and mute | tested locally | room test; escaped UI; mute/unmute browser check |
 | Complete server-rendered README | tested locally | preserved course invariant |
@@ -170,6 +185,8 @@ historical v4 statistics.
 - Returning-player and newcomer playtests, observed problems and resulting tuning.
 - Physical phone performance and subjective sound/feel assessment. Native desktop
   GPU measurements are recorded separately in RENDERING_EVIDENCE.md.
-- Repository visibility at the agreed cutoff, and final course ship/tag procedure.
+- Exact historical publication timing at the cutoff is not established by the
+  current public-state check. The repository is already public and crit-8 is
+  preserved; later course ship/tag actions remain Adithya's responsibility.
 
 These are not represented as completed by automated tests.

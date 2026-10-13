@@ -1,61 +1,44 @@
-# Integration handoff: October 13 combat and arena revision
+# Integration handoff: October 14 Classic PC revision
 
-Continue the existing game. Read [the current revision contract](REVISION_2026_10_13.md),
-[feature checklist](FEATURES.md) and [acceptance evidence](REVISION_2026_10_13_VALIDATION.md).
-The October 10 release is historical context, not evidence for changed code.
+Read [the revision plan](REVISION_2026_10_14_PLAN.md), [research ledger](RESEARCH_MINI_MILITIA_2026_10_14.md), [chosen rules](decisions/0004-classic-pc-gameplay.md), [feature checklist](FEATURES.md) and [current evidence](REVISION_2026_10_14_VALIDATION.md). Earlier evidence applies only to its recorded build.
 
-## Current behavior
+## Current implementation
 
-- Physical shield panel paired only with machete; firearm selection drops it.
-  Exposed head/rear rays remain vulnerable. One-hit machete respects walls,
-  friendly-fire policy and protection; sniper head damage is proportional.
-- Distinct gun silhouettes, authored range falloff, bounded projectile travel,
-  authoritative launcher firing events, small-gun dual wield.
-- Spawn four grenades (2 frag/1 flash/1 gas), auto-collect to six, T changes stocked
-  types, G throws. HUD shows bag capacity and every allowed type.
-- Live killer-follow until respawn, self/environment fallback, rocket-only
-  bounded debris. Reduce shake & debris disables that motion.
-- Six arenas: Outpost Yard, Skyshaft, Cryptworks, Crosscurrent, Sirocco Dunes and
-  Sunspire Palace. Test Range is separate. All six retain own-flag routes.
-- Sixteen CC0 recorded gun/voice clips, credited under src/client/public/audio.
-  The user approved easily available similar sound assets as the alternate
-  approach. The recordings are not Mini Militia rips. No developer contact was sent.
+- Physical 28-unit crouch/crawl with standing clearance. S does not descend; Shift+S or Descend crosses only marked one-way platforms. Bounded step-up handles small ledges without climbing walls or passing through ceilings.
+- Six new authored layouts: Outpost, High Tower, Ice Box, Pyramid, Lunarcy, Catacombs. Six previous arenas and Test Range remain. Stable map IDs/result versions keep old history meaningful. Reference similarity is not recovered exact geometry.
+- Lunarcy enforces zero gravity/unlimited fuel. Directional thrust, coast, counter-thrust, EMP and dropped/projectile/flag motion agree across prediction and authority. Flag return bounds remain the actual map rectangle.
+- Classic PC flat bullet damage through finite range; M4 burst, minigun/saw wind-up, M14/EMP travel, saw piercing/terminal blast and PHASR/flame refill. Conventional reload continues while holstered; dropping grants no ammunition. Directional shield/knife and compatible dual guns remain.
+- Saved per-weapon Near/Field/Far/Range views and optional aim look-ahead. Phone framing reserves the actual HUD/control band. A far view never extends legal weapon reach.
+- Fully covered grounded crouching conceals a pilot in foliage. Revealing actions and flags expose them. Server snapshots omit hidden enemies, public scores omit positions, bots obey visibility, and killer-follow cannot switch to an unrelated actor. Spectators intentionally receive full observer vision.
+- Navigation prewarms in yielded chunks before match announcement. Easy bots allow charge completion before their firing burst. Spawn selection considers cover, gas, mines and incoming projectiles.
+- Original weapon/avatar art, charge/reload feedback, foreground foliage and bounded effects. Sixteen credited CC0 gun/voice clips remain the approved sound alternative. Low-flash and blood visibility are separate from shake/volume.
+- Pickup previews, grenade bag/type display, playable Training tasks, Survival preparation/revival cues and weapon-role labels. Room cards show map geometry, human/bot counts and rule badges. Lunarcy controls, readiness reset and staged rules are explicit.
+- Eighteen touch controls support saved placement, size/opacity, overlap checks, reset and rotation. Protocol 3 visibly rejects stale browser clients.
 
-## Running and checking
+Own-flag rules remain unchanged: carry your team's flag into the enemy goal; one flag exists per team; dropped flags remain indefinitely in bounds; only teammates recover them; damage resolves before both teams' deliveries. Training teaches the same rules on arenas; Test Range has no objectives.
 
-See [DEVELOPMENT.md](DEVELOPMENT.md). Node 24.21.0 via mise; build before starting.
-Use isolated databases/ports for acceptance, never the real player database.
+## Running and verification
+
+Node 24.21.0 and pnpm 11.9.0 are pinned through mise. Use isolated databases/ports for acceptance. Never point destructive restart tests at real player data.
 
 ```sh
 mise exec -- pnpm build
 PORT=8081 DB_PATH=/tmp/jet-acceptance.sqlite mise exec -- pnpm start
 APP_URL=http://localhost:8081 mise exec -- pnpm check
 APP_URL=http://localhost:8081 mise exec -- pnpm check:browser
-APP_URL=http://localhost:8081 mise exec -- node scripts/browser-refresh.ts
 mise exec -- node scripts/browser-arsenal.ts
-mise exec -- node scripts/browser-death.ts
+mise exec -- node scripts/check-reference-modes.ts
 mise exec -- pnpm check:evidence
+docker build -t jet-skirmish:acceptance .
+mise exec -- pnpm check:persistence
 ```
 
-Art/audio fixture checks use a separate Vite server on 8100:
-`scripts/browser-map-previews.ts` and `scripts/browser-audio.ts`.
-Arsenal/death scripts create disposable servers/databases. Real-network browser
-checks observe snapshots/events while driving normal controls; fixtures are
-labelled separately. Raw reports/screenshots remain ignored in test-results/.
+Actual-app revision, touch editor, phone framing, room-card and native long-render scripts live under scripts/browser-*.ts. Reports/screenshots remain ignored under test-results/. Arsenal and map/mode checks manage their own isolated servers. Read each script's environment options before running. Load checks must report disconnect failures instead of sampling an empty server as success.
 
-## Preserved boundaries
+## Release boundaries
 
-One shared CPU, 256 MB, one /data volume, default one active room. Do not increase
-production capacity based on a short or unconstrained check. Authored balance
-and hit geometry are not recovered original game physics.
+One shared CPU, 256 MB, one /data volume, one active room. Separate one-room soak containers do not establish two-room capacity on one machine. Current acceptance/deployment status is in the validation record; a build or short probe is not the entire release gate.
 
-The public repository and immutable crit-8 tag at
-`e6b4df425c06d822c13578559610160be6bfe4f7` remain. Do not run /ship or retag.
-The existing main workflow checks and deploys to
-https://comp4020-final-adithya-rama.fly.dev/. Keep credentials in the configured
-ignored environment and never print them. Current publication/live status is
-recorded in the acceptance document, separately from local results.
+Preserve the public repository, immutable crit-8 at e6b4df425c06d822c13578559610160be6bfe4f7, and Crit 9 commits d1703b0/eb9488a. Do not run /ship, retag or edit personal reflections. The normal main workflow deploys to https://comp4020-final-adithya-rama.fly.dev/. Credentials remain in the configured ignored environment and are never printed.
 
-Adithya directs the product, architecture and quality criteria. Preserve his
-Crit 8 reflection. No returning-player/newcomer playtest, physical-phone
-performance or subjective sound assessment should be invented.
+Adithya directs product and quality criteria. No returning-player/newcomer playtest, physical-phone performance or subjective audio resemblance is claimed. Record real human findings when supplied, with fixes and remaining limitations.

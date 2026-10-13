@@ -2,8 +2,10 @@
 
 Date: 14 October 2026.
 Baseline: `eb9488a`.
-Status: implementation proposal grounded in code inspection and reference research.
-This document does not claim that its changes are implemented, tested or live.
+Status: implementation in local acceptance. The original proposal below remains
+the scope record; chosen behavior is in [ADR 0004](decisions/0004-classic-pc-gameplay.md).
+The feature checklist and validation record distinguish completed implementation,
+local evidence and deployment. Proposal text alone does not establish completion.
 
 Read the [research and source ledger](RESEARCH_MINI_MILITIA_2026_10_14.md), the [existing scope](IMPLEMENTATION_PLAN.md), [October 13 contract](REVISION_2026_10_13.md) and [feature checklist](FEATURES.md) together. Direct user instructions remain authoritative. Preserve both Crit 9 commits, reflections and published cutoff tags.
 

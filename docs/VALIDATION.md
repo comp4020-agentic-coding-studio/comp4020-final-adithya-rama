@@ -1,4 +1,4 @@
-> Latest revision: [October 13 acceptance](REVISION_2026_10_13_VALIDATION.md). The results below describe the earlier release.
+> Latest revision: [October 14 acceptance](REVISION_2026_10_14_VALIDATION.md). [October 13 acceptance](REVISION_2026_10_13_VALIDATION.md) remains available. The results below describe the earlier release.
 
 # Validation record
 

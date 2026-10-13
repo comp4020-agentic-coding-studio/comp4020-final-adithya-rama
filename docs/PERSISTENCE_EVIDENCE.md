@@ -1,9 +1,9 @@
 # Persistence and connection acceptance evidence
 
-- Run: 2026-10-04T12:43:24.798Z (UTC).
-- Result: **PASSED**; elapsed 27 seconds.
-- Image: `sha256:5673780050c5bc854220761271884ed31277c8b082b6919c33b829a88e0a6f20`.
-- Environment: isolated local Docker container, 1 CPU, 256 MiB memory, dedicated volume, localhost port 8085.
+- Run: 2026-10-13T17:04:00.540Z (UTC).
+- Result: **PASSED**; elapsed 28 seconds.
+- Image: `sha256:0278815cac8d82e9145daf13e7af10e1cd13017652028f0a803947a3395b9e14`.
+- Environment: isolated local Docker container, 1 CPU, 256 MiB memory, dedicated volume, localhost port 8116.
 - Scope: local production-image verification; this does not establish Fly deployment or human playtest results.
 
 | Check | Observed result |
