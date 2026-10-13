@@ -91,7 +91,7 @@ async function touchProof(page:Page,state:Observed):Promise<TouchLayout>{
   await selectSlot(page,state,2,true);await selectSlot(page,state,0,true);return p.prefs.touchLayout as TouchLayout;
 }
 try{
- for(const mobile of [false,true]){
+ for(const mobile of [false,true].filter(mobile=>!process.env.VIEWPORTS||process.env.VIEWPORTS.split(",").includes(mobile?"phone":"desktop"))){
   const tag=mobile?"phone":"desktop",context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1920,height:1080},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:mobile?2:1}),page=await context.newPage(),state=observe(page,tag),observer=new TestPlayer(base);
   let savedLayout:TouchLayout|null=null;
   try{

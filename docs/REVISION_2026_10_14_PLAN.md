@@ -2,7 +2,7 @@
 
 Date: 14 October 2026.
 Baseline: `eb9488a`.
-Status: implementation in local acceptance. The original proposal below remains
+Status: implemented and deployed with bounded acceptance evidence. The original proposal below remains
 the scope record; chosen behavior is in [ADR 0004](decisions/0004-classic-pc-gameplay.md).
 The feature checklist and validation record distinguish completed implementation,
 local evidence and deployment. Proposal text alone does not establish completion.

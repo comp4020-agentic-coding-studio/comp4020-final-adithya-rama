@@ -7,7 +7,12 @@ checks actually performed on Fly. Human playtesting is a separate requirement.
 
 ## Current release boundary
 
-The **14 October revision is in local acceptance and is not yet verified live**.
+The **14 October revision is deployed**, with local acceptance and bounded live
+verification recorded separately. All six new layouts passed live desktop and
+phone rounds; all five modes produced identical saved results in independent
+sessions. Saved pre-existing profile/history survived deployment. The first
+phone pass was held behind Adithya's active match; its failed attempt and the
+successful retry remain explicit in the validation record.
 It adds six authored reference layouts, physical crouch/explicit descent,
 space inertia, a Classic PC damage/handling profile, saved scope levels,
 server-filtered foliage concealment, navigation-aware bots, training tasks and
@@ -47,7 +52,7 @@ Palace added.
 |---|---|---|
 | Run, jump, physical crouch/crawl, explicit platform descent | tested locally | movement/researched-gameplay tests; S never descends; Shift+S/Descend is deliberate |
 | Directional flight, fuel use/recharge | tested locally | movement tests; browser practice |
-| Saved weapon-dependent Near/Field/Far/Range views | tested locally | camera reach/legibility tests; scope persistence in both browser viewports |
+| Saved weapon-dependent Near/Field/Far/Range views | verified live | camera reach/legibility tests locally; live scope selection/persistence in both browser viewports |
 | Zero-gravity inertia and unlimited Lunarcy boost | tested locally | actor/projectile/equipment/flag regressions; forced room rules; actual arena browser rounds |
 | Bush concealment and server-filtered enemy positions | tested locally | visibility serialization and bot perception tests; public scores omit coordinates |
 | Health, damage, deaths, respawns | tested locally | combat/full-game tests; browser rounds |
@@ -63,7 +68,7 @@ Palace added.
 | Six-item throwable cap; start with two frag, one flash, one poison | tested locally | combat revision tests; four of six spaces occupied at spawn |
 | Automatic allowed grenade pickup; T cycles stock, G throws | tested locally | wall/full-capacity/allowlist simulation cases; browser throwable rounds; last-item auto-selection |
 | Remappable keys, numpad aim/fire, movement facing, aim-only arrows | tested locally | input regressions; eight-flow preferences and revision browsers |
-| All touch actions and saved layout editor | tested locally | 18 controls; real drag/overlap/reset/rotation checks; profile restoration after reload |
+| All touch actions and saved layout editor | verified live, bounded | all 18 controls and overlap/reset/rotation checked locally; live drag/save and profile restoration after reload |
 | Focus loss clears held inputs | tested locally | input handlers; server stale-input test |
 
 ## Complete arsenal
@@ -137,7 +142,7 @@ explosions retain distance falloff. These are not recovered historical v4 statis
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Outpost, High Tower, Ice Box, Pyramid, Lunarcy, Catacombs | tested locally | new stable IDs/version1; six original layered terrain reconstructions; both-team ground/flight routes and highest-pickup reach tests; both browser viewports |
+| Outpost, High Tower, Ice Box, Pyramid, Lunarcy, Catacombs | verified live, bounded | six live Training rounds in each browser viewport; thirty local map/mode cases; both-team ground/flight routes and highest-pickup reach tested locally |
 | Hazard-aware spawning and bounded bot navigation prewarm | tested locally | spawn danger tests; yielded cache preparation before the match clock starts |
 | Cryptworks, Outpost Yard, Crosscurrent, Skyshaft, Sirocco Dunes, Sunspire Palace | tested locally | six arena choices in both browser viewports; authored map previews |
 | Connected catacombs, jungle canyon, snowy forts, coastal spans, desert mesas and palace galleries | tested locally | collision-matched terrain; independent visual inspection; palace stair traversal |

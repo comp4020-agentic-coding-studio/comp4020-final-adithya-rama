@@ -323,3 +323,17 @@ browser exercised the new layouts and saved controls at both marking viewports.
 The final arsenal run plus its focused shield retry are reported together,
 without hiding the earlier snapshot-timing failures. Publication/live checks
 follow this local checkpoint and are recorded separately.
+
+The normal workflow published and deployed
+[`d171901`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/d171901),
+with build/spec/evidence/secret checks passing. The live image's Git SHA and client
+bundle matched the tested release, on the unchanged one-CPU/256-MB Sydney machine.
+The existing profile and match-detail digest survived deployment unchanged.
+All six new maps then passed live desktop rounds. Adithya began playing during
+the phone pass; the capacity guard rejected the test's Start, and the harness
+reported a timeout. Logs established the cause. We left his round untouched and
+retained that report. After he stopped, a focused phone retry passed all six maps,
+saved preferences and staged rules. The subsequent independent desktop/phone
+pass agreed on saved outcomes in all five modes, including a real 1–0 flag
+delivery. The final documentation records those live observations separately
+from local simulation coverage and still-unperformed human playtesting.

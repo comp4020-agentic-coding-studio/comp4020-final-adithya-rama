@@ -1,7 +1,7 @@
 # 14 October: researched gameplay acceptance
 
-Status: automated local acceptance completed within the recorded boundaries.
-Publication and live verification are still pending at this checkpoint.
+Status: implemented and deployed; automated local acceptance and the live checks
+below completed within their recorded boundaries.
 Implementation: `e05240a077bf0ca20720a84c7b978c16ea86b704`.
 Baseline research commit: `015b103`; Crit 9 reflection/decision and existing tags
 are preserved. Read [the rules decision](decisions/0004-classic-pc-gameplay.md)
@@ -187,11 +187,53 @@ eight simultaneously alive players. Peak observed projectiles were four, so this
 does not establish the maximum-effect render case. See
 [rendering evidence](RENDERING_EVIDENCE.md) for raw settings, timings and limits.
 
-## Remaining release evidence
+## Publication and live verification
 
-Publication and live verification remain to be recorded. Source, arsenal/browser,
-map/mode matrix, latency, native GPU, thirty-minute constrained soaks, container
-persistence and repository evidence checks have passed within the limits above.
+The existing public workflow deployed `d171901900aa9bb55c6c152cbec4717d1cf08cc2`
+at 04:39:43 AEDT on 14 October. Both the check job (including secret scans) and
+deploy job passed: [workflow 38440125051](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/38440125051).
+No manual duplicate deployment, course shipping command or tag change was used.
+
+Fly's machine image label confirms that exact Git SHA. The sole machine remains
+`7811ed5a0e37e8` in Sydney, shared CPU 1, 256 MB, with encrypted volume
+`vol_4m3mgxpw3zy0g0gv` mounted at `/data`. Image digest:
+`sha256:f4ae4382592088217509f6740d0d3980c7260817848f4cb1545aeec71a8b7c91`.
+The site serves protocol 3, client `index-MbKx8yv3.js`, all six required new map
+IDs (thirteen choices including retained arenas/Test Range), 23 equipment entries,
+five throwables and the updated full README. Reports:
+`test-results/oct14-live-fly-status.json` and `test-results/oct14-live-content.json`.
+
+Read-only verification before and after deployment restored the exact existing
+profile/preferences/aggregates and one unchanged completed match. Its detail
+SHA-256 remained `43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
+No stored credential was printed. Reports:
+`test-results/live-persistence-verify-oct14-{before,redeploy}.json`.
+
+The first live revision browser completed all six desktop map rounds, saved
+their results, verified independent observer state and exercised scope,
+accessibility and staged-rule controls. During the phone pass, another live
+player started a round. The capacity guard correctly rejected the test's Start;
+its observer then timed out waiting for a match that had not started. This failed
+attempt is retained in `test-results/oct14-live-classic-revision/report.json`.
+`test-results/oct14-live-first-browser-server.log` records the explicit capacity
+rejection. The test left its own lobby; the real player's round was untouched.
+After Adithya stopped his round, a focused phone pass completed all six new maps
+without failures. Saved scope/touch/accessibility preferences survived reload,
+Lunarcy forced rules and staged next-round controls agreed with the server, and
+each round saved with independent observer state. Screenshots were inspected.
+Report: `test-results/oct14-live-classic-phone/report.json`. The harness now allows
+`VIEWPORTS=phone` so a partial retry does not unnecessarily occupy capacity by
+repeating already verified desktop rounds.
+
+A subsequent two-identity desktop/phone browser pass completed all five modes
+with identical saved results and no failures. Flag Delivery ended naturally at
+the one-delivery limit, 1–0. FFA, TDM, Survival and Training were host-ended smoke
+rounds; Training used one fighter plus spectator. This regression uses the
+retained map IDs, while the new layouts have the separate six-map browser passes
+and thirty-case local network matrix. Report: `test-results/oct14-live-modes.json`.
+
+## Remaining human and device evidence
+
 One active room stays the production limit. Do not infer two-room capacity from
 separate test servers.
 
