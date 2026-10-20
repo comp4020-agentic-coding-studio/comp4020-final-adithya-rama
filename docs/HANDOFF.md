@@ -6,6 +6,10 @@ Gentle aim assist is default-on and optional, with a separate sight guide.
 Boot retry, real match-loading stages, sound previews and preference failure
 feedback complete this pass. Run `scripts/browser-pilots.ts` against the target
 environment; local and live evidence remain separate. Preserve all course tags.
+Release `e78a1fb` passed deployment workflow 39468510671 and the two-browser live
+pilot acceptance on 21 October at 04:46 AEDT. The existing acceptance guest and
+match-detail digest survived the deploy. The live-persistence harness accounts
+for additive avatar defaults without rewriting its original private baseline.
 
 Latest combat amendment: M93BA body damage is 100, with existing shield,
 protection and room multipliers retained. Poison damages all teams including

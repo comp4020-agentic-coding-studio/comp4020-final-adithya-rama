@@ -21,6 +21,13 @@ The [release record](docs/PILOT_RELEASE_2026_10_21.md) holds the research,
 verification commands and remaining human feel/balance questions. No new
 personal reflection or human playtest outcome was invented.
 
+Implementation commit `e78a1fb` passed 425 unit and 40 server/spec checks,
+desktop/phone practice, then the normal hosted checks/deployment. The live pilot
+acceptance passed in two independent browser contexts at 04:46 AEDT. Read-only
+verification retained the pre-existing guest and exact saved match digest while
+recognizing the documented new cosmetic defaults. This is automated release
+evidence; Adithya's next human play session must judge assistance strength.
+
 This account separates Adithya's direction from the agents' implementation and
 verification. It describes work actually carried out; the validation record is
 the source for current deployment and acceptance status.

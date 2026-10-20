@@ -106,4 +106,28 @@ acceptance, desktop/phone practice rounds, evidence checks and diff validation.
 Live publication and verification are separate:
 run the same pilot script with `APP_URL` set to the Fly URL and
 `REPORT_TAG=pilots-live` after deployment, when the active-room slot is free.
-No claim of live success is made in this pre-deployment record.
+
+### Live verification
+
+Release `e78a1fbbc2636abb90f52a91a6503097c9403cfa` passed the normal
+[checks and deployment workflow](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/39468510671).
+The live site served `index-n1mj-T3g.js`. On 21 October 2026 at 04:46 AEDT,
+`scripts/browser-pilots.ts` passed against the Fly URL in independent desktop and
+touch-phone contexts, with no page errors. Both profiles retained their full
+appearance across reloads, both clients received matching cosmetic rosters,
+startup retry and delayed-snapshot loading behaved correctly, aim/sight settings
+persisted and failed saves rolled back, all sixteen credited sound clips loaded,
+and both players received saved results. Evidence: ignored
+`test-results/pilots-live/report.json` and the accompanying screenshots.
+
+The existing acceptance guest and completed match also passed read-only
+`scripts/live-persistence.ts verify pilot-release`. Its saved match detail
+retained SHA-256
+`43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
+The harness normalizes only the documented defaults for new avatar fields when
+comparing its older baseline; it does not overwrite that baseline or relax
+identity, existing preferences, statistics, history or match-detail checks.
+The exact independent baseline remains private in ignored `.data/`.
+
+Live browser checks establish behaviour and persistence. They do not establish
+subjective aim balance, physical-device performance or sound resemblance.

@@ -10,6 +10,7 @@ import { dirname, resolve, sep } from "node:path";
 import assert from "node:assert/strict";
 import { TestPlayer, sleep } from "../spec/lib/client.ts";
 import { Btn } from "../src/shared/types.ts";
+import { avatarOf } from "../src/shared/avatar.ts";
 
 interface SeedState {
   version: 1;
@@ -125,8 +126,14 @@ try {
     client = new TestPlayer(origin);
     client.cookie = state.cookie;
     const current = await request<{ profile: Record<string, unknown> }>("/api/me");
-    assert.deepEqual(current.profile, state.profile, "Profile identity, preferences and aggregates survived");
-    checks.push("The same session restored the exact profile, preferences and aggregates");
+    // The pilot release adds defaulted cosmetic fields to legacy three-field
+    // avatars. Compare that documented additive migration without rewriting
+    // the private pre-deploy baseline or relaxing identity/stat/history checks.
+    const expectedProfile=structuredClone(state.profile);
+    const expectedPrefs=expectedProfile.prefs as Record<string,unknown>|undefined;
+    if(expectedPrefs?.avatar)expectedPrefs.avatar=avatarOf(expectedPrefs.avatar);
+    assert.deepEqual(current.profile, expectedProfile, "Profile identity, preferences and aggregates survived the additive cosmetic migration");
+    checks.push("The same session restored the profile, preferences and aggregates, with documented defaults for new cosmetic fields");
     const history = await request<{ matches: Record<string, unknown>[] }>("/api/me/matches");
     const matches = history.matches.filter((m) => m.id === state.matchId);
     assert.equal(matches.length, 1, "Exactly one saved history record survived");
