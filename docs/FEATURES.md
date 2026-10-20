@@ -195,7 +195,10 @@ explosions retain distance falloff. These are not recovered historical v4 statis
 | Feature | Status | Evidence |
 |---|---|---|
 | Persistent guest identity, profile and preferences | tested locally | cookie/API and container recreation |
-| Colour, helmet, face and emblem customisation | implemented | original renderer + profile API; persistence checks |
+| Full pilot creator: callsign, colour, body, outfit, hair/colour, facial hair, eyewear, headgear, skin and emblem; four original presets | tested locally | original SVG/Pixi art, server validation, lobby/match rosters and two-browser persistence checks |
+| Default-on optional gentle aim assist and separate dotted sight guide | tested locally | bounded visible-enemy correction, authoritative near-miss regression and saved desktop/phone controls; human balance acceptance pending |
+| Hangar startup/retry, real arena/snapshot loading and touch-specific tips | tested locally | failure/delay injection, unit cleanup checks and desktop/phone screenshots |
+| Armoury gun sound previews | tested locally | all sixteen credited recordings fetched in both browsers; same playback path as gameplay |
 | History pagination, match details, weapon statistics | tested locally | storage/API/browser history |
 | CC0 recorded firearm shots and human hurt/death voices; authored special effects | tested locally | [audio credits](../src/client/public/audio/CREDITS.md), source/hash mapping and browser decode/playback scheduling; subjective quality remains unverified |
 | Mute, volume, shake, independent blood and low-flash choices | tested locally | persisted profile settings; equivalent dark flash exposure in both browser viewports; physical-device/listening assessment pending |

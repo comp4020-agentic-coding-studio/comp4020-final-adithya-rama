@@ -1,3 +1,4 @@
+import {avatarOf} from "../src/shared/avatar.ts";
 // Real UI regression coverage. Start a separate current-build server, then run:
 // APP_URL=http://localhost:8096 node scripts/browser-preferences.ts
 // The rAF sample describes this headless test host, not physical-device FPS.
@@ -89,7 +90,7 @@ try {
   assert.equal(await host.locator('input[name="muted"]').isChecked(),true);
   assert.equal(await host.locator('input[name="reducedShake"]').isChecked(),true);
   assert.equal(await host.locator('input[name="volume"]').inputValue(),"0.6");
-  assert.deepEqual((await me(host)).prefs.avatar,{helmet:"visor",face:"robot",emblem:"star"});
+  assert.deepEqual((await me(host)).prefs.avatar,avatarOf({helmet:"visor",face:"robot",emblem:"star"}));
   checks.push("Avatar, audio volume/mute and reduced-shake preferences survive reload");
   await host.locator("[data-close-profile]").click();
 

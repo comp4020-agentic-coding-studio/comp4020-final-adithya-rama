@@ -1,5 +1,6 @@
 import { ALL_BUTTONS } from "../shared/types.ts";
 import { WEAPONS } from "../shared/weapons.ts";
+import { AVATAR_CHOICES, avatarOf } from "../shared/avatar.ts";
 import { TOUCH_LAYOUT_KEYS, TOUCH_LAYOUT_SCALE, TOUCH_LAYOUT_OPACITY, normalizeTouchLayout } from "../shared/touch-layout.ts";
 
 export function objectBody(value: unknown): Record<string, unknown> {
@@ -11,7 +12,7 @@ export function sanitizePrefs(value: unknown, previous: Record<string, unknown> 
   const input = objectBody(value);
   const output: Record<string, unknown> = {};
   const merged = { ...previous, ...input };
-  for (const key of ["reducedShake", "muted", "chatMuted", "lowFlash", "reducedBlood", "cameraLookAhead", "trainingTipsHidden"]) {
+  for (const key of ["reducedShake", "muted", "chatMuted", "lowFlash", "reducedBlood", "cameraLookAhead", "trainingTipsHidden", "aimAssist", "sightGuide"]) {
     if (merged[key] !== undefined) {
       if (typeof merged[key] !== "boolean") throw new Error(key + " must be true or false");
       output[key] = merged[key];
@@ -46,13 +47,11 @@ export function sanitizePrefs(value: unknown, previous: Record<string, unknown> 
   }
   if (merged.avatar !== undefined) {
     const avatar = objectBody(merged.avatar);
-    const choices = { helmet: ["pilot", "visor", "cap", "mohawk"], face: ["light", "medium", "dark", "robot"], emblem: ["star", "bolt", "skull"] };
-    const clean: Record<string, string> = {};
-    for (const [key, values] of Object.entries(choices)) {
-      if (!values.includes(avatar[key] as string)) throw new Error("Invalid avatar " + key);
-      clean[key] = avatar[key] as string;
+    for (const [key, values] of Object.entries(AVATAR_CHOICES)) {
+      // Legacy three-field avatars remain valid; missing newer cosmetics get defaults.
+      if (avatar[key] !== undefined && !(values as readonly unknown[]).includes(avatar[key])) throw new Error("Invalid avatar " + key);
     }
-    output.avatar = clean;
+    output.avatar = avatarOf(avatar);
   }
   if (merged.bindings !== undefined) {
     const bindings = objectBody(merged.bindings);

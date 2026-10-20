@@ -16,12 +16,13 @@ export function toast(message: string, kind: "info" | "error" = "info"): void {
   setTimeout(() => el.remove(), 4500);
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown; signal?:AbortSignal } = {}): Promise<T> {
   const res = await fetch(path, {
     method: init.method ?? "GET",
     headers: init.body === undefined ? {} : { "Content-Type": "application/json" },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     credentials: "same-origin",
+    signal:init.signal,
   });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);

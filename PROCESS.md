@@ -1,5 +1,26 @@
 # Process overview
 
+## October 21: player identity and aiming release pass
+
+Adithya reported UAT difficulty aiming, requested complete character choices and
+a loading screen, then asked for attention to small launch details. Codex
+consulted the supplied M93BA wiki, the Classic settings/character guides and
+Garena's official aim-mode explanation. The sources informed a bounded near-miss
+assist and visual sight dots; they did not justify copying all historical values
+or claiming to reproduce Free Fire's targeting. The requested sniper body damage
+remains deliberate project tuning.
+
+The work extended the existing profile and roster contract through validation,
+persistence, menus and in-game drawing. Two independent browser contexts checked
+saved appearances and preferences. Deliberately failing a settings request
+revealed that the old save helper swallowed its error; that was corrected so the
+new aim controls visibly restore the saved setting. Loading checks delay real
+snapshots rather than fake success. Startup retry, gun sound previews, lobby
+portraits, accurate map counts and touch pickup wording address small omissions.
+The [release record](docs/PILOT_RELEASE_2026_10_21.md) holds the research,
+verification commands and remaining human feel/balance questions. No new
+personal reflection or human playtest outcome was invented.
+
 This account separates Adithya's direction from the agents' implementation and
 verification. It describes work actually carried out; the validation record is
 the source for current deployment and acceptance status.

@@ -1,4 +1,6 @@
 import type { InputFrame, MatchResult, RoomSettings, Team, WorldSnapshot } from "./types.ts";
+import type { Avatar } from "./avatar.ts";
+export type { Avatar } from "./avatar.ts";
 
 export interface Profile {
   id: string;
@@ -16,6 +18,7 @@ export interface MemberView {
   key: string;
   name: string;
   color: number;
+  avatar?: Avatar;
   team: Team;
   ready: boolean;
   host: boolean;
@@ -48,11 +51,6 @@ export interface RosterEntry {
   avatar?: Avatar;
 }
 
-export interface Avatar {
-  helmet: "pilot" | "visor" | "cap" | "mohawk";
-  face: "light" | "medium" | "dark" | "robot";
-  emblem: "star" | "bolt" | "skull";
-}
 export interface RoomPreset { id: string; name: string; settings: RoomSettings; createdAt: string }
 export interface WeaponStats { weapon: string; shots: number; hits: number; damage: number; kills: number }
 

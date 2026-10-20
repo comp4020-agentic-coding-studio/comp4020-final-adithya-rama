@@ -18,6 +18,7 @@ import { ALL_BUTTONS, type GameEvent, type InputFrame, type MatchResult, type Ro
 import { Bot } from "./bot.ts";
 import { prewarmBotNavigation } from "./bot-navigation.ts";
 import { MAPS } from "../shared/maps.ts";
+import { avatarOf, PILOT_PRESETS } from "../shared/avatar.ts";
 import type { Db } from "./db.ts";
 import { log } from "./log.ts";
 
@@ -222,6 +223,7 @@ export class Room {
         key: m.key,
         name: m.profile.name,
         color: m.profile.color,
+        avatar: avatarOf(m.profile.prefs.avatar),
         team: m.team,
         ready: m.ready,
         host: m.key === this.hostKey,
@@ -359,7 +361,7 @@ export class Room {
 
   private roster(): RosterEntry[] {
     if (!this.world) return [];
-    return [...this.world.players.values()].filter((p) => p.connected || p.alive).map((p) => ({ id: p.id, key: p.key, name: p.name, team: p.team, color: p.color, bot: p.bot, avatar: this.members.get(p.key)?.profile.prefs.avatar as import("../shared/protocol.ts").Avatar | undefined }));
+    return [...this.world.players.values()].filter((p) => p.connected || p.alive).map((p) => ({ id: p.id, key: p.key, name: p.name, team: p.team, color: p.color, bot: p.bot, avatar: p.bot?PILOT_PRESETS[p.id%PILOT_PRESETS.length].avatar:avatarOf(this.members.get(p.key)?.profile.prefs.avatar) }));
   }
 
   // The socket went away; the seat is held for SEAT_RESERVE_MS.

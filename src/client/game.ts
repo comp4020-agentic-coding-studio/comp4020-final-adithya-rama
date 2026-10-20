@@ -17,6 +17,8 @@ import { type RenderPlayer, Renderer, TEAM_COLORS, TEAM_NAMES } from "./render.t
 import { DeathCamera } from "./death.ts";
 import { includeAuthorizedKiller } from "./camera-actors.ts";
 import { TouchControls } from "./touch.ts";
+import { assistedAim, visibleAimTargets } from "./aim-assist.ts";
+import { MatchLoading } from "./match-loading.ts";
 
 const TICK_MS = 1000 / TICK_RATE;
 const INTERP_TICKS = INTERP_MS / TICK_MS;
@@ -29,7 +31,7 @@ export interface GameHooks {
   endRound(): void;
   reducedShake(): boolean;
   prefs(): Record<string,unknown>;
-  savePrefs(patch:Record<string,unknown>):Promise<void>;
+  savePrefs(patch:Record<string,unknown>):Promise<boolean>;
   editRules():void;
 }
 
@@ -72,6 +74,10 @@ export class GameSession {
   private hud: HTMLElement;
   private els: Record<string, HTMLElement> = {};
   private destroyed = false;
+  private loading:MatchLoading;
+  private sceneReady=false;
+  private loadingDone=false;
+  private aimAssist:boolean;
   private unsub: () => void;
   private onVisibility = () => {
     if (document.hidden) this.flushNeutral();
@@ -85,6 +91,7 @@ export class GameSession {
     this.root = root;
     this.net = net;
     this.hooks = hooks;
+    this.aimAssist=hooks.prefs().aimAssist!==false;
     this.bindings=bindingsOf(hooks.prefs().bindings);
     this.scopes=scopesOf(hooks.prefs().scopes);
     this.settings = start.settings;
@@ -95,6 +102,7 @@ export class GameSession {
     this.map = MAPS[start.settings.map];
     this.you = start.you;
     for (const r of start.roster) this.roster.set(r.id, r);
+    this.loading=new MatchLoading(root,this.map.name,MODE_NAMES[this.settings.mode],start.roster.find(r=>r.id===start.you),()=>hooks.leave(),matchMedia("(pointer: coarse)").matches||"ontouchstart" in window);
     this.hud = document.createElement("div");
     this.hud.className = "hud";
     this.hud.innerHTML = `
@@ -122,7 +130,7 @@ export class GameSession {
     this.els.menuButton.addEventListener("click",()=>this.toggleMenu());
     for(const b of this.hud.querySelectorAll<HTMLButtonElement>("[data-follow]")) b.addEventListener("click",()=>{this.spectatorIndex+=Number(b.dataset.follow);});
     this.unsub = this.net.on((m) => this.onMessage(m));
-    void this.init();
+    void this.init().catch(()=>{if(!this.destroyed)this.loading.fail();});
   }
 
   private async init(): Promise<void> {
@@ -137,6 +145,7 @@ export class GameSession {
     this.renderer.setMap(this.map,this.settings.mode==="flag"||this.settings.mode==="training"&&this.map.flagHomes.length===2);
     this.renderer.reducedShake = this.hooks.reducedShake();
     this.renderer.reducedBlood = this.hooks.prefs().reducedBlood===true;
+    this.renderer.sightGuide = this.hooks.prefs().sightGuide!==false;
     this.input = new Input(this.renderer.canvas, {
       onScoreboard: (show) => { this.els.board.classList.toggle("hidden", !show); if(show)this.renderBoard(); },
       onMenu: () => this.toggleMenu(),
@@ -150,6 +159,9 @@ export class GameSession {
       },this.hooks.prefs().touchLayout);
     }
     document.addEventListener("visibilitychange", this.onVisibility);
+    this.sceneReady=true;
+    this.loading.stage("scene");
+    this.loading.status("Waiting for the live match…");
     this.renderer.app.ticker.add((t) => this.frame(t.deltaMS));
   }
 
@@ -175,6 +187,7 @@ export class GameSession {
     this.snaps.push(s);
     if (this.snaps.length > 30) this.snaps.shift();
     this.latest = s;
+    this.loading.stage("sync");
     for (const e of s.events) this.onEvent(e);
 
     const me = this.you === null ? undefined : s.players.find((p) => p.id === this.you);
@@ -291,7 +304,7 @@ export class GameSession {
     let b = this.input.sampleButtons();
     const me=this.latest?.players.find(p=>p.id===this.you);
     if(me && me.emp>0)b &= ~Btn.JET;
-    const f: InputFrame = { seq: ++this.seq, b, aim: this.input.aim, view: Math.floor(this.renderTick()) };
+    const f: InputFrame = { seq: ++this.seq, b, aim: this.aimForShot(), view: Math.floor(this.renderTick()) };
     this.outbox.push(f);
     this.pending.push(f);
     if (this.pending.length > 240) this.pending.shift();
@@ -332,7 +345,8 @@ export class GameSession {
   }
 
   private frame(deltaMS: number): void {
-    if (!this.latest) return;
+    if (!this.latest||!this.sceneReady) return;
+    if(!this.loadingDone){this.loadingDone=true;this.input.clear();this.loading.finish();}
     this.acc += Math.min(deltaMS, 250);
     while (this.acc >= TICK_MS) {
       this.acc -= TICK_MS;
@@ -410,7 +424,8 @@ export class GameSession {
     const origin = local
       ? this.renderer.worldToScreen(local.x, local.y - heightOf(local) * 0.68)
       : { x: innerWidth / 2, y: innerHeight / 2 };
-    const aim = this.input.updateAim(origin);
+    this.input.updateAim(origin);
+    const aim = this.aimForShot();
     if (local) local.aim = aim;
 
     this.scopeWeapon=cameraActor?.weapon??null;
@@ -432,6 +447,15 @@ export class GameSession {
     const feed = this.killfeed.filter((k) => now - k.at < 6000);
     const feedHtml = feed.map((k) => `<div>${k.html}</div>`).join("");
     if (this.els.feed.innerHTML !== feedHtml) this.els.feed.innerHTML = feedHtml;
+  }
+
+  private aimForShot():number {
+    const raw=this.input.aim,me=this.latest?.players.find(p=>p.id===this.you);
+    if(!me||!(me.f&PF.ALIVE))return raw;
+    const teams=TEAM_MODES.includes(this.settings.mode)||this.settings.mode==="training"||this.settings.mode==="survival";
+    return assistedAim(raw,{x:this.pred?.x??me.x,y:(this.pred?.y??me.y)-heightOf({crouch:this.pred?.crouch??!!(me.f&PF.CROUCH)})*.68},
+      me.s[me.a],visibleAimTargets(this.interpolated().values(),this.latest?.players??[],this.roster,me.id,teams),
+      this.map,this.aimAssist);
   }
 
   private cycleScope(): void {
@@ -472,7 +496,7 @@ export class GameSession {
       this.trainingLesson(s,me);
       const near=s.pickups.filter(pk=>pk.k==="weapon"&&pk.i&&Math.abs(pk.x-me.x)<=PICKUP_RADIUS&&pk.y>=me.y-heightOf({crouch:!!(me.f&PF.CROUCH)})-10&&pk.y<=me.y+20&&lineOfSight(this.map,me.x,me.y-12,pk.x,pk.y-1)&&!(WEAPONS[pk.i]?.category==="equipment"&&me.s.includes(pk.i))).sort((a,b)=>Math.abs(a.x-me.x)-Math.abs(b.x-me.x))[0];
       const empty=me.s.indexOf(null),owned=empty<0&&near?me.s.indexOf(near.i):-1;
-      this.els.pickup.textContent=near&&me.f&PF.ALIVE?`${this.keyFor(Btn.PICKUP)} · ${WEAPONS[near.i!]?.name??near.i} · ${empty>=0?"slot "+(empty+1):owned>=0?"add ammunition":"replace "+(WEAPONS[me.s[me.a]??""]?.name??"selected slot")}`:"";
+      this.els.pickup.textContent=near&&me.f&PF.ALIVE?`${this.touch?"Pick up":this.keyFor(Btn.PICKUP)} · ${WEAPONS[near.i!]?.name??near.i} · ${empty>=0?"slot "+(empty+1):owned>=0?"add ammunition":"replace "+(WEAPONS[me.s[me.a]??""]?.name??"selected slot")}`:"";
       const maxHp = me.maxHp ?? maxHealth(this.settings);
       this.els.hp.style.width = `${Math.max(0, (me.hp / maxHp) * 100)}%`;
       this.els.hpText.textContent = me.hp+" / "+maxHp;
@@ -562,6 +586,9 @@ export class GameSession {
     menu.innerHTML = `
       <h2>Field menu</h2>
       <p class="muted">The match keeps running while this is open.</p>
+      <label class="check"><input data-aim-assist type="checkbox" ${this.aimAssist?"checked":""}> Gentle aim assist</label>
+      <small class="muted">Small corrections near visible enemies. You still aim and fire. No lock-on.</small><p data-pref-status role="status"></p>
+      <label class="check"><input data-sight-guide type="checkbox" ${this.renderer.sightGuide?"checked":""}> Dotted sight guide</label>
       <div class="menu-actions">
         <button data-act="resume" class="primary">Resume</button>
         ${this.touch?'<button data-act="touch-layout">Arrange touch controls</button>':""}
@@ -584,6 +611,18 @@ export class GameSession {
       </details>`;
     menu.classList.remove("hidden");
     this.input.enabled=false;
+    menu.querySelector<HTMLInputElement>("[data-sight-guide]")!.addEventListener("change",async e=>{
+      const control=e.target as HTMLInputElement,previous=this.renderer.sightGuide;this.renderer.sightGuide=control.checked;control.disabled=true;
+      try{if(!await this.hooks.savePrefs({sightGuide:this.renderer.sightGuide}))throw Error("Save failed");menu.querySelector("[data-pref-status]")!.textContent="Sight preference saved.";}
+      catch{this.renderer.sightGuide=previous;control.checked=previous;menu.querySelector("[data-pref-status]")!.textContent="Couldn’t save. Your previous sight setting has been restored.";}
+      finally{control.disabled=false;}
+    });
+    menu.querySelector<HTMLInputElement>("[data-aim-assist]")!.addEventListener("change",async e=>{
+      const control=e.target as HTMLInputElement,previous=this.aimAssist;this.aimAssist=control.checked;control.disabled=true;
+      try{if(!await this.hooks.savePrefs({aimAssist:this.aimAssist}))throw Error("Save failed");menu.querySelector("[data-pref-status]")!.textContent="Aim preference saved.";}
+      catch{this.aimAssist=previous;control.checked=previous;menu.querySelector("[data-pref-status]")!.textContent="Couldn’t save. Your previous aim setting has been restored.";}
+      finally{control.disabled=false;}
+    });
     menu.querySelector<HTMLInputElement>("[data-audio]")!.addEventListener("change",e=>{this.audio.muted=!(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({muted:this.audio.muted});this.unlockAudio();});
     menu.querySelector<HTMLInputElement>("[data-volume]")!.addEventListener("change",e=>{this.audio.volume=Number((e.target as HTMLInputElement).value);void this.hooks.savePrefs({volume:this.audio.volume});});
     menu.querySelector<HTMLInputElement>("[data-shake]")!.addEventListener("change",e=>{this.renderer.reducedShake=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedShake:this.renderer.reducedShake});});
@@ -611,12 +650,14 @@ export class GameSession {
   }
 
   setConnection(text: string | null): void {
+    if(text)this.loading.status(text);
     this.els.conn.textContent = text ?? "";
     this.els.conn.classList.toggle("hidden", !text);
   }
 
   destroy(): void {
     this.destroyed = true;
+    this.loading.finish();
     this.unsub();
     window.removeEventListener("pointerdown",this.unlockAudio);
     window.removeEventListener("keydown",this.unlockAudio);

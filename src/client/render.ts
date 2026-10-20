@@ -1,4 +1,5 @@
 import { followCamera } from "./camera.ts";
+import { raycastMap } from "../shared/physics.ts";
 import { playArea } from "./play-area.ts";
 import { nameplateIdentity, nameplateText, placeNameplates, type PlateBounds } from "./nameplates.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
@@ -111,6 +112,7 @@ export class Renderer {
   private fxG = new Graphics();
   private flagG = new Graphics();
   private areaG = new Graphics();
+  private sightG = new Graphics();
   private decor = new Container();
   private labels = new Map<number, { root: Container; text: Text; panel: Graphics }>();
   private labelLayer = new Container();
@@ -125,6 +127,7 @@ export class Renderer {
   shake = 0;
   reducedShake = false;
   reducedBlood = false;
+  sightGuide = true;
   private probe:RenderProbe|null=null;
   private resizeQuality:(()=>void)|null=null;
 
@@ -169,7 +172,7 @@ export class Renderer {
     this.backdrop.addChild(this.backdropSky,...this.backdropLayers);
     this.app.stage.addChild(this.backdrop, this.world);
     this.staticWorld.addChild(this.mapG,this.decor);
-    this.world.addChild(this.staticWorld, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.concealmentG, this.outlineG, this.fxG, this.labelLayer);
+    this.world.addChild(this.staticWorld, this.areaG, this.pickupG, this.flagG, this.projG, this.playerG, this.sightG, this.concealmentG, this.outlineG, this.fxG, this.labelLayer);
   }
 
   get canvas(): HTMLCanvasElement {
@@ -284,7 +287,7 @@ export class Renderer {
 
   addDeath(p:Pick<RenderPlayer,"id"|"x"|"y"|"vx"|"vy"|"crouch"|"team"|"color"|"avatar">,weapon:string):void {
     const now=performance.now(),h=p.crouch?PLAYER_CROUCH_H:PLAYER_H;
-    const avatar=avatarOf(p.avatar),armor=p.team===-1?p.color:TEAM_COLORS[p.team];
+    const avatar=avatarOf(p.avatar),armor=p.color;
     if(isRocketDeath(weapon)) {
       this.debris=appendDebris(this.debris,rocketDebris(
         {id:p.id,x:p.x,y:p.y,vx:p.vx??0,vy:p.vy??0,height:h},
@@ -371,6 +374,13 @@ export class Renderer {
     this.drawBackdrop(map, sw, sh);
     this.drawPickups(pickups, now);
     this.drawPlayers(players, now);
+    this.sightG.clear();
+    const pilot=players.find(p=>p.local&&p.alive),gun=WEAPONS[pilot?.weapon??""];
+    if(this.sightGuide&&pilot&&gun&&gun.category!=="equipment"){
+      const y=pilot.y-(pilot.crouch?PLAYER_CROUCH_H:PLAYER_H)*.68,dx=Math.cos(pilot.aim),dy=Math.sin(pilot.aim);
+      const reach=raycastMap(map,pilot.x,y,dx,dy,Math.min(gun.range,150));
+      for(let distance=40;distance<reach;distance+=22)this.sightG.circle(pilot.x+dx*distance,y+dy*distance,Math.min(3,1.5/s)).fill({color:0xffedb6,alpha:.55});
+    }
     this.drawFlags(flags,players,now);
     this.drawAreas(areas,now,serverTick);
 
@@ -503,7 +513,7 @@ export class Renderer {
       const h = p.crouch ? PLAYER_CROUCH_H : PLAYER_H;
       const top = p.y - h;
       const facing = Math.cos(p.aim) >= 0 ? 1 : -1;
-      const body = p.team === -1 ? p.color : TEAM_COLORS[p.team];
+      const body = p.color;
       const inFoliage=(this.map?.concealment??[]).some(r=>p.x+11>r.x&&p.x-11<r.x+r.w&&p.y>r.y&&top<r.y+r.h);
       const concealed=p.concealed??(p.crouch&&!p.jetting&&Math.abs(p.vy??0)<2&&(this.map?.concealment??[]).some(r=>p.x-11>=r.x&&p.x+11<=r.x+r.w&&top>=r.y&&p.y<=r.y+r.h));
       const identity=nameplateIdentity({...p,concealed},local);
@@ -534,6 +544,7 @@ export class Renderer {
         airborne,jetting:p.jetting,alpha,recoil:Math.max(0,(state.recoilUntil-now)/100),weapon:p.weapon,
         otherWeapon:p.dual?p.otherWeapon:null,now,hit:state.hitUntil>now,
         charge:p.charge,reload:p.reload,otherCharge:p.otherCharge,otherReload:p.otherReload});
+      if(p.team!==-1)g.roundRect(p.x-11,top+h*.38,5,4,1).fill({color:TEAM_COLORS[p.team],alpha}).stroke({color:0xffffff,width:.6,alpha});
       if(p.classicCover&&p.crouch)g.moveTo(p.x-13,top+8).arc(p.x,top+8,13,Math.PI,2*Math.PI).stroke({width:2,color:0xb9e0d8,alpha:.55});
       state.x=p.x;state.y=p.y;state.hp=p.hp;state.at=now;
       if(p.emp>0) {

@@ -41,6 +41,14 @@ hiding the ranking rule. Readable team names and shapes support the colours.
 Desktop is the primary experience, but touch players need working movement,
 aiming and actions, with menus that fit a narrow screen.
 
+Players should also recognize their own pilot. **Customize pilot** offers saved
+outfits, body styles, hair, facial hair, eyewear, headgear and callsigns; cosmetics
+never change combat stats. **Gentle aim assist** is enabled by default and can be
+disabled in the profile or field menu. It makes a small correction on near misses
+against visible enemies, without locking on or firing automatically. A separate
+dotted sight guide helps show gun direction. The [pilot release record](docs/PILOT_RELEASE_2026_10_21.md)
+documents the reference research, limits and tests.
+
 Persistence is part of the promise. A result says “saved” only after storage
 confirms it. Returning in the same browser restores the pilot and history.
 Clearing browser data creates a new identity. A server restart interrupts live

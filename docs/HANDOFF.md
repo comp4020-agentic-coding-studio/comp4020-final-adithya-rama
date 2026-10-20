@@ -1,5 +1,12 @@
 # Integration handoff: October 21 Crit 10 revision
 
+Latest release pass: [pilot identity and aiming](PILOT_RELEASE_2026_10_21.md).
+Full saved character choices now render in the home preview, lobby and match.
+Gentle aim assist is default-on and optional, with a separate sight guide.
+Boot retry, real match-loading stages, sound previews and preference failure
+feedback complete this pass. Run `scripts/browser-pilots.ts` against the target
+environment; local and live evidence remain separate. Preserve all course tags.
+
 Latest combat amendment: M93BA body damage is 100, with existing shield,
 protection and room multipliers retained. Poison damages all teams including
 its owner, and spawn safety accounts for allied poison. Its animated danger

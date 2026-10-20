@@ -33,8 +33,8 @@ try {
   for(const scene of [{id:"skyshaft",x:480,y:1020,feet:1060,pilotX:450},{id:"outpost-yard",x:1300,y:620,feet:620,pilotX:1270},{id:"cryptworks",x:1270,y:880,feet:975,pilotX:1270},{id:"sirocco-dunes",x:1450,y:700,feet:640,pilotX:1470},{id:"sunspire-palace",x:1400,y:630,feet:670,pilotX:1380}]) {
     await page.evaluate(scene=>{
       const {renderer,maps}=window.__art;renderer.setMap(maps[scene.id],false);
-      const pilot:RenderPlayer={id:1,x:scene.pilotX,y:scene.feet,aim:-.12,crouch:false,alive:true,jetting:false,protected:false,team:0,color:0x6e9860,name:"Ranger",hp:100,maxHp:100,weapon:"ak47",local:true,dual:false,otherWeapon:null,emp:0,avatar:{helmet:"pilot",face:"medium",emblem:"bolt"},vx:65,vy:0};
-      const second:RenderPlayer={...pilot,id:2,x:scene.pilotX+155,y:scene.feet-65,aim:Math.PI,jetting:true,team:1,weapon:"m4",local:false,name:"Scout",avatar:{helmet:"visor",face:"dark",emblem:"star"},vy:-50};
+      const pilot:RenderPlayer={id:1,x:scene.pilotX,y:scene.feet,aim:-.12,crouch:false,alive:true,jetting:false,protected:false,team:0,color:0x6e9860,name:"Ranger",hp:100,maxHp:100,weapon:"ak47",local:true,dual:false,otherWeapon:null,emp:0,avatar:{body:"male",outfit:"armour",hair:"cropped",hairColor:"brown",facialHair:"none",glasses:"goggles",helmet:"pilot",face:"medium",emblem:"bolt"},vx:65,vy:0};
+      const second:RenderPlayer={...pilot,id:2,x:scene.pilotX+155,y:scene.feet-65,aim:Math.PI,jetting:true,team:1,weapon:"m4",local:false,name:"Scout",avatar:{body:"female",outfit:"flight-suit",hair:"bob",hairColor:"black",facialHair:"none",glasses:"aviator",helmet:"visor",face:"dark",emblem:"star"},vy:-50};
       for(let i=0;i<50;i++)renderer.frame({x:scene.x,y:scene.y},1,[pilot,second],[],[],[],[]);
       renderer.addTracer(pilot.x,pilot.y-28,second.x,second.y-24,"ak47",true);
       renderer.frame({x:scene.x,y:scene.y},1,[pilot,second],[],[],[],[]);

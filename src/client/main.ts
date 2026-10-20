@@ -11,7 +11,10 @@ import { capacityOptions, botOptions, spaceRules, syncRuleFields } from "./rule-
 import { WEAPONS, THROWABLES, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
 import { ACTION_LABELS, BINDABLE_CODE, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
 import { avatarOf, avatarSvg, weaponIcon, weaponName } from "./art.ts";
+import { AVATAR_CHOICES, AVATAR_LABELS, PILOT_PRESETS, type Avatar } from "../shared/avatar.ts";
 import { TEAM_COLORS, TEAM_NAMES } from "./render.ts";
+import { GameAudio } from "./audio.ts";
+let previewAudio:GameAudio|null=null;
 
 const PALETTE = [0xe0603c, 0x3c8de0, 0x4caf50, 0xc9a227, 0x9b59b6, 0x1abc9c, 0xe91e63, 0xff9800];
 const app = document.getElementById("app")!;
@@ -36,9 +39,9 @@ const profileWrites = new ProfileWrites(
     renderChatLog();
   },
 );
-async function savePrefs(patch:Record<string,unknown>):Promise<void> {
-  try { await profileWrites.write({prefs:patch}); }
-  catch(e) { toast((e as Error).message,"error"); }
+async function savePrefs(patch:Record<string,unknown>):Promise<boolean> {
+  try { await profileWrites.write({prefs:patch}); return true; }
+  catch(e) { toast((e as Error).message,"error"); return false; }
 }
 
 const isHost = (): boolean => !!room && room.members.some((m) => m.key === room!.you && m.host);
@@ -47,6 +50,7 @@ const mapName = (id: string): string => MAPS[id]?.name ?? id;
 const physicsBrief=(s:RoomSettings):string=>spaceRules(s)?'<p class="rules-note">SPACE RULES · Zero gravity, unlimited fuel, mandatory thrusters. Coast on release; counter-thrust to brake.</p>':"";
 
 function setScreen(s: typeof screen): void {
+  if(s!=="home"){previewAudio?.destroy();previewAudio=null;}
   screen = s;
   document.body.dataset.screen = s;
   if (roomPoll !== undefined && s !== "home") {
@@ -91,13 +95,13 @@ function renderHome(): void {
   setPath("/");
   const kd = profile.deaths > 0 ? (profile.kills / profile.deaths).toFixed(2) : String(profile.kills);
   app.innerHTML = `
-    <nav class="home-nav"><a class="wordmark" href="/" aria-label="Jet Skirmish home">JET <span>SKIRMISH</span><small>THE ARENA IS YOURS</small></a><button id="profile-button" class="pilot-chip" aria-haspopup="dialog"><span class="pilot-chip-art">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</span><span><small>YOUR PILOT</small><b>${esc(profile.name)}</b></span><span aria-hidden="true">⚙</span></button></nav>
+    <nav class="home-nav"><a class="wordmark" href="/" aria-label="Jet Skirmish home">JET <span>SKIRMISH</span><small>THE ARENA IS YOURS</small></a><button id="profile-button" class="pilot-chip" aria-haspopup="dialog"><span class="pilot-chip-art">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</span><span><small>CUSTOMIZE PILOT</small><b>${esc(profile.name)}</b></span><span aria-hidden="true">⚙</span></button></nav>
     <main class="home">
       <section class="hero-stage">
         <div class="hero-landscape">${arenaPreview("outpost")}</div>
         <div class="hero-copy"><span class="eyebrow">2D JETPACK COMBAT · UP TO 8 PILOTS</span><h1>Small squads.<br><em>Big air.</em></h1><p>Find your crew. Pick your arsenal.<br>Make the whole arena your playground.</p></div>
         <div class="hero-pilot" aria-hidden="true">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
-        <div class="arena-caption"><span class="live-dot"></span><b>OUTPOST YARD</b><span>One of six original arenas</span></div>
+        <div class="arena-caption"><span class="live-dot"></span><b>${esc(MAPS.outpost.name.toUpperCase())}</b><span>${Object.values(MAPS).filter(m=>m.id!=="test-range").length} arenas to explore</span></div>
         <div class="hero-mission"><span>FLAG DELIVERY</span><b>Your flag. Their goal.</b><p>Carry your team's flag across the arena. Keep flying. Score for your squad.</p></div>
       </section>
       <section class="card play">
@@ -127,8 +131,8 @@ function renderHome(): void {
         </details>
       </section>
       <dialog id="profile-drawer" class="app-dialog profile-drawer"><section class="profile"><button type="button" data-close-profile class="drawer-close" aria-label="Close pilot profile">×</button>
-        <h2>Your pilot</h2><div id="avatar-preview" class="avatar-preview">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
-        <form id="profile-form" class="stack">
+        <span class="eyebrow">MAKE YOUR MARK</span><h2>Create your pilot</h2><p class="muted small">Your look, your callsign. Every style has the same health and hitbox.</p><div id="avatar-preview" class="avatar-preview">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
+        <div class="pilot-presets" aria-label="Starting looks">${PILOT_PRESETS.map((p,i)=>`<button type="button" data-preset="${i}">${avatarSvg(p.avatar,profile.color)}<span>${p.name}</span></button>`).join("")}</div><form id="profile-form" class="stack">
           <label>Name <input name="name" required maxlength="16" value="${esc(profile.name)}"></label>
           <fieldset class="swatches"><legend>Colour</legend>
             ${PALETTE.map(
@@ -137,11 +141,11 @@ function renderHome(): void {
             ).join("")}
           </fieldset>
           <div class="avatar-fields">
-            ${avatarSelect("helmet",["pilot","visor","cap","mohawk"])}
-            ${avatarSelect("face",["light","medium","dark","robot"])}
-            ${avatarSelect("emblem",["star","bolt","skull"])}
+            ${(Object.keys(AVATAR_CHOICES) as (keyof Avatar)[]).map(avatarSelect).join("")}
+
+
           </div>
-          <label class="check"><input type="checkbox" name="muted" ${profile.prefs.muted===true?"checked":""}> Mute sound</label>
+          <label class="check"><input type="checkbox" name="aimAssist" ${profile.prefs.aimAssist!==false?"checked":""}> Gentle aim assist</label><small class="muted">A small nudge near a visible enemy. You aim and fire; no target lock. Change this in the field menu too.</small><label class="check"><input type="checkbox" name="sightGuide" ${profile.prefs.sightGuide!==false?"checked":""}> Dotted sight guide</label><label class="check"><input type="checkbox" name="muted" ${profile.prefs.muted===true?"checked":""}> Mute sound</label>
           <label>Sound volume <input type="range" name="volume" min="0" max="1" step=".05" value="${Number(profile.prefs.volume??.35)}"></label>
           <label class="check"><input type="checkbox" name="chatMuted" ${profile.prefs.chatMuted===true?"checked":""}> Mute room chat</label>
           <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce shake & debris</label>
@@ -157,7 +161,7 @@ function renderHome(): void {
         <div class="section-heading row"><div><span class="eyebrow">FIND YOUR CREW</span><h2>Open rooms</h2></div><button id="refresh-rooms" class="quiet">Refresh</button></div>
         <ul id="room-list" class="list"><li class="muted">Looking…</li></ul>
       </section>
-      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start. Compare silhouettes, reach and handling below.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${esc(weaponRangeLabel(w.id))} · ${w.category==="equipment"?esc(weaponHandling(w.id)):w.mag+" rounds"}</small><span class="armoury-range" aria-label="Relative maximum reach"><i style="width:${Math.max(2,w.range/1600*100)}%"></i></span>${w.category!=="equipment"?`<small>${esc(weaponHandling(w.id))} · ${w.burstCount?w.burstCount+"-round burst":w.chargeMs?"Charge "+(w.chargeMs/1000).toFixed(2)+"s":w.autoRefill?"Automatic refill":w.auto?"Automatic fire":"Single shot"}</small>`:""}</div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. Walk over grenades to collect them when your six-item bag has room. T changes type; G throws. F pairs compatible small guns. A shield pairs with a machete; selecting a firearm drops the shield. EMP and mines are advanced room options.</p></details></section>
+      <section class="card armoury"><h2>Your armoury</h2><p class="muted small">All equipment is available from the start. Compare silhouettes, reach and handling below.</p><details><summary>Weapon statistics</summary><div id="weapon-stats" class="table-wrap">Loading…</div></details><details><summary>Explore all equipment</summary><div class="armoury-grid">${Object.values(WEAPONS).map(w=>`<div>${weaponIcon(w.id)}<b>${esc(w.name)}</b><small>${esc(weaponRangeLabel(w.id))} · ${w.category==="equipment"?esc(weaponHandling(w.id)):w.mag+" rounds"}</small><span class="armoury-range" aria-label="Relative maximum reach"><i style="width:${Math.max(2,w.range/1600*100)}%"></i></span>${w.category!=="equipment"?`<button type="button" data-sound="${w.id}" aria-label="Preview ${esc(w.name)} sound">Listen</button><small>${esc(weaponHandling(w.id))} · ${w.burstCount?w.burstCount+"-round burst":w.chargeMs?"Charge "+(w.chargeMs/1000).toFixed(2)+"s":w.autoRefill?"Automatic refill":w.auto?"Automatic fire":"Single shot"}</small>`:""}</div>`).join("")}</div><p class="muted small">Standard: frag, flashbang and poison smoke. Walk over grenades to collect them when your six-item bag has room. T changes type; G throws. F pairs compatible small guns. A shield pairs with a machete; selecting a firearm drops the shield. EMP and mines are advanced room options.</p></details></section>
       <section class="card history">
         <div class="section-heading"><span class="eyebrow">YOUR FLIGHT LOG</span><h2>Recent matches</h2></div>
         <ul id="history" class="list"><li class="muted">Loading…</li></ul>
@@ -212,20 +216,34 @@ function renderHome(): void {
   });
   app.querySelector<HTMLFormElement>("#profile-form")!.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target as HTMLFormElement);
+    const form=e.target as HTMLFormElement,submit=form.querySelector<HTMLButtonElement>('button')!;
+    if(submit.disabled)return;
+    const fd = new FormData(form);
+    submit.disabled=true;submit.textContent="Saving pilot…";
     try {
       await profileWrites.write({
-        name: String(fd.get("name") ?? ""), color: Number(fd.get("color") ?? profile.color), prefs: { reducedShake: fd.get("reducedShake") === "on",reducedBlood:fd.get("reducedBlood")==="on",lowFlash:fd.get("lowFlash")==="on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} },
+        name: String(fd.get("name") ?? ""), color: Number(fd.get("color") ?? profile.color), prefs: { reducedShake: fd.get("reducedShake") === "on",reducedBlood:fd.get("reducedBlood")==="on",lowFlash:fd.get("lowFlash")==="on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",aimAssist:fd.get("aimAssist")==="on",sightGuide:fd.get("sightGuide")==="on",avatar:avatarFromForm(fd) },
       });
       drawer.close();renderHome();toast("Pilot saved. Ready for takeoff.");
     } catch (e) {
       toast((e as Error).message, "error");
+      submit.disabled=false;submit.textContent="Save";
     }
   });
   app.querySelector("#range")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Weapon range",isPublic:false,settings:{mode:"training",map:"test-range",bots:0}}});autoStart=true;joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
   app.querySelector("#bindings")!.addEventListener("click",openBindings);
   app.querySelector("#survival")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Survival squad",isPublic:true,settings:{mode:"survival",map:"outpost",capacity:4,bots:0}}});joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
-  app.querySelector("#profile-form")!.addEventListener("input",e=>{const fd=new FormData(e.currentTarget as HTMLFormElement);app.querySelector("#avatar-preview")!.innerHTML=avatarSvg(avatarOf({helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")}),Number(fd.get("color")??profile.color));});
+  app.querySelector("#profile-form")!.addEventListener("input",e=>{const fd=new FormData(e.currentTarget as HTMLFormElement);app.querySelector("#avatar-preview")!.innerHTML=avatarSvg(avatarFromForm(fd),Number(fd.get("color")??profile.color));});
+  for(const button of app.querySelectorAll<HTMLButtonElement>("[data-preset]"))button.addEventListener("click",()=>{const form=app.querySelector<HTMLFormElement>("#profile-form")!;for(const [key,value] of Object.entries(PILOT_PRESETS[Number(button.dataset.preset)].avatar))(form.elements.namedItem(key) as HTMLSelectElement).value=value;form.dispatchEvent(new Event("input",{bubbles:true}));});
+  for(const button of app.querySelectorAll<HTMLButtonElement>("[data-sound]"))button.addEventListener("click",async()=>{
+    if(profile.prefs.muted===true){toast("Sound is muted. Enable sound in your pilot settings to listen.");return;}
+    button.disabled=true;
+    try{
+      const audio=previewAudio??=new GameAudio();audio.volume=Number(profile.prefs.volume??.35);
+      await audio.unlock();audio.event({t:"shot",by:0,w:button.dataset.sound!,x1:0,y1:0,x2:100,y2:0,hit:false},0);
+    }catch{toast("Sound could not start. Try again or check your browser’s audio settings.","error");}
+    finally{button.disabled=false;}
+  });
   void loadWeaponStats();
   app.querySelector("#more")!.addEventListener("click", () => void loadHistory(false));
 
@@ -374,7 +392,7 @@ function renderLobby(): void {
   else if(teamMode&&s.bots===0&&(!pilots.some(m=>m.team===0)||!pilots.some(m=>m.team===1)))startReason="Both teams need a pilot. Choose a team below.";
   const readyCount=pilots.filter(m=>m.host||m.ready).length;
   const member = (m: RoomView["members"][number]) =>
-    `<li class="${m.key === r.you ? "me" : ""}"><i class="dot" style="background:${hex(m.color)}"></i>${esc(m.name)}${m.host ? ' <span class="tag">host</span>' : ""}${
+    `<li class="${m.key === r.you ? "me" : ""}"><span class="lobby-pilot" aria-hidden="true">${avatarSvg(avatarOf(m.avatar),m.color)}</span><b class="lobby-pilot-name">${esc(m.name)}</b>${m.host ? ' <span class="tag">host</span>' : ""}${
       m.spectator?' <span class="tag">spectator</span>':""}${
       m.connected ? "" : ' <span class="tag away">reconnecting</span>'
     }${m.spectator?'':m.host?' <span class="tag ready">host ready</span>':m.ready?' <span class="tag ready">ready</span>':' <span class="tag not-ready">not ready</span>'}</li>`;
@@ -628,10 +646,12 @@ net.onStatus((s) => {
 });
 
 async function boot(): Promise<void> {
+  app.innerHTML='<section class="boot-screen"><span class="eyebrow">JET SKIRMISH</span><h1>Opening the hangar</h1><p role="status">Connecting your pilot to the arena…</p></section>';
   try {
-    profile = (await api<{ profile: Profile }>("/api/session", { method: "POST" })).profile;
+    profile = (await api<{ profile: Profile }>("/api/session", { method: "POST",signal:AbortSignal.timeout(20000) })).profile;
   } catch {
-    app.innerHTML = `<div class="waiting"><p>The server isn't answering. Refresh to try again.</p></div>`;
+    app.innerHTML = `<section class="boot-screen"><span class="eyebrow">JET SKIRMISH</span><h1>Connection interrupted</h1><p role="alert">We couldn’t open the hangar. Check your connection and try again.</p><button id="retry-boot" class="primary">Try again</button><a href="/readme/">About the game</a></section>`;
+    app.querySelector("#retry-boot")!.addEventListener("click",()=>void boot());
     return;
   }
   net.connect();
@@ -642,9 +662,11 @@ async function boot(): Promise<void> {
 }
 
 
-function avatarSelect(name:"helmet"|"face"|"emblem",values:string[]):string {
+function avatarFromForm(fd:FormData):Avatar { return avatarOf(Object.fromEntries(Object.keys(AVATAR_CHOICES).map(key=>[key,fd.get(key)]))); }
+function avatarSelect(name:keyof Avatar):string {
+  const values=AVATAR_CHOICES[name];
   const chosen=avatarOf(profile.prefs.avatar)[name];
-  return '<label>'+name[0].toUpperCase()+name.slice(1)+'<select name="'+name+'">'+values.map(v=>'<option value="'+v+'" '+(v===chosen?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join("")+'</select></label>';
+  return '<label>'+AVATAR_LABELS[name]+'<select name="'+name+'">'+values.map(v=>'<option value="'+v+'" '+(v===chosen?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join("")+'</select></label>';
 }
 function dialog(title:string,body:string):HTMLDialogElement {
   for(const existing of document.querySelectorAll<HTMLDialogElement>("dialog[open]"))existing.close();

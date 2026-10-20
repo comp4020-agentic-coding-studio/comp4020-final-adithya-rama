@@ -1,3 +1,4 @@
+import {avatarOf} from "../src/shared/avatar.ts";
 import { describe, expect, inject, it } from "vitest";
 import { TestPlayer } from "./lib/client.ts";
 
@@ -28,7 +29,7 @@ describe("profile and saved room API", () => {
     const saved = await p.http("/api/me", { method: "PATCH", body: { color: 123456, prefs: { avatar, muted: true, volume: 0.5, chatMuted: true, bindings: { KeyA: 1, ArrowUp: -6 }, ignored: "discard" } } });
     expect(saved.status).toBe(200);
     const changed = await p.http<any>("/api/me", { method: "PATCH", body: { prefs: { volume: 0.8 } } });
-    expect(changed.body.profile.prefs).toEqual({ avatar, muted: true, volume: 0.8, chatMuted: true, bindings: { KeyA: 1, ArrowUp: -6 } });
+    expect(changed.body.profile.prefs).toEqual({ avatar:avatarOf(avatar), muted: true, volume: 0.8, chatMuted: true, bindings: { KeyA: 1, ArrowUp: -6 } });
     const created = await p.http<any>("/api/presets", { method: "POST", body: { name: "Flag night", settings: { mode: "flag", unlimitedFuel: true } } });
     expect(created.status).toBe(201);
     expect(created.body.preset.settings.mode).toBe("flag");
