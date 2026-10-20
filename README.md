@@ -130,6 +130,11 @@ Boost is unlimited there, while EMP still disables powered thrust. Fully covered
 grounded crouching can conceal a pilot in bushes; firing or carrying a flag
 reveals them. Spectators have an explicit all-player observer view.
 
+Nameplates identify **YOU** and **ALLY** in green and **ENEMY** in red, with
+matching health bars. Names keep a readable size when zooming out and separate
+when nearby pilots overlap. Spectators see Ember/Tide team labels instead.
+These markers do not reveal concealed enemies.
+
 Practice starts with forgiving Easy bots; Normal and Hard offer faster reactions
 and more accurate bursts. Frag, flashbang and poison smoke are the standard
 throwables. Start with four grenades and automatically collect nearby grenades

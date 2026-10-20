@@ -1,5 +1,11 @@
 # Integration handoff: October 21 Crit 10 revision
 
+Latest UAT follow-up: readable, viewer-relative nameplates. Teammates are green
+`ALLY`, opponents red `ENEMY`, with fixed screen-size names and health bars.
+Screen-space placement separates nearby names without revealing hidden enemies.
+See [nameplate verification](NAMEPLATE_VALIDATION.md) for local checks and the
+separate live acceptance command. This is a renderer-only gameplay change.
+
 Follow-up control amendment: movement and flight no longer select gun aim.
 Mouse follows the cursor; released numpad/arrow/touch aim retains its direction
 until deliberate aiming changes it. Existing movement/jetpack bindings remain.

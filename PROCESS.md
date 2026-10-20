@@ -406,3 +406,10 @@ check reads actual server snapshots and shot events after ordinary key presses.
 Local verification passed 391 unit and 40 server/spec tests, plus desktop and
 phone practice rounds. These checks establish the control behaviour; they
 do not claim new human playtest feedback.
+
+Adithya's next UAT finding was that names were hard to read and team allegiance
+was unclear. The renderer now uses viewer-relative ally/enemy colours plus
+explicit text markers, with screen-size nameplates. Screenshot review exposed
+overlap at phone Far scope; the follow-up added label placement and a browser
+non-overlap assertion. [The validation record](docs/NAMEPLATE_VALIDATION.md)
+distinguishes local automated evidence from deployment and human acceptance.

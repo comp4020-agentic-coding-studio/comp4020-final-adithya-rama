@@ -15,6 +15,11 @@ Implementation and release verification are recorded separately there.
       Lunarcy and original own-flag return bounds preserved.
 - [x] Compact translucent three-slot inventory.
 - [x] Server-validated Random spawns setting, default on, with safety and variety.
+- [x] Viewer-relative green ally/red enemy nameplates, explicit text markers,
+      fixed screen-size text, dark backing, matching health bars and collision
+      placement for crowded views. Concealed opponents remain hidden.
+      Local/live verification for this follow-up is recorded in
+      [nameplate validation](NAMEPLATE_VALIDATION.md).
 
 This records the full agreed scope. **Implemented** means the feature crosses its
 required simulation/server/client boundaries. **Tested locally** means a named

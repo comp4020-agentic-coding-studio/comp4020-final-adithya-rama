@@ -1,5 +1,6 @@
 import { followCamera } from "./camera.ts";
 import { playArea } from "./play-area.ts";
+import { nameplateIdentity, nameplateText, placeNameplates, type PlateBounds } from "./nameplates.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
 import { WEAPONS } from "../shared/weapons.ts";
@@ -111,8 +112,9 @@ export class Renderer {
   private flagG = new Graphics();
   private areaG = new Graphics();
   private decor = new Container();
-  private labels = new Map<number, Text>();
+  private labels = new Map<number, { root: Container; text: Text; panel: Graphics }>();
   private labelLayer = new Container();
+  private labelLinks = new Graphics();
   private fx: Fx[] = [];
   private debris:DeathDebris[]=[];
   private debrisAt=0;
@@ -178,7 +180,7 @@ export class Renderer {
     this.map = map;
     this.debris=[];this.debrisAt=0;this.cameraAt=0;
     this.actors.clear();
-    for(const label of this.labels.values())label.visible=false;
+    for(const label of this.labels.values())label.root.visible=false;
     drawConcealment(this.concealmentG,map);
     if(this.softwareStaticCache)this.staticWorld.cacheAsTexture(false);
     this.app.renderer.background.color = map.theme.sky;
@@ -490,6 +492,10 @@ export class Renderer {
     this.outlineG.clear();
     const local=players.find(p=>p.local);
     const seen = new Set<number>();
+    const plates:PlateBounds[]=[];
+    const anchors=new Map<number,{x:number;y:number;color:number}>();
+    if(!this.labelLinks.parent)this.labelLayer.addChildAt(this.labelLinks,0);
+    this.labelLinks.clear();
     for (const p of players) {
       if(!p.alive) {this.actors.delete(p.id);continue;}
       seen.add(p.id);
@@ -499,9 +505,10 @@ export class Renderer {
       const body = p.team === -1 ? p.color : TEAM_COLORS[p.team];
       const inFoliage=(this.map?.concealment??[]).some(r=>p.x+11>r.x&&p.x-11<r.x+r.w&&p.y>r.y&&top<r.y+r.h);
       const concealed=p.concealed??(p.crouch&&!p.jetting&&Math.abs(p.vy??0)<2&&(this.map?.concealment??[]).some(r=>p.x-11>=r.x&&p.x+11<=r.x+r.w&&top>=r.y&&p.y<=r.y+r.h));
-      const friendly=p.local||!!(local&&local.team!==-1&&p.team===local.team);
+      const identity=nameplateIdentity({...p,concealed},local);
+      const friendly=identity.friendly;
       if(inFoliage&&friendly) {
-        const outline=this.outlineG,color=p.local?0xfff3cb:body;
+        const outline=this.outlineG,color=identity.color;
         outline.ellipse(p.x,top+Math.min(8,h*.25),9,Math.min(9,h*.28)).stroke({width:1.5,color,alpha:.65});
         outline.roundRect(p.x-10,top+h*.38,20,h*.52,4).stroke({width:1.5,color,alpha:.58});
         outline.moveTo(p.x-6,p.y-5).lineTo(p.x-9,p.y).moveTo(p.x+5,p.y-5).lineTo(p.x+10,p.y).stroke({width:1.5,color,alpha:.6});
@@ -535,24 +542,59 @@ export class Renderer {
       if(p.protected) g.ellipse(p.x,top+h/2,22,h*.67).stroke({width:2,color:0xdaf6ff,alpha:.45});
       if (p.local) {
         g.moveTo(p.x - 5, top - 16).lineTo(p.x + 5, top - 16).lineTo(p.x, top - 9).fill(0xffffff);
-      } else if(!concealed) {
-        const frac = Math.max(0, p.hp / p.maxHp);
-        g.rect(p.x - 16, top - 12, 32, 4).fill({ color: 0x000000, alpha: 0.4 });
-        g.rect(p.x - 16, top - 12, 32 * frac, 4).fill(frac > 0.35 ? 0x5cd65c : 0xe04f3c);
       }
 
       let label = this.labels.get(p.id);
       if (!label) {
-        label = new Text({ text: p.name, style: { fontFamily: "system-ui, sans-serif", fontSize: 11, fontWeight:"600", fill: 0xfff4d6, stroke: { color: 0x000000, width: 3 } } });
-        label.anchor.set(0.5, 1);
+        const root=new Container(),panel=new Graphics();
+        const text=new Text({text:"",resolution:2,style:{fontFamily:"system-ui, sans-serif",fontSize:13,fontWeight:"700",fill:identity.color}});
+        text.anchor.set(.5,1);
+        text.position.set(0,-8);
+        root.addChild(panel,text);
+        label={root,text,panel};
         this.labels.set(p.id, label);
-        this.labelLayer.addChild(label);
+        this.labelLayer.addChild(root);
       }
-      if (label.text !== p.name) label.text = p.name;
-      label.visible = !p.local&&!concealed;
-      label.position.set(p.x, top - 15);
+      const text=nameplateText(identity.marker,p.name);
+      if(label.text.text!==text)label.text.text=text;
+      if(label.text.style.fill!==identity.color)label.text.style.fill=identity.color;
+      label.root.visible=identity.visible;
+      // Counter the world zoom: text, padding and health bar stay in CSS pixels.
+      label.root.scale.set(1/this.scale);
+      label.root.position.set(p.x,top-18/this.scale);
+      const width=label.text.width+14,height=label.text.height+13;
+      const frac=Math.max(0,Math.min(1,p.hp/p.maxHp));
+      label.panel.clear().roundRect(-width/2,-height,width,height,5)
+        .fill({color:0x09151e,alpha:.88}).stroke({width:1,color:identity.color,alpha:.8})
+        .roundRect(-width/2+5,-5,width-10,3,1).fill({color:0xffffff,alpha:.18});
+      if(frac>0)label.panel.roundRect(-width/2+5,-5,(width-10)*frac,3,1).fill(identity.color);
+      const point=this.worldToScreen(p.x,top);
+      const area=this.playArea();
+      if(identity.visible&&point.x>=0&&point.x<=this.app.screen.width&&point.y>=area.top&&point.y<=area.top+area.height){
+        plates.push({id:p.id,x:point.x,y:point.y-18,width,height});
+        anchors.set(p.id,{...point,color:identity.color});
+      }
+      label.root.visible=false;
     }
-    for (const [id, label] of this.labels) label.visible = label.visible && seen.has(id);
+    for(const [id,label] of this.labels)if(!seen.has(id)){
+      label.root.destroy({children:true});this.labels.delete(id);
+    }
+    const area=this.playArea();
+    for(const plate of placeNameplates(plates,{width:this.app.screen.width,top:area.top,bottom:area.top+area.height})){
+      const label=this.labels.get(plate.id)!,anchor=anchors.get(plate.id)!;
+      label.root.visible=true;
+      label.root.position.set((plate.x-this.world.x)/this.scale,(plate.y-this.world.y)/this.scale);
+      const fromY=plate.y<anchor.y?plate.y:plate.y-plate.height;
+      this.labelLinks.moveTo((plate.x-this.world.x)/this.scale,(fromY-this.world.y)/this.scale)
+        .lineTo((anchor.x-this.world.x)/this.scale,(anchor.y-3-this.world.y)/this.scale)
+        .stroke({width:1/this.scale,color:anchor.color,alpha:.65});
+    }
+    if(this.probe)this.probe.config.nameplates=[...this.labels].map(([id,label])=>({
+      id,text:label.text.text,color:label.text.style.fill,visible:label.root.visible,
+      fontPixels:13*label.root.scale.x*this.scale,
+      width:label.root.width*this.scale,height:label.root.height*this.scale,
+      x:this.world.x+label.root.x*this.scale,y:this.world.y+label.root.y*this.scale,
+    }));
     // Concealed/disconnected actors can vanish from a viewer snapshot; no stale
     // animation trail should expose them when they next become visible.
     for(const id of this.actors.keys())if(!seen.has(id))this.actors.delete(id);
