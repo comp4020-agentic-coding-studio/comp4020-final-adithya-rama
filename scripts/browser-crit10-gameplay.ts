@@ -1,4 +1,4 @@
-// Local production-app acceptance. Reads the existing renderer probe; all actor
+// Production-app acceptance against the reported base URL. Reads the existing renderer probe; all actor
 // motion and setting changes use ordinary UI/input, never injected game state.
 import assert from "node:assert/strict";
 import {mkdirSync,writeFileSync} from "node:fs";
@@ -81,4 +81,4 @@ try{
  }
 }catch(error){failures.push((error as Error).stack??String(error));}
 finally{await browser.close();}
-writeFileSync(out+"/report.json",JSON.stringify({at:new Date().toISOString(),base,browser:browser.version(),checks,failures,limits:"Local production build with actual keyboard/touch UI actions and read-only render diagnostics. Emulated phone viewport, not physical phone performance or human playtesting. Retained 160 ms position smoothing permits follow lag during fast travel; settled camera checks do not claim exact centering during motion."},null,2));console.log(JSON.stringify({checks,failures},null,2));if(failures.length)process.exitCode=1;
+writeFileSync(out+"/report.json",JSON.stringify({at:new Date().toISOString(),base,browser:browser.version(),checks,failures,limits:"Production-app acceptance against the reported base URL, using actual keyboard/touch UI actions and read-only render diagnostics. Emulated phone viewport, not physical phone performance or human playtesting. Retained 160 ms position smoothing permits follow lag during fast travel; settled camera checks do not claim exact centering during motion."},null,2));console.log(JSON.stringify({checks,failures},null,2));if(failures.length)process.exitCode=1;

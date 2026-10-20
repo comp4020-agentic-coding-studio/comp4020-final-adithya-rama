@@ -102,10 +102,54 @@ tracking lag during motion.
 
 ## Release verification
 
-Publication and live observations are recorded here after the workflow completes.
-Before deployment, the prior-release acceptance profile, preferences, aggregates,
-history and exact match details still matched their saved baseline using only
-authenticated GET requests. Match detail digest:
+Revision
+[`2f5af60`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2f5af60)
+was pushed and deployed through the
+[successful normal workflow](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/39431060211).
+Its production-container build/spec, process-evidence checks, both secret scans
+and Fly deployment passed. Fly's image metadata confirmed that Git SHA, and the
+live client bundle matched the final local `index-5-dknT45.js`. `/` and
+`/readme/` returned HTTP 200. Hosting remains one shared CPU, 256 MB and one
+persistent volume in Sydney. No new capacity allowance was enabled.
+
+The live two-profile rehearsal passed at **00:35 AEDT on 21 October**, in private
+room `S42L5`. The desktop and phone profiles entered from the URL alone and
+agreed on saved 1–0 TDM and 1–0 own-flag results. Four commands from the guest's
+actual connection were rejected: settings, start, end and rematch. Host transfer,
+both personal histories and reload identity preservation passed.
+
+The corresponding Fly stream contained **42 relevant events**, including two
+guest identities and renames, room creation, joins, actual settings changes,
+readiness, the four named refusals, the actual kill with both profile IDs, flag
+pickup/delivery and two `match_saved` confirmations. This establishes that the
+server evidence is sufficient to narrate these automated actions; it does not
+claim a completed human pod rehearsal.
+
+Ignored evidence: `test-results/crit10-live.json`,
+`test-results/crit10-live-narration-events.json`,
+`test-results/crit10-live-deployment.json`. Live match IDs:
+`524422b7-26f0-4131-b1f6-0cab78c0dc95` (TDM) and
+`4881cc99-7287-48fb-8968-401fad07c8a5` (Flag Delivery).
+
+The same gameplay harness then passed **four saved live rounds** by 00:38 AEDT:
+Lunarcy exterior/camera/HUD/settings and Outpost fall/recovery on each marking
+viewport. No browser errors or failed assertions were reported. Both pilots
+took gradual damage while unpowered, stopped losing health after acknowledged
+thrust, cleared the warning and recovered above terrain height. Desktop
+recovered at 90 HP and phone at 95 HP; the difference is time spent unpowered,
+not a required fixed damage outcome. HUD dimensions and transparency matched
+the local evidence. Both views ignored saved look-ahead, retained centred
+targets at all four edges, and saved/restored/staged Random spawns.
+
+Ignored live gameplay evidence:
+`test-results/oct21-crit10-gameplay-live/report.json` and its screenshots.
+This is browser automation against Fly, with phone emulation and the same
+160 ms smoothing limitation. It is not a claim of human playtesting, physical
+phone performance or a new load soak.
+
+Before and after deployment, the prior-release acceptance profile, preferences,
+aggregates, history and exact match details matched their saved baseline using
+only authenticated GET requests. Match detail digest:
 `43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
 
 ## Human evidence and limits

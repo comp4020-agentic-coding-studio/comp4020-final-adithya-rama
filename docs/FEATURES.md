@@ -23,8 +23,10 @@ checks actually performed on Fly. Human playtesting is a separate requirement.
 
 ## Current release boundary
 
-The **14 October revision is deployed**, with local acceptance and bounded live
-verification recorded separately. All six new layouts passed live desktop and
+The **21 October Crit 10 revision is deployed**, with
+[local and live evidence recorded separately](CRIT_10_VALIDATION.md).
+The earlier six-layout verification below applies to the October 14 release.
+All six new layouts passed live desktop and
 phone rounds; all five modes produced identical saved results in independent
 sessions. Saved pre-existing profile/history survived deployment. The first
 phone pass was held behind Adithya's active match; its failed attempt and the

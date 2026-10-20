@@ -383,3 +383,16 @@ the pod's actual log-only exercise; it does not claim that exercise has already
 happened. The first-person reflection is an assisted edit of Adithya's supplied
 experience, not an invented agent account. Previous reflections and crit tags
 remain unchanged; `/ship` remains for Adithya to run.
+
+The normal workflow published
+[`2f5af60`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2f5af60),
+including successful production-container and secret checks. A live automated
+two-profile rehearsal then produced actual named kill/delivery events, four
+server refusals, identical committed outcomes and host transfer. Its Fly log
+excerpt was checked against the browser's room and match IDs. The pre-existing
+acceptance guest and exact saved match digest survived unchanged. These are
+measured live results; they do not replace the pod's human log-only exercise.
+Four further saved live rounds checked the camera, exterior flight and
+terrestrial recovery at desktop and phone sizes, plus the inventory and
+spawn-setting controls. The recorded limits distinguish settled centering
+from intentional smoothing lag during fast flight.
