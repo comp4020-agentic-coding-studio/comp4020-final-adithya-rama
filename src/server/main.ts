@@ -30,6 +30,7 @@ const interrupted = await db.call<number>("interruptLive");
 log("boot", { port: PORT, db: DB_PATH, interruptedMatches: interrupted, node: process.version });
 
 const rooms = new RoomManager(db);
+const connectedClients = new WeakMap<import("ws").WebSocket, Client>();
 rooms.start();
 
 // ---------- sessions ----------
@@ -241,7 +242,11 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
     }
     const row = await db.call<Record<string, unknown>>("updateProfile", update);
     const updated = toProfile(row);
-    if (update.name !== undefined && updated.name !== profile.name) log("rename", { profile: profile.id, from: profile.name, to: updated.name });
+    if (update.name !== undefined && updated.name !== profile.name) log("rename", { profile: profile.id, name: updated.name, from: profile.name, to: updated.name });
+    for (const socket of wss.clients) {
+      const connected = connectedClients.get(socket);
+      if (connected?.profile.id === updated.id) connected.profile = updated;
+    }
     for (const room of rooms.rooms.values()) room.updateProfile(updated);
     return json(res, 200, { profile: updated });
   }
@@ -263,6 +268,8 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
   const presetRoute = path.match(/^\/api\/presets\/([0-9a-f-]{36})$/);
   if (presetRoute && method === "DELETE") {
     const deleted = await db.call("deletePreset", { id: presetRoute[1], profileId: profile.id });
+    if (!deleted) log("rejected", { action: "delete_preset", profile: profile.id, name: profile.name,
+      preset: presetRoute[1], reason: "Preset unavailable to this session." });
     return json(res, deleted ? 200 : 404, { deleted });
   }
   if (path === "/api/me/matches" && method === "GET") {
@@ -275,6 +282,8 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
   const matchRoute = path.match(/^\/api\/matches\/([0-9a-f-]{36})$/);
   if (matchRoute && method === "GET") {
     const match = await db.call("match", { id: matchRoute[1], profileId: profile.id });
+    if (!match) log("rejected", { action: "read_match", profile: profile.id, name: profile.name,
+      match: matchRoute[1], reason: "Match unavailable to this session." });
     return match ? json(res, 200, { match }) : json(res, 404, { error: "no such match" });
   }
   if (path === "/api/rooms" && method === "POST") {
@@ -285,12 +294,12 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
       return json(res, 400, { error: (e as Error).message });
     }
     if (body.password !== undefined && (typeof body.password !== "string" || body.password.length > 64)) return json(res, 400, { error: "Password must be at most 64 characters" });
-    const room = rooms.create({ name: body.name as string | undefined, isPublic: body.isPublic !== false, settings: body.settings, password: body.password as string | undefined });
+    const room = rooms.create({ name: body.name as string | undefined, isPublic: body.isPublic !== false, settings: body.settings, password: body.password as string | undefined }, profile);
     if (typeof room === "string") return json(res, 503, { error: room });
     return json(res, 201, { code: room.code });
   }
   if (path === "/api/quickjoin" && method === "POST") {
-    const room = rooms.quickJoin();
+    const room = rooms.quickJoin(profile);
     if (typeof room === "string") return json(res, 503, { error: room });
     return json(res, 200, { code: room.code });
   }
@@ -377,12 +386,13 @@ server.on("upgrade", async (req, socket, head) => {
 
 function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
   const client: Client = { ws, profile, room: null, windowStart: performance.now(), windowCount: 0, strikes: 0 };
+  connectedClients.set(ws, client);
   let alive = true;
   let pingAt = 0;
   ws.on("pong", () => { alive = true; if (pingAt) client.roundTripMs = Math.max(0, Math.min(1000, performance.now() - pingAt)); });
   const heartbeat = setInterval(() => {
     if (!alive) {
-      log("stalled", { profile: profile.id });
+      log("stalled", { profile: client.profile.id, name: client.profile.name });
       ws.terminate();
       return;
     }
@@ -415,9 +425,11 @@ function onConnection(ws: import("ws").WebSocket, profile: Profile): void {
       const code = msg.code.toUpperCase();
       if (client.room && client.room.code !== code) client.room.leave(client);
       const room = rooms.rooms.get(code);
-      if (!room || room.closed) return send(ws, { t: "error", message: "That room doesn't exist any more." });
-      const err = room.join(client, msg.password, msg.spectate === true);
-      if (err) send(ws, { t: "error", message: err });
+      const err = !room || room.closed ? "That room doesn't exist any more." : room.join(client, msg.password, msg.spectate === true);
+      if (err) {
+        log("rejected", { action: "join", room: code, profile: client.profile.id, name: client.profile.name, reason: err });
+        send(ws, { t: "error", message: err });
+      }
       return;
     }
     if (msg.t === "leave") {

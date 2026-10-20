@@ -119,28 +119,54 @@ export class Room {
     return { profile: m.key, name: m.profile.name };
   }
 
-  private playerLabel(id: number | null | undefined): string | null {
-    if (id === null || id === undefined) return null;
-    return this.world?.players.get(id)?.name ?? `player#${id}`;
+  private actor(id: number | null | undefined): { name: string | null; player: number | null; profile: string | null; bot: boolean } {
+    const p = id == null ? undefined : this.world?.players.get(id);
+    return { name: p?.name ?? (id == null ? null : "player#" + id), player: id ?? null,
+      profile: p && !p.bot ? p.key : null, bot: p?.bot ?? false };
   }
 
-  // Only the events that answer "who did what"; shots, hurts and explosions
-  // would drown the log at 60 Hz.
+  // Only discrete outcomes: actor IDs disambiguate identical display names.
   private logGameEvent(event: GameEvent): void {
     if (event.t === "kill") {
-      const by = event.attacker === undefined ? event.killer : event.attacker;
-      log("kill", { room: this.code, by: this.playerLabel(by), victim: this.playerLabel(event.victim), weapon: event.w });
+      const by = this.actor(event.attacker === undefined ? event.killer : event.attacker);
+      const victim = this.actor(event.victim);
+      log("kill", { room: this.code, match: this.matchId, tick: this.world?.tick,
+        by: by.name, byPlayer: by.player, byProfile: by.profile, byBot: by.bot,
+        victim: victim.name, victimPlayer: victim.player, victimProfile: victim.profile, victimBot: victim.bot, weapon: event.w });
     } else if (event.t === "flag") {
-      log("flag", { room: this.code, team: event.owner, action: event.action, by: this.playerLabel(event.by) });
+      const by = this.actor(event.by);
+      log("flag", { room: this.code, match: this.matchId, tick: this.world?.tick,
+        team: event.owner, action: event.action, by: by.name, byPlayer: by.player, byProfile: by.profile, byBot: by.bot });
     }
+  }
+
+  // Disconnect/leave can produce events outside a simulation step. Consume
+  // them before final snapshots too, including a last fighter leaving a room.
+  private collectGameEvents(): void {
+    const w = this.world;
+    if (!w || !w.events.length) return;
+    for (const event of w.events) {
+      this.logGameEvent(event);
+      if (event.t === "kill") {
+        this.endKillerFollow(event.victim);
+        const killer = event.attacker === undefined ? event.killer : event.attacker;
+        this.deathFollow.delete(event.victim);
+        if (killer !== null && killer !== event.victim && w.players.get(killer)?.alive && w.players.get(killer)?.connected)
+          this.deathFollow.set(event.victim, killer);
+      } else if (event.t === "spawn") this.deathFollow.delete(event.id);
+    }
+    this.events.push(...w.events);
+    w.events = [];
   }
 
   private transferHost(): void {
     const current = this.hostKey && this.members.get(this.hostKey);
     if (current && current.client && !current.spectator) return;
     const next = this.fighters().filter((m) => m.client).sort((a, b) => a.joinedAt - b.joinedAt)[0];
+    const previous = this.hostKey;
     this.hostKey = next?.key ?? null;
-    if (next) log("host_transfer", { room: this.code, to: next.key, name: next.profile.name });
+    if (previous !== this.hostKey) log("host_transfer", { room: this.code, from: previous, to: this.hostKey,
+      profile: next?.key ?? null, name: next?.profile.name ?? null });
   }
 
   updateProfile(profile: Profile): void {
@@ -348,7 +374,7 @@ export class Room {
     if (this.world && m.playerId !== null) {
       this.endKillerFollow(m.playerId);
       const p = this.world.players.get(m.playerId);
-      if (p) { p.connected = false; p.reserved = true; dropFlags(this.world, p.id); }
+      if (p) { p.connected = false; p.reserved = true; dropFlags(this.world, p.id); this.collectGameEvents(); }
     }
     this.transferHost();
     log("disconnect", { room: this.code, ...this.who(m) });
@@ -370,6 +396,7 @@ export class Room {
       const p = this.world.players.get(m.playerId);
       if (p) {
         dropFlags(this.world, p.id);
+        this.collectGameEvents();
         p.connected = false;
         p.reserved = false;
         if (p.alive) this.hiddenBodies.add(p.id);
@@ -402,19 +429,22 @@ export class Room {
         this.queueInput(m, msg.frames);
         return;
       case "ready":
-        if (m.spectator || this.starting || this.state !== "lobby") return;
-        m.ready = msg.ready === true;
+        if (m.spectator || this.starting || this.state !== "lobby") return this.reject(client, "Only fighters in the lobby can ready up.", "ready");
+        if (typeof msg.ready !== "boolean") return this.reject(client, "Ready must be true or false.", "ready");
+        if (m.ready === msg.ready) return;
+        m.ready = msg.ready;
         log("ready", { room: this.code, ...this.who(m), ready: m.ready });
         break;
       case "team":
-        if (m.spectator || this.starting || this.state !== "lobby" || !TEAM_MODES.includes(this.settings.mode)) return;
+        if (m.spectator || this.starting || this.state !== "lobby" || !TEAM_MODES.includes(this.settings.mode))
+          return this.reject(client, "Choose a team as a fighter in a team-mode lobby.", "team");
         if (msg.team !== 0 && msg.team !== 1) return this.reject(client, "Unknown team.");
         m.team = msg.team;
         m.ready = false;
         log("team", { room: this.code, ...this.who(m), team: m.team });
         break;
       case "settings": {
-        if (!isHost) return this.reject(client, "Only the host can change room settings.");
+        if (!isHost) return this.reject(client, "Only the host can change room settings.", "settings");
         if (this.starting) return this.reject(client, "The round is starting.");
         if (!msg.settings || typeof msg.settings !== "object" || Array.isArray(msg.settings)) return this.reject(client, "Invalid room settings.");
         const base = this.nextSettings ?? this.settings;
@@ -425,7 +455,9 @@ export class Room {
         if ((next.mode === "training" && humans > 1) || (next.mode === "survival" && humans > 4)) {
           return this.reject(client, "Training allows one human and survival allows four; ask extra players to spectate.");
         }
-        log("settings", { room: this.code, ...this.who(m), mode: next.mode, map: next.map, deferred: this.state === "playing" });
+        const changes = Object.fromEntries((Object.keys(next) as (keyof RoomSettings)[])
+          .filter(key => JSON.stringify(next[key]) !== JSON.stringify(base[key])).map(key => [key, next[key]]));
+        log("settings", { room: this.code, ...this.who(m), changes, mode: next.mode, map: next.map, deferred: this.state === "playing" });
         if (this.state === "playing") { this.nextSettings = next; break; }
         this.settings = next;
         if (prevMode !== next.mode) this.rebalanceTeams();
@@ -456,19 +488,19 @@ export class Room {
         if (this.state === "results" && this.saveStatus === "failed") void this.persistResult();
         return;
       case "start":
-        if (!isHost) return this.reject(client, "Only the host can start the round.");
+        if (!isHost) return this.reject(client, "Only the host can start the round.", "start");
         log("start_requested", { room: this.code, ...this.who(m) });
         void this.start(client);
         return;
       case "end":
-        if (!isHost) return this.reject(client, "Only the host can end the round.");
+        if (!isHost) return this.reject(client, "Only the host can end the round.", "end");
         if (this.state === "playing") {
           log("end_requested", { room: this.code, ...this.who(m) });
           this.finish("host");
         }
         return;
       case "rematch":
-        if (!isHost) return this.reject(client, "Only the host can start a rematch.");
+        if (!isHost) return this.reject(client, "Only the host can start a rematch.", "rematch");
         if (this.state !== "results") return;
         if (this.saveStatus !== "saved") return this.reject(client, "Results must finish saving before a rematch. Retry saving if needed.");
         log("rematch_requested", { room: this.code, ...this.who(m) });
@@ -480,8 +512,8 @@ export class Room {
     this.broadcastRoom();
   }
 
-  private reject(client: Client, message: string): void {
-    log("rejected", { room: this.code, profile: client.profile.id, name: client.profile.name, reason: message });
+  private reject(client: Client, message: string, action?: string): void {
+    log("rejected", { room: this.code, profile: client.profile.id, name: client.profile.name, action, reason: message });
     send(client.ws, { t: "error", message });
   }
 
@@ -607,19 +639,7 @@ export class Room {
     const beforeIds = w.players.size;
     stepWorld(w, inputs);
     if (w.players.size !== beforeIds) this.broadcast({ t: "roster", roster: this.roster() });
-    if (w.events.length > 0) {
-      for(const event of w.events){
-        this.logGameEvent(event);
-        if(event.t==="kill"){
-          this.endKillerFollow(event.victim);
-          const killer=event.attacker===undefined?event.killer:event.attacker;
-          this.deathFollow.delete(event.victim);
-          if(killer!==null&&killer!==event.victim&&w.players.get(killer)?.alive&&w.players.get(killer)?.connected)this.deathFollow.set(event.victim,killer);
-        } else if(event.t==="spawn")this.deathFollow.delete(event.id);
-      }
-      this.events.push(...w.events);
-      w.events = [];
-    }
+    this.collectGameEvents();
     if (w.tick % SNAP_EVERY === 0) this.sendSnapshots();
     if (w.over) this.finish(w.overReason ?? "time");
   }
@@ -706,6 +726,7 @@ export class Room {
     const w = this.world;
     if (!w || !this.matchId || this.state !== "playing") return;
     w.over = true;
+    this.collectGameEvents();
     this.sendSnapshots();
     const result = computeResult(w, this.matchId, reason, (p) => (p.bot ? null : p.key));
     this.result = result;
@@ -845,7 +866,7 @@ export class RoomManager {
     return n;
   }
 
-  create(opts: { name?: string; isPublic?: boolean; settings?: unknown; password?: string }): Room | string {
+  create(opts: { name?: string; isPublic?: boolean; settings?: unknown; password?: string }, actor?: Profile): Room | string {
     const waiting = [...this.rooms.values()].filter((r) => r.state !== "playing").length;
     if (waiting >= MAX_WAITING_ROOMS) return "The server has as many open rooms as it can hold. Join one from the list instead.";
     let code = "";
@@ -856,7 +877,8 @@ export class RoomManager {
     const name = (typeof opts.name === "string" ? opts.name : "").replace(/[^\p{L}\p{N} _.'!-]/gu, "").trim().slice(0, 24) || `${MODE_NAMES[settings.mode]} room`;
     const room = new Room(this, code, { name, isPublic: opts.isPublic !== false && settings.mode !== "training", settings, password: typeof opts.password === "string" ? opts.password.slice(0, 64) : undefined });
     this.rooms.set(code, room);
-    log("room_created", { room: code, mode: settings.mode, public: room.isPublic });
+    log("room_created", { room: code, roomName: room.name, mode: settings.mode, map: settings.map, public: room.isPublic,
+      profile: actor?.id ?? null, name: actor?.name ?? null });
     return room;
   }
 
@@ -864,11 +886,11 @@ export class RoomManager {
     return [...this.rooms.values()].filter((r) => r.isPublic && !r.closed).map((r) => r.listing());
   }
 
-  quickJoin(): Room | string {
+  quickJoin(actor?: Profile): Room | string {
     const open = [...this.rooms.values()]
       .filter((r) => !r.hasPassword && !r.starting && r.isPublic && r.state !== "results" && r.listing().players < r.settings.capacity && r.listing().players > 0)
       .sort((a, b) => b.members.size - a.members.size);
-    return open[0] ?? this.create({ isPublic: true });
+    return open[0] ?? this.create({ isPublic: true }, actor);
   }
 
   welcome(client: Client): void {

@@ -1,99 +1,122 @@
-# 5. Who may see and change what, and how the server knows who did it
+# 5. Guest identity, room authority and readable server evidence
 
-Date: 2026-10-20 · Status: proposed · Crit 10 ("Fly by instruments")
+Date: 2026-10-21 · Status: accepted implementation decision · Crit 10 ("Fly by instruments")
 
-Drafted by the agent from the server code as it stands at this commit, for
-Adithya to confirm or correct before the crit; the judgement is Adithya's.
-Where a "why" below is the agent's reading rather than Adithya's stated
-reason, it says so.
+This records existing rules and the requested Crit 10 observability work. It is
+grounded in the [agreed scope](../IMPLEMENTATION_PLAN.md), [server-authority
+decision](0003-who-decides-what-happened.md) and [Classic PC
+rules](0004-classic-pc-gameplay.md). It is not personal testimony or a claim that
+a human rehearsal has happened.
 
-## The question
+## Identity and access
 
-Two or more people, each in their own browser, act on one shared room and
-match. What counts as a person, what may each of them see and change, and
-where is that decided?
+A guest session identifies a browser cookie store, not a verified human.
+`POST /api/session` restores a profile or creates one with an opaque ID and
+generated `Pilot-XXXX` name. The random token is in an HttpOnly, SameSite=Lax
+cookie (Secure on HTTPS); SQLite stores its hash. Names may be duplicated or
+changed and are not authorization keys.
 
-## What counts as a person
+Separate Chrome profiles have separate cookie stores. Ordinary windows in one
+profile share their guest; several Incognito windows can also share one
+Incognito session. Use independent profiles for the rehearsal.
 
-A person is a **browser holding a guest session**. The first request without a
-session cookie creates a profile with an opaque id and a generated name
-(`Pilot-XXXX`), and sets an `HttpOnly`, `SameSite=Lax` cookie holding a random
-token; only the token's hash is stored (`src/server/main.ts`, `ensureSession`).
-Two Chrome profiles or an incognito window are therefore two people, with no
-sign-up step: everything needed to get in is on the page.
+URL-only entry supports the stated goal of a stranger joining and returning to
+find their result. Clearing the cookie loses access to that guest. There is no
+cross-device account recovery. A room password authorizes entry; its code/link
+is an invitation, not a secret account credential.
 
-Why: the game is drop-in arena play, and the crit (and the marking) open the
-app from its URL alone. An account system would add a step that protects
-nothing the game needs protected. The cost is that clearing cookies makes you a
-new person, and a profile's history cannot follow you to another device.
+## Who may change what
 
-## What each person may change
+The HTTP session and WebSocket connection select the actor, not a
+client-supplied profile ID. These rules are checked on the server.
 
-Every rule below is checked in the server's message handler
-(`Room.handle` in `src/server/rooms.ts`) or HTTP API, never only in the UI.
-A refused request is answered with an error and logged as `rejected`.
+| Action | Authority and limits |
+|---|---|
+| Room rules | Current host only. Settings are sanitized. During play changes are staged for the next round; live rules remain fixed. Lobby edits clear readiness. |
+| Start, end, rematch | Current host only, with state, readiness, team, capacity and saved-result checks. Enabling a disabled button grants no authority. |
+| Ready, team | Only the connected fighter's own lobby state. Team selection requires a team mode; spectators cannot ready up. |
+| Movement, equipment | Inputs apply only to that connection's fighter. The simulation decides health, ammunition, kills and flags. |
+| Spectator/fighter status | Members change their own status between rounds, subject to capacity. They cannot become an omniscient observer during a live round. |
+| Name, colour, preferences | The session's `/api/me` profile. Successful edits refresh matching live connections, including connections not yet in a room. |
+| History, weapon statistics | `/api/me/matches` and `/api/me/weapons` select the session's profile. |
+| Presets | List/create/delete only the session's presets. Deletion requires preset ID and owner profile ID. Applying a preset to shared rules still uses the host-only settings action. |
+| Saved match details | `/api/matches/:id` requires participation. A fighter can read the whole shared result; an unrelated guest or spectator cannot use a guessed ID to read it later. |
+| Room admission | Password and capacity checks run on the server. The page's link/code flow requires no manually obtained token. |
 
-| Action | Who may | Enforced in |
-|---|---|---|
-| Change room settings (mode, map, gravity, capacity…) | The room's **host** only | `handle` → `settings` |
-| Start, end, or rematch a round | The host only | `handle` → `start`/`end`/`rematch` |
-| Ready up, pick a team | Each fighter, for **themselves** only, in the lobby | `handle` → `ready`/`team` |
-| Move, shoot, use items | Each fighter, only **their own** player, via input frames | `queueInput`; the simulation decides outcomes (decision 3) |
-| Become a spectator / fighter | Each person, for themselves, between rounds | `handle` → `spectate` |
-| Join a password room | Anyone with the password; checked with a timing-safe compare | `Room.join` |
-| Rename, recolour, set preferences | Only your own profile (`/api/me`) | the session cookie selects the profile; there is no id parameter to point elsewhere |
-| Read match history, weapon stats, presets | Only your own (`/api/me/*`, `/api/presets`) | same |
+The current host remains host while connected and fighting. On leave,
+disconnect or becoming a spectator, authority transfers to the earliest-joined
+remaining connected fighter. With no such fighter there is no host. A returning
+former host does not displace the current host. Creating a room reserves no
+permanent ownership: the first connected fighter becomes host. This keeps one
+editor for shared settings while allowing the room to continue after its
+original host leaves.
 
-**Host** is the earliest-joined connected fighter. If the host disconnects or
-becomes a spectator, it passes to the next one (`transferHost`, logged as
-`host_transfer`). Nobody can claim host; it is a consequence of join order.
+## Who may see what
 
-Why (agent's reading of the existing design): a room needs exactly one person
-who can change the rules of the next round, or two people race each other's
-settings. Tying it to join order and connection keeps a room usable when its
-creator leaves without needing a separate claim/kick mechanism.
+`snapshotForViewer` filters player records before serialization:
 
-## What each person may see
+- Ordinary non-concealed opponents are sent even behind terrain. This is
+  **foliage concealment**, not general line-of-sight fog of war.
+- A fully covered, supported crouching enemy can be omitted. Revealing actions
+  and carried flags expose the actor. Nearby detection of a concealed enemy
+  requires both the distance threshold and line of sight.
+- Fighters receive their own actor and team allies in team modes/Survival.
+- A dead fighter's camera may follow only the actual available attacker.
+  That actor can be disclosed even if concealed; the exception does not reveal
+  the attacker's whole team. Death/disconnect permanently ends that follow
+  grant for this death. Normal visibility still applies to other actors:
+  the entire snapshot is not restricted to one killer.
+- Spectators deliberately receive full observer vision and cannot fight in the
+  live round. Relaying information outside the game remains a known social risk.
+- Public scores contain identity, kills, deaths, assists, deliveries, alive and
+  connected flags, without coordinates. Public flags and combat effects do not
+  promise to conceal every indirect clue.
 
-Visibility is filtered **on the server, per viewer, before serialization**
-(`snapshotForViewer` in `src/server/visibility.ts`), so a modified browser
-cannot read positions it was not sent:
+Renderer-only hiding would leave coordinates available to a modified browser.
+The server omits concealed records and their actor-specific events before
+sending. Operator logs are not a public in-game feed.
 
-- A living fighter receives their own player, their teammates (in team modes),
-  and opponents within line of sight (`canSeePlayer`). Flag carriers are always
-  revealed (decision 4).
-- A dead fighter additionally follows only the player who actually killed them,
-  until that killer dies or disconnects, and never the killer's whole team.
-- Spectators are deliberately omniscient observers. They cannot also fight in
-  that round.
-- Everyone receives the scoreboard (kills, deaths, deliveries, alive and
-  connected flags), which carries no positions.
+## How the operator identifies actions
 
-Why: hiding opponents only in the renderer would leak them to anyone who opens
-dev tools; filtering before send is the only version that holds.
+Application logs are JSON objects on stdout. Identity/room actions carry
+`profile` and current `name`, plus `room` where relevant. Combat lines include
+names, `byPlayer`/`byProfile` and victim equivalents, with match ID and tick.
+Bots have player IDs and bot markers, without human profiles. Duplicate names
+therefore remain distinguishable.
 
-## How the server knows who did what
+Events include:
 
-Every log line is one JSON object on stdout, so it appears in
-`flyctl logs -a comp4020-final-adithya-rama`. Lines about a person carry
-both the opaque `profile` id and the `name` other players see on screen:
+- `guest_created` and `rename` (old/new name);
+- `room_created`, `join`, `reconnect`, `disconnect`, `leave`, `host_transfer`,
+  `spectate`;
+- `ready`, `team`, `settings` (actual sanitized changes and whether deferred),
+  `start_requested`, `end_requested`, `rematch_requested`;
+- `rejected` for domain refusals, including non-host commands, join/password
+  failures and unavailable saved matches/presets;
+- `kill`, `flag` (pickup/drop/return/delivery), `match_start`, `match_end`,
+  `match_saved` and storage failures.
 
-- identity: `guest_created`, `rename` (from → to)
-- room: `join`, `reconnect`, `disconnect`, `leave`, `host_transfer`, `spectate`
-- lobby actions: `ready`, `team`, `settings`, `start_requested`,
-  `end_requested`, `rematch_requested`
-- refusals: `rejected` (who, and the reason they were given)
-- play: `kill` (by, victim, weapon) and `flag` (team, pickup/drop/return/delivery, by)
-- match lifecycle: `match_start`, `match_end`, `match_saved`
+A request log does not prove success: `match_start` confirms admission and
+`match_saved` confirms committed storage. Disconnect/leave can drop flags
+outside a simulation step. The room consumes that event immediately and retains
+it for the next/final snapshot, including the last player leaving.
 
-Shots, damage and explosions are not logged: at 60 Hz they would bury the
-lines that answer "who did what". Session tokens are never logged.
+Continuous input, shots, damage, explosions, heartbeat traffic and chat text
+are not logged. Neither session tokens/cookies nor room passwords are logged.
+Malformed high-frequency frames can be ignored or rate-limited without a log
+per frame; this is not a complete security audit trail. Logs contain names and
+opaque IDs: share the relevant demo excerpt, not an unrestricted production
+archive.
 
-`spec/server-logs.test.ts` checks that joins, accepted and refused actions,
-kills and flag actions name the person, and that shots stay out of the log.
+## Verification and trade-offs
 
-## Open for Adithya to confirm
+`spec/server-logs.test.ts` covers real room actions and simulation kills,
+same-name players, immediate disconnect and final-leave flag drops, plus an
+isolated server's HTTP/WebSocket guest/rename/join/refusal flow. It checks that
+chat, passwords and cookies are absent and another identity cannot delete a
+preset or read a saved match. Existing room/storage/visibility tests separately
+cover authority, ownership and killer-only follow.
 
-- Is join-order host the rule you want, or should the room's creator keep it?
-- Should spectators stay omniscient, given they could relay positions to a
-  fighter over voice? (Accepted risk today.)
+This stream explains who changed a room and which outcomes committed. It is not
+a movement replay, verified-person identity, subjective fairness result or
+replacement for the [two-person rehearsal](../CRIT_10_REHEARSAL.md).
