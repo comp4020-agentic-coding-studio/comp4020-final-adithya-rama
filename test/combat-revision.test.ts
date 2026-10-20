@@ -39,11 +39,11 @@ describe("physical shields and one-hit machetes", () => {
     expect(w.events.some((e) => e.t === "shield")).toBe(false);
   });
 
-  it("a chest sniper hit does 90, and a rear path bypasses the panel", () => {
+  it("a chest sniper hit is lethal, and a rear path bypasses the panel", () => {
     const { w, a, b } = duel();
     b.aim = 0;
     run(w, 1, () => hold(a.id, Btn.FIRE));
-    expect(b.hp).toBe(10); expect(b.alive).toBe(true);
+    expect(b.hp).toBe(0); expect(b.alive).toBe(false);
     expect(w.events.some((e) => e.t === "shield")).toBe(false);
   });
 
@@ -194,9 +194,9 @@ describe("authored weapon range", () => {
     return { w, a, b };
   }
   it("Classic PC retains full chest damage through maximum range and stops beyond it", () => {
-    expect(openShot(300).b.hp).toBe(10);
+    expect(openShot(300).b.hp).toBe(0);
     const distant = openShot(WEAPONS.m93ba.range - 20);
-    expect(distant.b.hp).toBe(10);
+    expect(distant.b.hp).toBe(0);
     expect(openShot(WEAPONS.m93ba.range + 30).b.hp).toBe(100);
   });
   it("an exposed headshot remains proportional to configured health", () => {
@@ -204,7 +204,7 @@ describe("authored weapon range", () => {
     b.hp = b.maxHp = 200;
     const m = muzzleOf(a);
     run(w, 1, () => hold(a.id, Btn.FIRE, Math.atan2(b.y - 39 - m.y, b.x - m.x)));
-    expect(b.hp).toBe(65); expect(b.alive).toBe(true);
+    expect(b.hp).toBe(50); expect(b.alive).toBe(true);
   });
   it("weapon projectiles stop at remaining traveled range even with unusually high velocity", () => {
     const w = world(), owner = player(w, -1, { x: 100, y: 900 });

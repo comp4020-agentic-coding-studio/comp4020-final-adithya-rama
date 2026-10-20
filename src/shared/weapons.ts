@@ -31,7 +31,7 @@ export const WEAPONS: Record<string, WeaponDefinition> = {
     { spread: .055, reloadMs: 1800, range: 875, zoom: 1.2, color: 0xc79461 }),
   m14: gun("m14", "M14", "precision", 43, 440, 14, 42,
     { auto: false, behavior: "projectile", projectileSpeed: 1600, projectileGravity: 0, spread: .006, reloadMs: 1900, range: 1200, zoom: 1.65, color: 0xa98c6e }),
-  m93ba: gun("m93ba", "M93BA", "precision", 90, 1250, 5, 20,
+  m93ba: gun("m93ba", "M93BA", "precision", 100, 1250, 5, 20,
     { auto: false, spread: 0, reloadMs: 2500, range: 1500, headshotMultiplier: 1.5, zoom: 2, heavy: true, color: 0x99a7bd }),
   spas12: gun("spas12", "SPAS-12", "shotgun", 11, 720, 6, 24,
     { auto: false, pellets: 7, spread: .2, reloadMs: 2000, range: 325, color: 0x3b3f44 }),
@@ -92,6 +92,7 @@ export function weaponHandling(id: string): string {
   if (w.autoRefill) return "Refills automatically when empty";
   if (id === "emp-gun") return "Travelling pulse disables thrust and disarms mines";
   if (id === "m14") return "Finite-speed precision bullet";
+  if (id === "m93ba") return "One-shot at standard health/damage; shields still block";
   if (id === "saw-launcher") return "Charge, pierce, ricochet and burst";
   if (w.chargeMs) return "Spin up before sustained fire";
   return w.oneHanded ? "Dual-wield compatible" : w.heavy ? "Two-handed heavy; slower movement" : "Two-handed";

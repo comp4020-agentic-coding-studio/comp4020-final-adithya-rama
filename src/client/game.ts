@@ -419,7 +419,7 @@ export class GameSession {
     const framed=cameraFrame({ ...camera,aim:cameraActor?.aim??0,weapon:this.scopeWeapon },this.renderer.viewport(),this.scopes[this.scopeWeapon??""]??0);
     const cameraId=cameraActor?.id??null;
     this.audio.scene(players,camera);
-    this.renderer.frame({...framed,snap:cameraId!==this.cameraTarget}, 1, players, this.latest.projectiles, this.latest.pickups, this.latest.flags,this.latest.areas);
+    this.renderer.frame({...framed,snap:cameraId!==this.cameraTarget}, 1, players, this.latest.projectiles, this.latest.pickups, this.latest.flags,this.latest.areas,this.latest.tick);
     this.cameraTarget=cameraId;
 
     if(this.pred) {

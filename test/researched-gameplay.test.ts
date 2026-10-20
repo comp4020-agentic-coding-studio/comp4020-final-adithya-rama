@@ -73,20 +73,22 @@ describe("supported crouch and bounded collision", () => {
     for (const lower of [false, true]) {
       const w = world({ mode: "ffa" }); const a = player(w, -1, { x: 200, y: 900 }); const b = player(w, -1, { x: 400, y: 900 });
       a.slots = [freshSlot("m93ba"), null, null];
+      b.hp = b.maxHp = 200;
       run(w, 1, () => hold(b.id, Btn.CROUCH));
       const aim = lower ? Math.atan2(b.y - PLAYER_CROUCH_H + 2 - muzzleOf(a).y, b.x - a.x) : 0;
       run(w, 1, () => new Map([[a.id, { seq: 1, b: Btn.FIRE, aim }], [b.id, { seq: 1, b: Btn.CROUCH, aim: 0 }]]));
-      expect(b.hp).toBe(lower ? 10 : 100);
+      expect(b.hp).toBe(lower ? 100 : 200);
     }
   });
   it("rewound sniper damage uses historical crouch stance as well as its box", () => {
     const w = world({ mode: "ffa" }), a = player(w, -1, { x: 200, y: 900 }), b = player(w, -1, { x: 400, y: 900 });
     a.slots = [freshSlot("m93ba"), null, null];
+    b.hp = b.maxHp = 200;
     run(w, 2, () => hold(b.id, Btn.CROUCH)); const view = w.tick;
     run(w, 1); expect(b.crouch).toBe(false);
     const aim = Math.atan2(874 - muzzleOf(a).y, b.x - a.x);
     run(w, 1, () => new Map([[a.id, { seq: 1, b: Btn.FIRE, aim, view }]]));
-    expect(b.hp).toBe(10);
+    expect(b.hp).toBe(100);
   });
   it("holstered weight has no penalty while an equipped shield/heavy does", () => {
     const slots = [freshSlot("mini-eagle"), freshSlot("smaw"), freshSlot("riot-shield")] as const;
@@ -336,11 +338,11 @@ describe("spawn safety scoring", () => {
         { x: 1450, y: 878, vx: 950, vy: 0, weapon: "smaw" }));
     p.alive = false; respawn(w, p); expect(p.x).toBe(500);
   });
-  it("ignores harmless allied hazards and respects rock blocking hazardous paths", () => {
+  it("ignores harmless allied frag grenades and respects rock blocking hazardous paths", () => {
     const w = world({ mode: "tdm" }), p = player(w, 0), mate = player(w, 0), enemy = player(w, 1, { x: 100, y: 900 });
     w.map = { ...FLAT, solids: [FLAT.solids[0], { x: 1650, y: 600, w: 30, h: 300 }],
       spawns: [{ x: 500, y: 900, team: 0 }, { x: 1800, y: 900, team: 0 }] };
-    w.areas.push({ id: 90, owner: mate.id, x: 1800, y: 878, radius: 135, until: 1000, nextDamageTick: 0 });
+    w.projectiles.push(projectile(90, "frag", mate.id, { x: 1800, y: 878, vx: 0, vy: 0 }));
     w.projectiles.push(projectile(99, "smaw", enemy.id, { x: 1400, y: 878, vx: 950, vy: 0, weapon: "smaw" }));
     p.alive = false; respawn(w, p); expect(p.x).toBe(1800);
   });

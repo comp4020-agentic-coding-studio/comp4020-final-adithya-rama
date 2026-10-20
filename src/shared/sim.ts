@@ -309,12 +309,12 @@ function spawnHazards(w: World, p: Player, x: number, y: number): number {
   };
   let hazards = 0;
   for (const area of w.areas) {
-    if (area.until > w.tick && canHarm(area.owner) &&
+    if (area.until > w.tick &&
         Math.hypot(x - area.x, cy - area.y) <= area.radius + PLAYER_W / 2 &&
         lineOfSight(w.map, area.x, area.y, x, cy)) hazards++;
   }
   for (const pr of w.projectiles) {
-    if (pr.explodeTick <= w.tick || !canHarm(pr.owner)) continue;
+    if (pr.explodeTick <= w.tick || (pr.kind !== "gas" && !canHarm(pr.owner))) continue;
     const wd = pr.weapon ? WEAPONS[pr.weapon] : undefined, td = THROWABLES[pr.kind];
     if (!wd && !td) continue;
     const seconds = pr.stuck ? 0 : Math.min(.5, (pr.explodeTick - w.tick) / TICK_RATE);
@@ -436,7 +436,8 @@ export function applyDamage(w: World, victim: Player, attackerId: number | null,
   if (!victim.alive || amount <= 0 || !Number.isFinite(amount)) return 0;
   if (w.tick < victim.protectUntil) return 0;
   const attacker = attackerId === null ? undefined : w.players.get(attackerId);
-  if (attacker && attacker !== victim && sameTeam(w, attacker, victim) && !w.settings.friendlyFire) return 0;
+  // Poison is a shared environmental hazard, including its owner's team.
+  if (weapon !== "gas" && attacker && attacker !== victim && sameTeam(w, attacker, victim) && !w.settings.friendlyFire) return 0;
   const dealt = Math.min(victim.hp, amount);
   victim.hp -= dealt;
   combat(w, victim);

@@ -137,7 +137,12 @@ These markers do not reveal concealed enemies.
 
 Practice starts with forgiving Easy bots; Normal and Hard offer faster reactions
 and more accurate bursts. Frag, flashbang and poison smoke are the standard
-throwables. Start with four grenades and automatically collect nearby grenades
+throwables. Poison damages everyone in the cloud, including its thrower and
+teammates, even with friendly fire off. Its swirling green smoke, bubbles and
+skull mark the danger area. Spawn protection and solid cover still apply.
+The M93BA sniper deals 100 body damage: one unshielded hit kills at standard
+health/damage settings. Custom multipliers can change that; the faster M14 is
+a separate marksman rifle. Start with four grenades and automatically collect nearby grenades
 up to six; T changes type and G throws. F pairs compatible small guns. A shield
 pairs with a machete; switching to a firearm drops the shield. After a death,
 the camera follows your attacker until respawn. Health slowly recovers after six seconds without combat. Your pilot,

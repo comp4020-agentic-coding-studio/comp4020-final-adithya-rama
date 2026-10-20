@@ -413,3 +413,13 @@ explicit text markers, with screen-size nameplates. Screenshot review exposed
 overlap at phone Far scope; the follow-up added label placement and a browser
 non-overlap assertion. [The validation record](docs/NAMEPLATE_VALIDATION.md)
 distinguishes local automated evidence from deployment and human acceptance.
+
+Adithya then questioned sniper lethality and asked poison to hurt everyone.
+Inspection found a 90-damage sniper body shot and a generic friendly-fire check
+excluding teammates from poison. The revision changes those two rules, preserves
+shield/protection/custom-room interactions, and updates spawn danger scoring.
+Existing stance tests now use 200 HP so they still distinguish body damage
+from head multipliers. An obsolete harmless-allied-gas spawn test now uses a
+frag grenade, while new tests explicitly require allied poison to be dangerous.
+The [combat follow-up record](docs/COMBAT_FOLLOWUP_VALIDATION.md) documents the
+authored tuning, animation and local/live acceptance procedure.

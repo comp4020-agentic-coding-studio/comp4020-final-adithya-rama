@@ -2,8 +2,8 @@ import { followCamera } from "./camera.ts";
 import { playArea } from "./play-area.ts";
 import { nameplateIdentity, nameplateText, placeNameplates, type PlateBounds } from "./nameplates.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
-import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
-import { WEAPONS } from "../shared/weapons.ts";
+import { PLAYER_CROUCH_H, PLAYER_H, TICK_RATE } from "../shared/constants.ts";
+import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
 import type { AreaSnap, FlagState, MapDefinition, PickupSnap, ProjectileSnap, Team } from "../shared/types.ts";
 import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar, SKIN } from "./art.ts";
 import { advanceDebris, appendDebris, isRocketDeath, rocketDebris, type DeathDebris } from "./death.ts";
@@ -344,6 +344,7 @@ export class Renderer {
     pickups: PickupSnap[],
     flags: FlagState[] = [],
     areas: AreaSnap[] = [],
+    serverTick = 0,
   ): void {
     const map = this.map;
     if (!map) return;
@@ -371,7 +372,7 @@ export class Renderer {
     this.drawPickups(pickups, now);
     this.drawPlayers(players, now);
     this.drawFlags(flags,players,now);
-    this.drawAreas(areas,now);
+    this.drawAreas(areas,now,serverTick);
 
     const pg = this.projG;
     pg.clear();
@@ -615,15 +616,37 @@ export class Renderer {
       if(f.state==="dropped") g.circle(x,y-23,32).stroke({width:2,color:c,alpha:.25+.2*Math.sin(now/200)});
     }
   }
-  private drawAreas(areas:AreaSnap[],now:number):void {
+  private drawAreas(areas:AreaSnap[],now:number,serverTick:number):void {
     const g=this.areaG;g.clear();
     for(const a of areas) {
-      g.circle(a.x,a.y,a.r).fill({color:0xb6e44c,alpha:.13}).stroke({width:2,color:0xc3ef67,alpha:.35});
-      for(let i=0;i<8;i++) {
-        const angle=i*2.4+now/2400, distance=(.3+(i%3)*.18)*a.r;
-        g.circle(a.x+Math.cos(angle)*distance,a.y+Math.sin(angle)*distance,a.r*(.17+(i%2)*.07)).fill({color:i%2?0x9ed43f:0xd8fa84,alpha:.13});
+      const remaining=(a.until-serverTick)/TICK_RATE,age=Math.max(0,THROWABLES.gas.durationMs!/1000-remaining);
+      const fade=Math.min(1,Math.max(0,remaining)/.6),bloom=.45+.55*Math.min(1,age/.4);
+      const phase=now/1000+a.id*1.7,pulse=.5+.5*Math.sin(phase*3);
+      // The boundary is full-size immediately: animation never disguises reach.
+      g.circle(a.x,a.y,a.r).fill({color:0x729f2b,alpha:.12*fade})
+        .stroke({width:2,color:0xc9f573,alpha:(.35+.18*pulse)*fade});
+      g.circle(a.x,a.y,a.r*.7*bloom).fill({color:0x557b24,alpha:.17*fade});
+      for(let i=0;i<12;i++) {
+        const angle=i*2.4+phase*(i%2?.22:-.16),distance=(.18+(i%4)*.15)*a.r*bloom;
+        const x=a.x+Math.cos(angle)*distance,y=a.y+Math.sin(angle)*distance;
+        const r=a.r*(.17+(i%3)*.035)*(1+.12*Math.sin(phase*1.8+i))*bloom;
+        g.circle(x,y,r).fill({color:i%2?0x88b83e:0xc3e76d,alpha:(.12+.035*Math.sin(phase+i))*fade});
+        g.circle(x-r*.18,y-r*.25,r*.55).fill({color:0xe3f6a3,alpha:.065*fade});
       }
+      for(let i=0;i<7;i++){
+        const life=(phase*.36+i/7)%1,angle=i*2.4+a.id;
+        const x=a.x+Math.cos(angle)*a.r*.62,y=a.y+a.r*(.65-life*1.3);
+        g.circle(x,y,2+life*3).stroke({width:1.2,color:0xe5ffa1,alpha:Math.sin(life*Math.PI)*.5*fade});
+      }
+      // A skull cue makes this a danger cloud rather than harmless team smoke.
+      const sy=a.y-4+Math.sin(phase*2)*3;
+      g.circle(a.x,sy,11).fill({color:0xe6f6b5,alpha:.8*fade});
+      g.roundRect(a.x-6,sy+5,12,10,2).fill({color:0xe6f6b5,alpha:.8*fade});
+      g.circle(a.x-4,sy-1,3).circle(a.x+4,sy-1,3).fill({color:0x29401e,alpha:.9*fade});
+      g.moveTo(a.x-2,sy+9).lineTo(a.x-2,sy+14).moveTo(a.x+2,sy+9).lineTo(a.x+2,sy+14)
+        .stroke({width:1.5,color:0x29401e,alpha:.9*fade});
     }
+    if(this.probe)this.probe.config.poisonClouds=areas.length;
   }
 
   destroy(): void {

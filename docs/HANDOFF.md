@@ -1,5 +1,10 @@
 # Integration handoff: October 21 Crit 10 revision
 
+Latest combat amendment: M93BA body damage is 100, with existing shield,
+protection and room multipliers retained. Poison damages all teams including
+its owner, and spawn safety accounts for allied poison. Its animated danger
+cloud remains cosmetic. See [combat follow-up](COMBAT_FOLLOWUP_VALIDATION.md).
+
 Latest UAT follow-up: readable, viewer-relative nameplates. Teammates are green
 `ALLY`, opponents red `ENEMY`, with fixed screen-size names and health bars.
 Screen-space placement separates nearby names without revealing hidden enemies.

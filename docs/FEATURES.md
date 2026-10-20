@@ -15,6 +15,10 @@ Implementation and release verification are recorded separately there.
       Lunarcy and original own-flag return bounds preserved.
 - [x] Compact translucent three-slot inventory.
 - [x] Server-validated Random spawns setting, default on, with safety and variety.
+- [x] M93BA one-shot body damage at standard settings; poison harms its owner,
+      allies and opponents regardless of friendly fire. Animated poison bloom,
+      swirling smoke, rising bubbles and skull cue.
+      See [combat follow-up validation](COMBAT_FOLLOWUP_VALIDATION.md) for evidence.
 - [x] Viewer-relative green ally/red enemy nameplates, explicit text markers,
       fixed screen-size text, dark backing, matching health bars and collision
       placement for crowded views. Concealed opponents remain hidden.
