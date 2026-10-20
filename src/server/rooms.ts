@@ -113,12 +113,34 @@ export class Room {
 
   private fighters(): Member[] { return [...this.members.values()].filter((m) => !m.spectator); }
 
+  // Who a log line is about: the opaque id plus the name people see on screen,
+  // so the logs can be read aloud against what two browsers are doing.
+  private who(m: Member): { profile: string; name: string } {
+    return { profile: m.key, name: m.profile.name };
+  }
+
+  private playerLabel(id: number | null | undefined): string | null {
+    if (id === null || id === undefined) return null;
+    return this.world?.players.get(id)?.name ?? `player#${id}`;
+  }
+
+  // Only the events that answer "who did what"; shots, hurts and explosions
+  // would drown the log at 60 Hz.
+  private logGameEvent(event: GameEvent): void {
+    if (event.t === "kill") {
+      const by = event.attacker === undefined ? event.killer : event.attacker;
+      log("kill", { room: this.code, by: this.playerLabel(by), victim: this.playerLabel(event.victim), weapon: event.w });
+    } else if (event.t === "flag") {
+      log("flag", { room: this.code, team: event.owner, action: event.action, by: this.playerLabel(event.by) });
+    }
+  }
+
   private transferHost(): void {
     const current = this.hostKey && this.members.get(this.hostKey);
     if (current && current.client && !current.spectator) return;
     const next = this.fighters().filter((m) => m.client).sort((a, b) => a.joinedAt - b.joinedAt)[0];
     this.hostKey = next?.key ?? null;
-    if (next) log("host_transfer", { room: this.code, to: next.key });
+    if (next) log("host_transfer", { room: this.code, to: next.key, name: next.profile.name });
   }
 
   updateProfile(profile: Profile): void {
@@ -233,7 +255,7 @@ export class Room {
         const p = this.world.players.get(existing.playerId);
         if (p) { p.connected = true; p.reserved = false; if (this.hiddenBodies.delete(p.id) && p.hp > 0) p.alive = true; }
       }
-      log("reconnect", { room: this.code, profile: key });
+      log("reconnect", { room: this.code, ...this.who(existing) });
       this.afterJoin(existing);
       return null;
     }
@@ -265,7 +287,7 @@ export class Room {
     client.room = this;
     this.transferHost();
     if (!m.spectator && this.world && this.state === "playing") this.addToWorld(m);
-    log("join", { room: this.code, profile: key, members: this.members.size });
+    log("join", { room: this.code, ...this.who(m), spectator: spectate, members: this.members.size });
     this.afterJoin(m);
     return null;
   }
@@ -329,7 +351,7 @@ export class Room {
       if (p) { p.connected = false; p.reserved = true; dropFlags(this.world, p.id); }
     }
     this.transferHost();
-    log("disconnect", { room: this.code, profile: m.key });
+    log("disconnect", { room: this.code, ...this.who(m) });
     this.broadcastRoom();
   }
 
@@ -361,7 +383,7 @@ export class Room {
       for (const o of this.members.values()) if (o.team !== -1) counts[o.team]++;
       if (Math.abs(counts[0] - counts[1]) > 1) this.rebalanceTeams();
     }
-    log("leave", { room: this.code, profile: m.key, members: this.members.size });
+    log("leave", { room: this.code, ...this.who(m), members: this.members.size });
     if (this.members.size === 0) {
       if (this.state === "playing") this.finish("abandoned");
       this.close();
@@ -382,12 +404,14 @@ export class Room {
       case "ready":
         if (m.spectator || this.starting || this.state !== "lobby") return;
         m.ready = msg.ready === true;
+        log("ready", { room: this.code, ...this.who(m), ready: m.ready });
         break;
       case "team":
         if (m.spectator || this.starting || this.state !== "lobby" || !TEAM_MODES.includes(this.settings.mode)) return;
         if (msg.team !== 0 && msg.team !== 1) return this.reject(client, "Unknown team.");
         m.team = msg.team;
         m.ready = false;
+        log("team", { room: this.code, ...this.who(m), team: m.team });
         break;
       case "settings": {
         if (!isHost) return this.reject(client, "Only the host can change room settings.");
@@ -401,6 +425,7 @@ export class Room {
         if ((next.mode === "training" && humans > 1) || (next.mode === "survival" && humans > 4)) {
           return this.reject(client, "Training allows one human and survival allows four; ask extra players to spectate.");
         }
+        log("settings", { room: this.code, ...this.who(m), mode: next.mode, map: next.map, deferred: this.state === "playing" });
         if (this.state === "playing") { this.nextSettings = next; break; }
         this.settings = next;
         if (prevMode !== next.mode) this.rebalanceTeams();
@@ -424,6 +449,7 @@ export class Room {
         m.spectator = msg.spectate;
         m.team = m.spectator ? -1 : this.teamFor(m.key);
         m.ready = false;
+        log("spectate", { room: this.code, ...this.who(m), spectator: m.spectator });
         this.transferHost();
         break;
       case "retry-save":
@@ -431,16 +457,21 @@ export class Room {
         return;
       case "start":
         if (!isHost) return this.reject(client, "Only the host can start the round.");
+        log("start_requested", { room: this.code, ...this.who(m) });
         void this.start(client);
         return;
       case "end":
         if (!isHost) return this.reject(client, "Only the host can end the round.");
-        if (this.state === "playing") this.finish("host");
+        if (this.state === "playing") {
+          log("end_requested", { room: this.code, ...this.who(m) });
+          this.finish("host");
+        }
         return;
       case "rematch":
         if (!isHost) return this.reject(client, "Only the host can start a rematch.");
         if (this.state !== "results") return;
         if (this.saveStatus !== "saved") return this.reject(client, "Results must finish saving before a rematch. Retry saving if needed.");
+        log("rematch_requested", { room: this.code, ...this.who(m) });
         this.backToLobby();
         break;
       default:
@@ -450,7 +481,7 @@ export class Room {
   }
 
   private reject(client: Client, message: string): void {
-    log("rejected", { room: this.code, profile: client.profile.id, reason: message });
+    log("rejected", { room: this.code, profile: client.profile.id, name: client.profile.name, reason: message });
     send(client.ws, { t: "error", message });
   }
 
@@ -578,6 +609,7 @@ export class Room {
     if (w.players.size !== beforeIds) this.broadcast({ t: "roster", roster: this.roster() });
     if (w.events.length > 0) {
       for(const event of w.events){
+        this.logGameEvent(event);
         if(event.t==="kill"){
           this.endKillerFollow(event.victim);
           const killer=event.attacker===undefined?event.killer:event.attacker;

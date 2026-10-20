@@ -86,7 +86,7 @@ async function ensureSession(req: IncomingMessage, res: ServerResponse): Promise
   const secure = req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
   res.setHeader("Set-Cookie", `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}`);
   const profile = toProfile(row);
-  log("guest_created", { profile: profile.id });
+  log("guest_created", { profile: profile.id, name: profile.name });
   return profile;
 }
 
@@ -241,6 +241,7 @@ async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise
     }
     const row = await db.call<Record<string, unknown>>("updateProfile", update);
     const updated = toProfile(row);
+    if (update.name !== undefined && updated.name !== profile.name) log("rename", { profile: profile.id, from: profile.name, to: updated.name });
     for (const room of rooms.rooms.values()) room.updateProfile(updated);
     return json(res, 200, { profile: updated });
   }
