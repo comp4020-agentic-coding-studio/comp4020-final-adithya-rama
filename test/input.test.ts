@@ -29,13 +29,16 @@ describe("desktop aiming and weapon controls",()=>{
     key("Numpad4");expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);
     key("Numpad2");expect(input.buttons()).toBe(0);
   });
-  it("faces horizontal movement and never reuses a stale mouse aim",()=>{
+  it("preserves mouse aim through movement and keeps released numpad aim until deliberate aiming",()=>{
     window.dispatchEvent(new dom.window.MouseEvent("mousemove",{clientX:100,clientY:100}));
     expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI/4);
-    key("KeyA");expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI);key("KeyA",false);
-    expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI);
+    key("KeyA");expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI/4);key("KeyA",false);
+    expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI/4);
     key("Numpad8");expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);key("Numpad8",false);
     expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);
+    for(const code of ["KeyA","KeyD","KeyW","KeyS","Space"]) {
+      key(code);expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);key(code,false);
+    }
     window.dispatchEvent(new dom.window.MouseEvent("mousemove",{clientX:110,clientY:0}));
     expect(input.updateAim({x:0,y:0})).toBeCloseTo(0);
   });
@@ -44,7 +47,30 @@ describe("desktop aiming and weapon controls",()=>{
     key("KeyD");expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);
     expect(input.buttons()).toBe(Btn.RIGHT|Btn.FIRE);
     window.dispatchEvent(new dom.window.MouseEvent("mouseup",{button:0}));
-    key("KeyD",false);key("KeyA");expect(input.updateAim({x:0,y:0})).toBeCloseTo(Math.PI);
+    key("KeyD",false);key("KeyA");expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/2);
+  });
+  it("flies and reverses while held numpad fire continues in its chosen direction",()=>{
+    key("Numpad6");key("Space");key("KeyA");
+    expect(input.updateAim({x:0,y:0})).toBe(0);
+    expect(input.buttons()).toBe(Btn.LEFT|Btn.JET|Btn.FIRE|Btn.CONTINUOUS_FIRE);
+    key("KeyA",false);key("KeyD");
+    expect(input.updateAim({x:0,y:0})).toBe(0);
+    expect(input.buttons()).toBe(Btn.RIGHT|Btn.JET|Btn.FIRE|Btn.CONTINUOUS_FIRE);
+    key("Numpad6",false);key("KeyD",false);key("KeyA");
+    expect(input.updateAim({x:0,y:0})).toBe(0);
+    expect(input.buttons()&Btn.FIRE).toBe(0);
+  });
+  it("retains touch aim after releasing the aim stick while movement continues",()=>{
+    input.setTouch(Btn.LEFT|Btn.JET|Btn.FIRE,-Math.PI/3);
+    expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/3);
+    input.setTouch(Btn.RIGHT|Btn.JET,null);
+    const controls=document.createElement("div");controls.className="touch";document.body.append(controls);
+    controls.dispatchEvent(new dom.window.MouseEvent("mousemove",{clientX:-100,clientY:100,bubbles:true}));
+    expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/3);
+    expect(input.buttons()).toBe(Btn.RIGHT|Btn.JET);
+    input.clear();key("KeyA");
+    expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/3);
+    expect(input.buttons()).toBe(Btn.LEFT);
   });
   it("selects three direct slots, cycles with Tab, and shows scores with B",()=>{
     for(const [code,bit] of [["Digit1",Btn.SLOT1],["Digit2",Btn.SLOT2],["Digit3",Btn.SLOT3],["Tab",Btn.SWITCH]] as const){

@@ -396,3 +396,13 @@ Four further saved live rounds checked the camera, exterior flight and
 terrestrial recovery at desktop and phone sizes, plus the inventory and
 spawn-setting controls. The recorded limits distinguish settled centering
 from intentional smoothing lag during fast flight.
+
+Adithya then corrected the control contract: moving or flying in another
+direction should not turn the gun. Removed the movement-to-aim fallback and
+kept the last keyboard/touch aim when the aiming control is released. Mouse
+aim remains cursor-based. Regression tests cover reversal, held directional
+fire, releasing aim, focus cleanup and touch movement. A production-browser
+check reads actual server snapshots and shot events after ordinary key presses.
+Local verification passed 391 unit and 40 server/spec tests, plus desktop and
+phone practice rounds. These checks establish the control behaviour; they
+do not claim new human playtest feedback.

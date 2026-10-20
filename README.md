@@ -98,7 +98,9 @@ to the people using it rather than its audience size.
 
 Choose **Quick play**, create a room, or practise against bots. Use A/D to move,
 W to jump and Space to fly. Aim/fire with the mouse, or hold Numpad 2/4/6/8
-for directional fire (combine keys for diagonals). Move to face that direction.
+for directional fire (combine keys for diagonals). Movement and flight are
+independent of aiming: move left while firing right, and keep your last aim
+after releasing the numpad or touch aim stick. Mouse aiming follows the cursor.
 Use 1/2/3 to select carried weapons, Tab to cycle and R to reload early. Empty
 magazines reload automatically; a held directional trigger resumes afterward.
 B shows the scoreboard. Touch uses two sticks, three slots and action buttons.

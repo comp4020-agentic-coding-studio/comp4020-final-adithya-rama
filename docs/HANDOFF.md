@@ -1,5 +1,13 @@
 # Integration handoff: October 21 Crit 10 revision
 
+Follow-up control amendment: movement and flight no longer select gun aim.
+Mouse follows the cursor; released numpad/arrow/touch aim retains its direction
+until deliberate aiming changes it. Existing movement/jetpack bindings remain.
+Local production verification passed 391 unit tests, 40 server/spec tests,
+desktop/phone browser rounds and `scripts/browser-independent-aim.ts` using
+real keyboard inputs and authoritative snapshots. Live verification is a
+separate post-deployment step; the script accepts `APP_URL`.
+
 Latest scope: [Crit 10 validation](CRIT_10_VALIDATION.md),
 [access decision](decisions/0005-who-may-see-and-change-what.md) and
 [log-only rehearsal](CRIT_10_REHEARSAL.md). The reflection is an assisted edit of

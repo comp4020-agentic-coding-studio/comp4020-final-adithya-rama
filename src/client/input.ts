@@ -36,7 +36,7 @@ export class Input {
   private mouseFire=false;
   private mouseZoom=false;
   private mouse={x:0,y:0,active:false};
-  private aimSource:"mouse"|"keyboard"|"movement"|"touch"="movement";
+  private aimSource:"mouse"|"keyboard"|"held"|"touch"="held";
   private touchAim:number|null=null;
   private teardown:(()=>void)[]=[];
   private clearListeners=new Set<()=>void>();
@@ -52,6 +52,7 @@ export class Input {
     on("keydown",e=>this.key(e,true));on("keyup",e=>this.key(e,false));on("blur",()=>this.clear());
     on("mousemove",e=>{
       if(!this.enabled)return;
+      if((e.target as HTMLElement|null)?.closest?.(".touch"))return;
       if(!this.mouse.active||e.clientX!==this.mouse.x||e.clientY!==this.mouse.y)this.aimSource="mouse";
       this.mouse={x:e.clientX,y:e.clientY,active:true};
     });
@@ -88,24 +89,20 @@ export class Input {
     if(down)this.pressed.add(e.code);else this.pressed.delete(e.code);
     if(down&&!e.repeat&&action>0&&action!==Btn.LEFT&&action!==Btn.RIGHT&&action!==Btn.JET&&action!==Btn.CROUCH&&action!==Btn.FIRE)this.tapBits|=action;
     if(down&&action<=-4)this.aimSource="keyboard";
-    if(down&&!e.repeat&&(action===Btn.LEFT||action===Btn.RIGHT)&&!this.mouseFire) {
-      const vector=this.keyboardAim();
-      if(!vector.x&&!vector.y)this.aimSource="movement";
-    }
   }
   private keyboardAim():{x:number;y:number} {
     const actions=new Set([...this.pressed].map(key=>this.bindings[key]));
     return {x:Number(actions.has(-5)||actions.has(-9))-Number(actions.has(-4)||actions.has(-8)),y:Number(actions.has(-7)||actions.has(-11))-Number(actions.has(-6)||actions.has(-10))};
   }
   get zoom():boolean {return this.enabled&&(this.mouseZoom||[...this.pressed].some(k=>this.bindings[k]===-1));}
-  setTouch(bits:number,aim:number|null):void {this.touchHeld=bits;this.touchAim=aim;if(aim!==null)this.aimSource="touch";else if(bits&(Btn.LEFT|Btn.RIGHT))this.aimSource="movement";}
+  setTouch(bits:number,aim:number|null):void {this.touchHeld=bits;this.touchAim=aim;if(aim!==null)this.aimSource="touch";}
   tapTouch(bit:number):void {if(this.enabled)this.tapBits|=bit;}
   clearTouch():void {this.touchHeld=0;this.touchAim=null;this.tapBits=0;}
   sampleButtons():number {const buttons=this.buttons();this.tapBits=0;return buttons;}
   onClear(listener:()=>void):()=>void {this.clearListeners.add(listener);return ()=>{this.clearListeners.delete(listener);};}
   clear():void {
     this.pressed.clear();this.clearTouch();this.mouseFire=false;this.mouseZoom=false;this.mouse.active=false;
-    this.aimSource="movement";
+    this.aimSource="held";
     for(const listener of this.clearListeners)listener();
     this.cb.onScoreboard(false);
   }
@@ -124,10 +121,7 @@ export class Input {
     if(this.touchAim!==null)this.aim=this.touchAim;
     else if(x||y)this.aim=Math.atan2(y,x);
     else if(this.aimSource==="mouse"&&this.mouse.active)this.aim=Math.atan2(this.mouse.y-origin.y,this.mouse.x-origin.x);
-    else {
-      const buttons=this.buttons();
-      if(Boolean(buttons&Btn.LEFT)!==Boolean(buttons&Btn.RIGHT)&&buttons&(Btn.LEFT|Btn.RIGHT))this.aim=buttons&Btn.LEFT?Math.PI:0;
-    }
+    // Movement never chooses aim. With no aim input, retain the last direction.
     return this.aim;
   }
   destroy():void {this.clear();for(const f of this.teardown)f();this.clearListeners.clear();}
