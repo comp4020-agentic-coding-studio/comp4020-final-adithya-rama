@@ -56,7 +56,8 @@ compatible carried slot; the third item stays carried.
 
 Scopes cycle Near, Field, Far and Range; they change visible area, not the
 weapon's reach or damage. Near keeps the phone pilot readable. Far views trade
-character size for longer sightlines. Aim look-ahead, low-flash obscuration and
+character size for longer sightlines. Camera tracking stays centred when aiming
+or turning, even outside the terrain. Low-flash obscuration and
 blood visibility are independent profile choices. Touch layout editing lives
 in the field menu; its saved positions, scale and opacity survive a reload.
 

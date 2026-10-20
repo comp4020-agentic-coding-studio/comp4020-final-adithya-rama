@@ -1,6 +1,11 @@
 # Human playtest record
 
-Status: awaiting human playtests. Automated checks do not establish familiarity,
+Status: structured acceptance record pending. On 21 October Adithya reported
+that watching others play, hearing their concerns and noting the problems
+helped him choose improvements. The camera, exterior flight, inventory size
+and spawning requests are concrete product feedback from him. Participant
+types, builds and individual observations were not supplied, so the table below
+is not filled retrospectively. Automated checks do not establish familiarity,
 fairness, or fun. Do not fill observations from an agent's predictions.
 
 Use one returning Mini Militia player and one newcomer. Record the build commit,

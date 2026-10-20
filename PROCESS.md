@@ -337,3 +337,49 @@ saved preferences and staged rules. The subsequent independent desktop/phone
 pass agreed on saved outcomes in all five modes, including a real 1–0 flag
 delivery. The final documentation records those live observations separately
 from local simulation coverage and still-unperformed human playtesting.
+
+## October 21: Crit 10, user acceptance testing and observable corrections
+
+Adithya supplied the Crit 10 brief and asked for the remaining identity,
+permissions, logging and reflection gaps to be completed. He also described
+camera panning on direction changes, losing sight of the pilot beyond terrain,
+an obstructive inventory, and repeated spawn locations. Those concrete examples
+became the acceptance criteria. His reflection account explains that observing
+other people play, noting their issues and giving agents explicit visual and
+behavioral references improved the work.
+
+The starting commit `24753d1` already named many lifecycle events. Independent
+review found gaps: duplicate display names were ambiguous in combat logs;
+settings logs omitted what actually changed; a last-player flag drop could be
+lost before the next simulation tick; and renaming a connected guest before
+joining left the socket's profile stale. The follow-up fixes these paths and
+tests actual room actions, HTTP/WebSocket ownership and simulation events.
+ADR 0005 now accurately describes server visibility as foliage concealment,
+not general line-of-sight fog, and documents the limits of killer-follow and
+omniscient spectators.
+
+The server/access/reflection checkpoint is
+[`2c64cb3`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2c64cb3).
+The camera, exterior physics, inventory and spawn implementation is
+[`0ffc831`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/0ffc831).
+
+Work was divided by file ownership: server access/logging, shared physics/spawn
+rules, and client camera/HUD. The integrator reviewed the interfaces, wrote the
+two-profile browser rehearsal, edited the supplied reflection, and integrated
+documentation and release checks. A review caught another boundary mismatch:
+projectiles needed to remain functional in the newly permitted exterior flight
+area. Flag return bounds remain the original map rectangle.
+
+The browser rehearsal uses the actual home-page profile, creation, joining,
+readiness and rematch controls. It sends deliberately unauthorized host
+commands through the guest's real connection, then uses ordinary movement,
+melee and own-flag delivery to generate narratable server events. No injected
+positions or fabricated kills stand in for gameplay. Both independent profiles
+must agree on committed results and retain their own history.
+
+The [Crit 10 validation record](docs/CRIT_10_VALIDATION.md) records local and
+live outcomes separately. The [rehearsal guide](docs/CRIT_10_REHEARSAL.md) is for
+the pod's actual log-only exercise; it does not claim that exercise has already
+happened. The first-person reflection is an assisted edit of Adithya's supplied
+experience, not an invented agent account. Previous reflections and crit tags
+remain unchanged; `/ship` remains for Adithya to run.

@@ -1,4 +1,4 @@
-> Latest revision: [October 14 acceptance](REVISION_2026_10_14_VALIDATION.md). [October 13 acceptance](REVISION_2026_10_13_VALIDATION.md) remains available. The results below describe the earlier release.
+> Latest revision: [October 21 Crit 10 acceptance](CRIT_10_VALIDATION.md). [October 14 acceptance](REVISION_2026_10_14_VALIDATION.md) and [October 13 acceptance](REVISION_2026_10_13_VALIDATION.md) remain available. The results below describe earlier releases.
 
 # Validation record
 

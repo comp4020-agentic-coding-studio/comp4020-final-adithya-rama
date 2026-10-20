@@ -1,5 +1,21 @@
 # Feature checklist
 
+## October 21: Crit 10 and player feedback
+
+Current evidence is in [CRIT_10_VALIDATION.md](CRIT_10_VALIDATION.md).
+Implementation and release verification are recorded separately there.
+
+- [x] Names plus stable actor/profile IDs in meaningful server gameplay logs;
+      actual changed settings and denied host actions are traceable.
+- [x] Updated browser-identity, access and visibility decision; URL-only
+      two-profile rehearsal instructions.
+- [x] Crit 10 reflection based on Adithya's supplied UAT and agent-direction account.
+- [x] Direction-independent camera tracking, including beyond all terrain edges.
+- [x] Finite exterior flight with progressive unpowered fall damage; zero-gravity
+      Lunarcy and original own-flag return bounds preserved.
+- [x] Compact translucent three-slot inventory.
+- [x] Server-validated Random spawns setting, default on, with safety and variety.
+
 This records the full agreed scope. **Implemented** means the feature crosses its
 required simulation/server/client boundaries. **Tested locally** means a named
 check exercised it, with the limits below. **Verified live** is reserved for

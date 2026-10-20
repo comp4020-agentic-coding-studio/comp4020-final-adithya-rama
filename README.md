@@ -48,9 +48,10 @@ rounds and preserves their latest checkpoint; it does not pretend they finished.
 
 Good also means being able to explain what was tested and what changed. Automated
 checks can establish flag ownership and durable results. They cannot establish
-whether flight feels right or a match is fun. A returning player and a newcomer
-will be observed using the [playtest record](docs/PLAYTEST.md); no such experience
-is claimed before it happens.
+whether flight feels right or a match is fun. Adithya reports that watching other
+people play and noting their difficulties has guided improvements. A structured
+returning-player/newcomer session using the [playtest record](docs/PLAYTEST.md)
+still needs its own observations; that specific acceptance gate is not claimed.
 
 The [October revision](docs/REVISION_2026_10_10.md) responds to Adithya's review:
 the maps needed illustrated jungle cliffs, snowy shelters and stronger combat
@@ -75,6 +76,13 @@ new reference layouts are Outpost, High Tower, Ice Box, Pyramid, Lunarcy and
 Catacombs. Their geometry and art are authored reconstructions, not extracted
 original assets or a claim of exact historical collision parity.
 
+For Crit 10, good also means being able to explain a shared match from the
+server logs: distinguish pilots even when names match, describe accepted
+actions and refusals, and identify the actor in a kill or flag delivery.
+[The access decision](docs/decisions/0005-who-may-see-and-change-what.md)
+records browser identity, host controls, personal history and visibility.
+[The rehearsal guide](docs/CRIT_10_REHEARSAL.md) starts from the public URL alone.
+
 ## What informed these choices
 
 Adithya's memories of the older game and explicit own-flag rules establish the
@@ -97,6 +105,22 @@ B shows the scoreboard. Touch uses two sticks, three slots and action buttons.
 S crouches and crawls; Shift+S deliberately descends through marked one-way
 platforms. Solid floors remain solid. Right click or Z cycles saved per-weapon
 scope levels. The touch menu can rearrange, resize and fade the controls.
+
+The camera follows your pilot, including beyond the terrain edges. Turning or
+aiming in place does not pan the view. There is a finite flight area extending
+1,000 world units beyond each edge. On normal-gravity maps, an unpowered fall
+below the terrain gets one second of accumulated grace, then loses 5 health
+every quarter-second. Working thrust pauses that damage; returning above the
+bottom edge resets the grace period. Holding flight with an empty or disabled
+pack does not protect you. Lunarcy has no gravity-driven fall damage. Flags
+still return home on leaving the original map rectangle.
+
+The smaller, translucent inventory keeps the arena visible behind it. Hosts
+can toggle **Random spawns** in Advanced movement & combat: it is on by default
+and chooses varied similarly safe authored positions, avoiding the last spot
+when a safe alternative exists. Turning it off prioritizes the previous safety
+scoring policy. Neither option guarantees immunity from camping; spawn
+protection and hazard checks still apply.
 
 Lunarcy is a special zero-gravity arena: A/D thrust sideways, W/Space upward,
 and unsupported S downward. Releasing controls coasts; opposite thrust brakes.
