@@ -1,6 +1,6 @@
 import { INTERP_MS, PLAYER_H, PICKUP_RADIUS, TICK_RATE } from "../shared/constants.ts";
 import { MAPS } from "../shared/maps.ts";
-import { heightOf, lineOfSight, type MoveState, stepMovement } from "../shared/physics.ts";
+import { heightOf, isFallingBelowMap, lineOfSight, type MoveState, stepMovement } from "../shared/physics.ts";
 import type { RosterEntry, ServerMessage } from "../shared/protocol.ts";
 import { MODE_NAMES, TEAM_MODES } from "../shared/settings.ts";
 import { maxHealth } from "../shared/sim.ts";
@@ -416,7 +416,7 @@ export class GameSession {
     this.scopeWeapon=cameraActor?.weapon??null;
     if(this.input.zoom&&!this.scopeHeld)this.cycleScope();
     this.scopeHeld=this.input.zoom;
-    const framed=cameraFrame({ ...camera,aim:cameraActor?.aim??0,weapon:this.scopeWeapon },this.renderer.viewport(),this.scopes[this.scopeWeapon??""]??0,!!cameraActor&&this.hooks.prefs().cameraLookAhead!==false);
+    const framed=cameraFrame({ ...camera,aim:cameraActor?.aim??0,weapon:this.scopeWeapon },this.renderer.viewport(),this.scopes[this.scopeWeapon??""]??0);
     const cameraId=cameraActor?.id??null;
     this.audio.scene(players,camera);
     this.renderer.frame({...framed,snap:cameraId!==this.cameraTarget}, 1, players, this.latest.projectiles, this.latest.pickups, this.latest.flags,this.latest.areas);
@@ -491,12 +491,14 @@ export class GameSession {
         const key=Object.entries(this.bindings).find(([,bit])=>bit===[Btn.SLOT1,Btn.SLOT2,Btn.SLOT3][i])?.[0];
         const charge=state&&def?.chargeMs?Math.min(1,(state.chargeTicks??0)/(def.chargeMs*TICK_RATE/1000)):0;
         const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?(def?.autoRefill?"Refilling ":"Reloading ")+(reload/TICK_RATE).toFixed(1)+"s":charge>0&&charge<1?"Charging "+Math.round(charge*100)+"%":state.mag+" / "+(def?.autoRefill?"auto":this.settings.unlimitedAmmo?"∞":state.reserve);
-        return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b>${w?'<small style="font-size:.5rem;line-height:1.3" title="'+esc(weaponHandling(w))+'">'+esc(weaponRangeLabel(w))+(def?.oneHanded&&def.category!=="equipment"?' · Dual-ready':'')+'</small>':""}<span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
+        return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" title="${w?esc(weaponRangeLabel(w)+" · "+weaponHandling(w)):"Pick up a weapon"}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b>${w?'<small class="weapon-role" title="'+esc(weaponHandling(w))+'">'+esc(weaponRangeLabel(w))+(def?.oneHanded&&def.category!=="equipment"?' · Dual-ready':'')+'</small>':""}<span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
       };
+      const falling=isFallingBelowMap({y:me.y,vy:me.vy,jetting:!!(me.f&PF.JETTING),onGround:!!(me.f&PF.GROUND)},this.map)&&!!(me.f&PF.ALIVE);
+      const fallHint=me.emp>0?"Outside terrain · jetpack disabled":this.settings.flight&&(this.settings.unlimitedFuel||me.fuel>0)?"Outside terrain · boost to recover":"Falling outside terrain · health at risk";
       const nade=me.throwable;
       const totalGrenades=Object.values(me.throwables).reduce((total,n)=>total+n,0);
       const grenades=this.settings.throwables.map(id=>`<span class="grenade-chip ${id===nade?"selected":""}" data-grenade="${esc(id)}"><span class="grenade-dot ${esc(id)}"></span>${esc(id==="frag"?"Frag":id==="flash"?"Flash":id==="gas"?"Poison":id==="emp"?"EMP":"Mine")} <b>${me.throwables[id]??0}</b></span>`).join("");
-      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT · ${SCOPE_LABELS[this.scopes[me.s[me.a]??""]??0]} scope</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><span data-el="grenade-bag" class="grenade-bag" style="font-size:.58rem;white-space:nowrap" title="Walk over grenade pickups to collect automatically when the bag has space">Bag ${totalGrenades}/6${totalGrenades>=6?" · full":""}</span><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
+      this.els.weapon.innerHTML=`<div class="loadout-heading"><span>YOUR LOADOUT · ${SCOPE_LABELS[this.scopes[me.s[me.a]??""]??0]} scope</span><small>${this.keyFor(Btn.SWITCH)} cycle · ${this.keyFor(Btn.DUAL)} dual</small></div><div id="weapon-slots" class="weapon-slots">${slot(0)}${slot(1)}${slot(2)}</div><div class="nades"><span data-el="grenade-bag" class="grenade-bag" style="font-size:.58rem;white-space:nowrap" title="Walk over grenade pickups to collect automatically when the bag has space">Bag ${totalGrenades}/6${totalGrenades>=6?" · full":""}</span><div class="grenade-list">${grenades||'<span>No grenades</span>'}</div><small><kbd>${this.keyFor(Btn.THROW)}</kbd> throw ${esc(THROWABLES[nade]?.name??nade)} · <kbd>${this.keyFor(Btn.NEXT_THROWABLE)}</kbd> change</small></div>${falling?`<div class="fall-status" data-el="fall">${fallHint}</div>`:""}${me.emp>0?`<div class="emp-status">Jetpack disabled · ${Math.ceil(me.emp/TICK_RATE)}s</div>`:""}${me.flash>0?`<div class="flash-status">Flash impaired · ${Math.ceil(me.flash/TICK_RATE)}s</div>`:""}`;
       const alive = (me.f & PF.ALIVE) !== 0;
       this.els.center.innerHTML = alive||s.endTick<=s.tick?"":`<div style="text-align:center;white-space:normal;width:min(88vw,420px)">${this.settings.mode==="survival"?"Waiting for the next wave…":"Respawning in "+Math.ceil(me.rs/TICK_RATE)+"…"}<small style="display:block;font-size:.65em;line-height:1.5;margin-top:.4rem">${esc(this.deathDetail)}</small></div>`;
     } else {
@@ -568,7 +570,7 @@ export class GameSession {
       </div>
       <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake &amp; debris</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
       <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
-      <div class="checks"><label class="check"><input data-blood type="checkbox" ${this.hooks.prefs().reducedBlood===true?"checked":""}> Hide blood</label><label class="check"><input data-flash type="checkbox" ${this.hooks.prefs().lowFlash===true?"checked":""}> Dark flashbang obscuration</label><label class="check"><input data-look type="checkbox" ${this.hooks.prefs().cameraLookAhead!==false?"checked":""}> Look ahead while aiming</label></div>
+      <div class="checks"><label class="check"><input data-blood type="checkbox" ${this.hooks.prefs().reducedBlood===true?"checked":""}> Hide blood</label><label class="check"><input data-flash type="checkbox" ${this.hooks.prefs().lowFlash===true?"checked":""}> Dark flashbang obscuration</label></div>
       <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
       <details><summary>Default controls</summary>
         <ul class="controls">
@@ -587,7 +589,6 @@ export class GameSession {
     menu.querySelector<HTMLInputElement>("[data-shake]")!.addEventListener("change",e=>{this.renderer.reducedShake=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedShake:this.renderer.reducedShake});});
     menu.querySelector<HTMLInputElement>("[data-blood]")!.addEventListener("change",e=>{this.renderer.reducedBlood=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedBlood:this.renderer.reducedBlood});});
     menu.querySelector<HTMLInputElement>("[data-flash]")!.addEventListener("change",e=>{void this.hooks.savePrefs({lowFlash:(e.target as HTMLInputElement).checked});});
-    menu.querySelector<HTMLInputElement>("[data-look]")!.addEventListener("change",e=>{void this.hooks.savePrefs({cameraLookAhead:(e.target as HTMLInputElement).checked});});
     menu.querySelector<HTMLInputElement>("[data-chat-mute]")!.addEventListener("change",e=>{void this.hooks.savePrefs({chatMuted:(e.target as HTMLInputElement).checked});});
     menu.querySelector<HTMLFormElement>("[data-chat-form]")!.addEventListener("submit",e=>{e.preventDefault();const el=menu.querySelector<HTMLInputElement>('input[name="message"]')!;if(el.value.trim())this.net.send({t:"chat",text:el.value.trim()});el.value="";});
     this.renderChat();

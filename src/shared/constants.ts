@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const TICK_RATE = 60;
 export const DT = 1 / TICK_RATE;
@@ -41,7 +41,12 @@ export const ASSIST_WINDOW_TICKS = 8 * TICK_RATE;
 export const ASSIST_MIN_FRACTION = 0.2;
 export const PICKUP_RADIUS = 42;
 export const DROPPED_WEAPON_TTL_TICKS = 20 * TICK_RATE;
+// Projectile culling retains this extra cushion beyond the actor travel envelope.
 export const OUT_OF_BOUNDS_MARGIN = 240;
+export const PLAYER_TRAVEL_MARGIN = 1000;
+export const FALL_EXPOSURE_GRACE_TICKS = TICK_RATE;
+export const FALL_DAMAGE_INTERVAL_TICKS = TICK_RATE / 4;
+export const FALL_DAMAGE_PER_INTERVAL = 5; // 20 HP/s, independent of combat damage multiplier
 
 export const MAX_THROWABLES = 6;
 export const DEFAULT_FRAGS = 2;
@@ -58,7 +63,7 @@ export const HEALTH_REGEN_DELAY_TICKS = 6 * TICK_RATE;
 export const HEALTH_REGEN_INTERVAL_TICKS = TICK_RATE / 4;
 
 // Authored Classic PC movement/combat profile; persisted with new results.
-export const GAMEPLAY_VERSION = "classic-pc-2026-10-14";
+export const GAMEPLAY_VERSION = "classic-pc-2026-10-21";
 export const SPACE_ACCEL = 700;
 export const SPACE_SPEED = 430;
 export const CONCEAL_REVEAL_TICKS = 60;

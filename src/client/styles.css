@@ -553,3 +553,46 @@ body:has(.touch) .loadout-heading>small{display:none}
 .touch.layout-editing [data-control].layout-conflict{outline-color:#ff867e}
 .touch-layout-actions [data-layout-save]:disabled{opacity:.45;cursor:not-allowed}
 .room-row.room-card>.room-thumb{display:block;flex:0 0 100px;min-width:0} @media(max-width:600px){.room-row.room-card>.room-thumb{flex-basis:70px}}
+
+/* Compact inventory: translucent surfaces, full-opacity labels and ammunition. */
+.hud-weapon{width:320px;top:.65rem;right:.65rem;padding:6px;background:rgba(17,43,51,.52);border-color:#bdd1b259;border-radius:9px;text-shadow:0 1px 2px #061015,0 0 3px #061015}
+.loadout-heading{font-size:9px;letter-spacing:.06em;gap:5px;margin:0 1px 4px;color:#e0eee4}
+.loadout-heading small{font-size:8px;color:#d2e4db;white-space:nowrap}
+.weapon-slots{gap:4px}
+.hud-weapon .weapon-card{padding:4px 5px;gap:2px;background:rgba(18,37,44,.25);border-color:#aec8bd66;border-bottom-width:2px;border-radius:5px;opacity:1}
+.hud-weapon .weapon-card.selected{background:rgba(82,75,44,.28);border-color:#ffd095;color:#fff0d3}
+.hud-weapon .weapon-card.offhand{background:rgba(33,76,93,.25);border-color:#a4e0f5}
+.hud-weapon .weapon-card.empty{opacity:.8}
+.weapon-card-top{font-size:7px;line-height:1.15;letter-spacing:.02em}
+.weapon-card-top kbd{font-size:10px;min-width:15px;line-height:1.2;padding:0 3px;background:#10232d99}
+.weapon-thumbnail{height:25px}
+.hud-weapon .weapon-thumbnail .weapon-icon{width:64px;height:26px;filter:drop-shadow(0 1px 1px #061015)}
+.weapon-name{font-size:11px;line-height:1.2}
+.weapon-role{display:none}
+.hud-weapon .weapon-card .ammo{font-size:11px;line-height:1.3;color:#f0f5de}
+.hud-weapon .weapon-card .ammo.reloading{font-size:9px;color:#ffdc9d}
+.hud-weapon .nades{display:flex;align-items:center;flex-wrap:wrap;gap:4px;border-top-color:#bdd1b255;padding-top:4px;margin-top:4px}
+.grenade-list{flex:1;min-width:0;gap:3px}
+.grenade-chip{font-size:10px;gap:3px;padding:1px 3px;background:rgba(16,34,41,.25);color:#eef3dc;border-radius:3px;line-height:1.35}
+.grenade-chip.selected{border-color:#ffd095;background:rgba(82,75,44,.3);color:#fff1c8}
+.grenade-chip b{font-size:11px}
+.grenade-dot{width:5px;height:8px}
+.hud-weapon .nades>small{width:100%;margin:0;font-size:8px;color:#d1e3db}
+.emp-status,.flash-status{font-size:10px;line-height:1.3;margin-top:3px}
+body:has(.touch) .hud-weapon{left:.45rem;right:.45rem;top:6.1rem;width:auto;padding:5px;background:rgba(17,43,51,.52)}
+body:has(.touch) .hud:has(.objective:not(:empty)) .hud-weapon{top:8rem}
+body:has(.touch) .loadout-heading{font-size:9px;margin-bottom:3px}
+body:has(.touch) .hud-weapon .weapon-card{padding:3px 4px;gap:2px}
+body:has(.touch) .weapon-card-top{font-size:7px}
+body:has(.touch) .weapon-card-top>span{font-size:7px}
+body:has(.touch) .weapon-card-top kbd{font-size:10px}
+body:has(.touch) .weapon-thumbnail{height:21px}
+body:has(.touch) .weapon-thumbnail .weapon-icon{width:58px;height:23px}
+body:has(.touch) .weapon-name{font-size:11px}
+body:has(.touch) .weapon-card .ammo{font-size:11px}
+body:has(.touch) .weapon-card .ammo.reloading{font-size:9px}
+body:has(.touch) .hud-weapon .nades{gap:4px;margin-top:3px;padding-top:3px;flex-wrap:wrap}
+body:has(.touch) .grenade-chip{font-size:10px;padding:1px 3px;gap:3px}
+body:has(.touch) .grenade-chip b{font-size:11px}
+
+.fall-status{font-size:10px;line-height:1.3;margin-top:3px;color:#ffdb9b}

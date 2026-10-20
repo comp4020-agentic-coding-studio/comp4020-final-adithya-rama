@@ -147,7 +147,6 @@ function renderHome(): void {
           <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce shake & debris</label>
           <label class="check"><input type="checkbox" name="reducedBlood" ${profile.prefs.reducedBlood===true?"checked":""}> Hide blood</label>
           <label class="check"><input type="checkbox" name="lowFlash" ${profile.prefs.lowFlash===true?"checked":""}> Dark flashbang obscuration</label>
-          <label class="check"><input type="checkbox" name="cameraLookAhead" ${profile.prefs.cameraLookAhead!==false?"checked":""}> Look ahead while aiming</label>
           <button>Save</button>
         </form>
         <button id="bindings">Keyboard controls</button>
@@ -216,7 +215,7 @@ function renderHome(): void {
     const fd = new FormData(e.target as HTMLFormElement);
     try {
       await profileWrites.write({
-        name: String(fd.get("name") ?? ""), color: Number(fd.get("color") ?? profile.color), prefs: { reducedShake: fd.get("reducedShake") === "on",reducedBlood:fd.get("reducedBlood")==="on",lowFlash:fd.get("lowFlash")==="on",cameraLookAhead:fd.get("cameraLookAhead")==="on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} },
+        name: String(fd.get("name") ?? ""), color: Number(fd.get("color") ?? profile.color), prefs: { reducedShake: fd.get("reducedShake") === "on",reducedBlood:fd.get("reducedBlood")==="on",lowFlash:fd.get("lowFlash")==="on",muted:fd.get("muted")==="on",volume:Number(fd.get("volume")),chatMuted:fd.get("chatMuted")==="on",avatar:{helmet:fd.get("helmet"),face:fd.get("face"),emblem:fd.get("emblem")} },
       });
       drawer.close();renderHome();toast("Pilot saved. Ready for takeoff.");
     } catch (e) {
@@ -325,7 +324,8 @@ function settingSelect(name: keyof RoomSettings, options: [string | number, stri
 }
 
 function settingCheck(name: keyof RoomSettings, value: boolean, disabled: boolean): string {
-  return `<label class="check"><input type="checkbox" data-setting="${name}" ${value ? "checked" : ""} ${disabled ? "disabled" : ""}> ${SETTING_LABELS[name]}</label>`;
+  const tip = name === "randomSpawns" ? "Choose among safer, varied spawn points. Turn off to prioritize the best-scoring point; immediate danger is still checked." : "";
+  return `<label class="check"${tip ? ` title="${tip}"` : ""}><input type="checkbox" data-setting="${name}" ${value ? "checked" : ""} ${disabled ? "disabled" : ""}> ${SETTING_LABELS[name]}</label>`;
 }
 
 const SETTING_LABELS: Partial<Record<keyof RoomSettings, string>> = {
@@ -349,6 +349,7 @@ const SETTING_LABELS: Partial<Record<keyof RoomSettings, string>> = {
   unlimitedAmmo: "Unlimited ammo",
   friendlyFire: "Friendly fire",
   mapPickups: "Map pickups",
+  randomSpawns: "Random spawns",
 };
 
 function renderLobby(): void {
@@ -440,6 +441,7 @@ function renderLobby(): void {
           ${settingCheck("unlimitedAmmo", s.unlimitedAmmo, dis)}
           ${settingCheck("friendlyFire", s.friendlyFire, dis || !teamMode)}
           ${settingCheck("mapPickups", s.mapPickups, dis)}
+          ${settingCheck("randomSpawns", s.randomSpawns, dis)}
         </div>
         </details>
         ${arsenalSettings(s,dis)}
@@ -782,7 +784,7 @@ function openNextRules():void {
     settingSelect("durationMin",DURATIONS.map(n=>[n,n+" minutes"]),s.durationMin,false)+settingSelect("scoreLimit",[0,5,10,20,30,50].map(n=>[n,n?String(n):"None"]),s.scoreLimit,false)+
     (["gravity","moveSpeed","thrust","fuelCapacity","recharge","health","damage"] as const).map(k=>settingSelect(k,opts,s[k],false)).join("")+
     settingSelect("bots",botOptions(s),s.bots,s.mode==="survival")+settingSelect("botDifficulty",[["easy","Easy"],["normal","Normal"],["hard","Hard"]],s.botDifficulty,false)+settingSelect("respawnSec",[1,2,3,5,10].map(n=>[n,n+" seconds"]),s.respawnSec,false)+'</div><div data-physics-brief>'+physicsBrief(s)+'</div><div class="checks">'+
-    (["flight","unlimitedFuel","unlimitedAmmo","friendlyFire","mapPickups"] as const).map(k=>settingCheck(k,s[k],false)).join("")+'</div>'+arsenalSettings(s,false));
+    (["flight","unlimitedFuel","unlimitedAmmo","friendlyFire","mapPickups","randomSpawns"] as const).map(k=>settingCheck(k,s[k],false)).join("")+'</div>'+arsenalSettings(s,false));
   d.dataset.nextRules="";
   syncRuleControls(d,s);
   for(const el of d.querySelectorAll<HTMLInputElement|HTMLSelectElement>("[data-setting]"))el.addEventListener("change",()=>{

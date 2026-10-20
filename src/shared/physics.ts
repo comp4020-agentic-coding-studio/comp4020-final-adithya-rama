@@ -16,6 +16,7 @@ import {
   PLAYER_CROUCH_H,
   PLAYER_H,
   PLAYER_W,
+  PLAYER_TRAVEL_MARGIN,
   RUN_SPEED,
   SPACE_ACCEL,
   SPACE_SPEED,
@@ -39,6 +40,18 @@ export interface MoveState {
 }
 
 const EPS = 0.01;
+
+/** Actor-only envelope. Flags, pickups and projectiles retain their own bounds. */
+export function playerTravelBounds(map: Pick<MapDefinition, "width" | "height">): Rect {
+  return { x: -PLAYER_TRAVEL_MARGIN, y: -PLAYER_TRAVEL_MARGIN,
+    w: map.width + PLAYER_TRAVEL_MARGIN * 2, h: map.height + PLAYER_TRAVEL_MARGIN * 2 };
+}
+
+/** Actual thrust state, not the held JET bit: an empty/disabled pack is unsafe. */
+export function isFallingBelowMap(p: Pick<MoveState, "y" | "vy" | "jetting" | "onGround">,
+  map: Pick<MapDefinition, "height" | "physics">): boolean {
+  return map.physics !== "space" && p.y > map.height && !p.jetting && !p.onGround && p.vy >= 0;
+}
 
 export const maxFuel = (s: RoomSettings): number => BASE_FUEL * s.fuelCapacity;
 export const heightOf = (p: { crouch: boolean }): number => (p.crouch ? PLAYER_CROUCH_H : PLAYER_H);
@@ -180,6 +193,15 @@ export function stepMovement(p: MoveState, b: number, map: MapDefinition, s: Roo
     }
     if (p.vy === 0 && supported(p, map)) p.onGround = true;
   }
+  // A finite travel envelope, not lethal terrain edges. Keep the entire body
+  // inside and stop only outward momentum; the bottom does not grant support.
+  const travel = playerTravelBounds(map);
+  const left = travel.x + PLAYER_W / 2, right = travel.x + travel.w - PLAYER_W / 2;
+  const top = travel.y + heightOf(p), bottom = travel.y + travel.h;
+  if (p.x < left) { p.x = left; p.vx = Math.max(0, p.vx); }
+  if (p.x > right) { p.x = right; p.vx = Math.min(0, p.vx); }
+  if (p.y < top) { p.y = top; p.vy = Math.max(0, p.vy); }
+  if (p.y > bottom) { p.y = bottom; p.vy = Math.min(0, p.vy); p.onGround = false; }
   if (p.dropTicks > 0) p.dropTicks--;
 }
 

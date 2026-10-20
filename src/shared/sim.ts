@@ -3,6 +3,9 @@ import {
   ASSIST_WINDOW_TICKS,
   BASE_HEALTH,
   DEFAULT_FRAGS,
+  FALL_EXPOSURE_GRACE_TICKS,
+  FALL_DAMAGE_INTERVAL_TICKS,
+  FALL_DAMAGE_PER_INTERVAL,
   DROPPED_WEAPON_TTL_TICKS,
   DT,
   GAMEPLAY_VERSION,
@@ -29,10 +32,12 @@ import {
   groundBelow,
   gravityFor,
   heightOf,
+  isFallingBelowMap,
   lineOfSight,
   maxFuel,
   type MoveState,
   pointInSolid,
+  playerTravelBounds,
   overlaps,
   raycastMap,
   rayRect,
@@ -95,6 +100,8 @@ export interface Player extends MoveState {
   flashUntil: number;
   flashStrength: number;
   regenAt: number;
+  fallExposureTicks: number;
+  lastSpawn: { x: number; y: number } | null;
   revealUntil: number;
   weaponStats: Record<string, WeaponStats>;
 }
@@ -276,6 +283,8 @@ export function addPlayer(
     flashUntil: 0,
     flashStrength: 0,
     regenAt: w.tick + HEALTH_REGEN_DELAY_TICKS,
+    fallExposureTicks: 0,
+    lastSpawn: null,
     revealUntil: 0,
     weaponStats: {},
   };
@@ -328,11 +337,14 @@ export function respawn(w: World, p: Player): void {
   const teamSpawns = w.map.spawns.filter((sp) => (isTeamMode(s) || s.mode === "survival" || s.mode === "training" ? sp.team === p.team : true));
   const spawns = teamSpawns.length > 0 ? teamSpawns : w.map.spawns;
   const foes = [...w.players.values()].filter((o) => o.alive && enemies(w, p, o));
-  let best = spawns[0];
-  let bestScore = -Infinity;
+  const candidates: { sp: typeof spawns[number]; score: number; hazards: number; exposure: number }[] = [];
   for (const sp of spawns) {
     const body = { x: sp.x - PLAYER_W / 2, y: sp.y - PLAYER_H, w: PLAYER_W, h: PLAYER_H };
-    if (w.map.solids.some(solid => overlaps(body, solid))) continue;
+    if (body.x < 0 || body.x + body.w > w.map.width || body.y < 0 || sp.y > w.map.height ||
+        w.map.solids.some(solid => overlaps(body, solid))) continue;
+    const supported = w.map.physics === "space" || [...w.map.solids, ...w.map.platforms].some(surface =>
+      Math.abs(surface.y - sp.y) < .05 && body.x < surface.x + surface.w && body.x + body.w > surface.x);
+    if (!supported) continue;
     let nearest = 5000, exposure = 0;
     for (const foe of foes) {
       const distance = Math.hypot(foe.x - sp.x, foe.y - sp.y);
@@ -341,13 +353,35 @@ export function respawn(w: World, p: Player): void {
       if (distance < range && lineOfSight(w.map, foe.x, foe.y - heightOf(foe) / 2, sp.x, sp.y - PLAYER_H / 2))
         exposure += (range - distance) * 1.25;
     }
-    const score = nearest - exposure - spawnHazards(w, p, sp.x, sp.y) * 20_000 + rng(w) * 60;
-    if (score > bestScore) {
-      bestScore = score;
-      best = sp;
+    const hazards = spawnHazards(w, p, sp.x, sp.y);
+    candidates.push({ sp, hazards, exposure, score: nearest - exposure - hazards * 20_000 });
+  }
+  // Authored maps are validated to have clear supported team spawns. Never
+  // silently put an actor into a solid if future content violates that contract.
+  if (!candidates.length) throw new Error(`No safe authored spawn for team ${p.team} in ${w.map.id}`);
+  let selected = candidates[0];
+  if (s.randomSpawns !== false) {
+    const minHazards = Math.min(...candidates.map(candidate => candidate.hazards));
+    const leastHazardous = candidates.filter(candidate => candidate.hazards === minHazards);
+    const safest = leastHazardous.reduce((best, candidate) => candidate.score > best.score ? candidate : best);
+    // A 100-unit score tolerance allows variety without sacrificing a clearly
+    // safer position. Never exchange clear cover for a visible firing lane.
+    let similar = leastHazardous.filter(candidate => candidate.score >= safest.score - 100 &&
+      (safest.exposure > 0 || candidate.exposure === 0));
+    const different = similar.filter(candidate => !p.lastSpawn || candidate.sp.x !== p.lastSpawn.x || candidate.sp.y !== p.lastSpawn.y);
+    if (different.length) similar = different;
+    selected = similar[Math.floor(rng(w) * similar.length)];
+  } else {
+    let bestScore = -Infinity;
+    for (const candidate of candidates) {
+      const score = candidate.score + rng(w) * 60;
+      if (score > bestScore) { bestScore = score; selected = candidate; }
     }
   }
+  const best = selected.sp;
   Object.assign(p, {
+    lastSpawn: { x: best.x, y: best.y },
+    fallExposureTicks: 0,
     x: best.x,
     y: best.y,
     vx: 0,
@@ -444,7 +478,7 @@ export function killPlayer(w: World, victim: Player, killer: Player | null, weap
     if (w.tick - d.tick > ASSIST_WINDOW_TICKS) continue;
     byAttacker.set(d.from, (byAttacker.get(d.from) ?? 0) + d.amount);
   }
-  for (const [id, total] of byAttacker) {
+  for (const [id, total] of credited ? byAttacker : []) {
     const helper = w.players.get(id);
     if (!helper || helper === killer || !enemies(w, helper, victim)) continue;
     if (total >= ASSIST_MIN_FRACTION * victim.maxHp) helper.assists++;
@@ -847,6 +881,7 @@ function advanceProjectile(w: World, pr: Projectile, maxDistance = Infinity): { 
 
 function stepProjectiles(w: World): void {
   const keep: Projectile[] = [];
+  const travel = playerTravelBounds(w.map);
   const disarmed = new Set<number>();
   for (const pr of w.projectiles) {
     const wd = pr.weapon ? WEAPONS[pr.weapon] : undefined;
@@ -908,8 +943,10 @@ function stepProjectiles(w: World): void {
         pr.stuck = true; pr.vx = 0; pr.vy = 0; pr.armedAt = w.tick + ticks(td.armMs!);
       }
     }
-    if (pr.x < -OUT_OF_BOUNDS_MARGIN || pr.x > w.map.width + OUT_OF_BOUNDS_MARGIN ||
-        pr.y > w.map.height + OUT_OF_BOUNDS_MARGIN || pr.y < -OUT_OF_BOUNDS_MARGIN) continue;
+    // Combat remains usable throughout the actor envelope; preserve the prior
+    // projectile-only cushion beyond it. Range, fuse, TTL and collision still win.
+    if (pr.x < travel.x - OUT_OF_BOUNDS_MARGIN || pr.x > travel.x + travel.w + OUT_OF_BOUNDS_MARGIN ||
+        pr.y > travel.y + travel.h + OUT_OF_BOUNDS_MARGIN || pr.y < travel.y - OUT_OF_BOUNDS_MARGIN) continue;
     if (wd?.id === "saw-launcher") {
       if (wall) pr.bounces = (pr.bounces ?? 0) + 1;
       if (blockedByShield || (pr.bounces ?? 0) >= 4 || w.tick >= pr.explodeTick ||
@@ -1228,9 +1265,20 @@ export function stepWorld(w: World, inputs: Map<number, InputFrame>): void {
     if (pressed & Btn.PICKUP) tryPickupWeapon(w, p);
     if (pressed & Btn.DROP) dropActive(w, p);
     if (p.alive) autoPickups(w, p);
-    if (p.alive && ((w.map.physics === "space" && p.y < -OUT_OF_BOUNDS_MARGIN) || p.y > w.map.height + OUT_OF_BOUNDS_MARGIN || p.x < -OUT_OF_BOUNDS_MARGIN || p.x > w.map.width + OUT_OF_BOUNDS_MARGIN)) {
-      p.protectUntil = 0;
-      applyDamage(w, p, null, p.hp, "fall");
+    if (p.alive) {
+      if (w.map.physics === "space" || p.y <= w.map.height) p.fallExposureTicks = 0;
+      else if (isFallingBelowMap(p, w.map)) {
+        // Brief powered puffs pause exposure but cannot restart the grace period.
+        // Re-entering the map is the recovery condition. Boundary pressure is
+        // environmental damage, so protection and combat multipliers do not apply.
+        p.fallExposureTicks++;
+        combat(w, p);
+        if (p.fallExposureTicks > FALL_EXPOSURE_GRACE_TICKS &&
+            (p.fallExposureTicks - FALL_EXPOSURE_GRACE_TICKS) % FALL_DAMAGE_INTERVAL_TICKS === 0) {
+          p.protectUntil = 0;
+          applyDamage(w, p, null, FALL_DAMAGE_PER_INTERVAL, "fall");
+        }
+      }
     }
   }
   stepProjectiles(w);

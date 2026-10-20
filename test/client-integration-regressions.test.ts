@@ -96,9 +96,17 @@ describe("authoritative death-camera handoff",()=>{
 
 describe("next-round settings reconciliation",()=>{
   const controls=()=>{
-    const dom=new JSDOM('<div><select data-setting="mode"><option>training</option><option>flag</option><option>survival</option></select><select data-setting="map"></select><select data-setting="gravity"></select><select data-setting="capacity"></select><select data-setting="bots"></select><input type="checkbox" data-setting="flight"><input type="checkbox" data-setting="unlimitedFuel"><select data-setting="fuelCapacity"><option>1</option></select></div>');
+    const dom=new JSDOM('<div><select data-setting="mode"><option>training</option><option>flag</option><option>survival</option></select><select data-setting="map"></select><select data-setting="gravity"></select><select data-setting="capacity"></select><select data-setting="bots"></select><input type="checkbox" data-setting="flight"><input type="checkbox" data-setting="unlimitedFuel"><input type="checkbox" data-setting="randomSpawns"><select data-setting="fuelCapacity"><option>1</option></select></div>');
     return {dom,root:dom.window.document.querySelector("div")!};
   };
+  it("reconciles random-spawn choices from authoritative settings and restored legacy presets",()=>{
+    const {dom,root}=controls();
+    const field=root.querySelector<HTMLInputElement>('[data-setting="randomSpawns"]')!;
+    syncRuleFields(root,sanitizeSettings({randomSpawns:false}));expect(field.checked).toBe(false);
+    syncRuleFields(root,sanitizeSettings({randomSpawns:true}));expect(field.checked).toBe(true);
+    syncRuleFields(root,sanitizeSettings({}));expect(field.checked).toBe(true);
+    dom.window.close();
+  });
   it("shows the server-selected arena after Test Range changes to flag mode, and restores range choice for training",()=>{
     const {dom,root}=controls();
     const training=sanitizeSettings({mode:"training",map:"test-range"});

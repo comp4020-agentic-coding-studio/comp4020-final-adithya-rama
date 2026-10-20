@@ -192,8 +192,8 @@ describe("space physics across authoritative entities", () => {
     const f = w.flags[0]; Object.assign(f, { state: "dropped", x: 550, y: 488, vx: 100, vy: 0 });
     run(w, 90); expect(f.x).toBeLessThanOrEqual(590); expect(f.state).toBe("dropped");
   });
-  it("space actors have a top boundary as well as the other three sides", () => {
-    const w = spaceWorld(), p = player(w, -1, { x: 500, y: -241 }); run(w, 1); expect(p.alive).toBe(false);
+  it("space actors survive the former top kill boundary", () => {
+    const w = spaceWorld(), p = player(w, -1, { x: 500, y: -241 }); run(w, 1); expect(p.alive).toBe(true); expect(p.y).toBe(-241);
   });
 });
 

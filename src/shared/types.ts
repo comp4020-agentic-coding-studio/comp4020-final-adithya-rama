@@ -22,6 +22,7 @@ export interface RoomSettings {
   health: Multiplier;
   damage: Multiplier;
   respawnSec: number;
+  randomSpawns: boolean;
   weapons: string[];
   throwables: string[];
   loadout: Loadout;

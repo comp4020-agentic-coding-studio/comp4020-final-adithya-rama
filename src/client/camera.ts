@@ -17,24 +17,26 @@ export function weaponViewWidth(id: string | null, portrait: boolean, level: Sco
   // At default phone framing a crouched pilot remains legible. Far views are an
   // explicit player choice instead of shrinking every sniper user to a speck.
   const near = portrait ? Math.min(680, desktop) : desktop;
-  const fullRange = Math.max(near, (range + 100) / .72);
+  const fullRange = Math.max(near, (range + 100) * 2);
   const spans = [near, near * 1.2, Math.max(near * 1.5, fullRange * .8), Math.max(near * 1.8, fullRange)];
   return spans[level];
 }
 
-export function cameraFrame(actor: { x: number; y: number; aim: number; weapon: string | null },
+/** The pilot stays at the center of the clear play area, irrespective of aim. */
+export function cameraFrame(actor: { x: number; y: number; aim?: number; weapon: string | null },
   viewport: { width: number; height: number; playableHeight: number }, level: ScopeLevel,
-  lookAhead = true): { x: number; y: number; visibleWidth: number; smoothingMs: number } {
+): { x: number; y: number; visibleWidth: number; smoothingMs: number } {
   let width = weaponViewWidth(actor.weapon, viewport.width < viewport.height, level);
-  if(level===3){
-    const range=WEAPONS[actor.weapon??""]?.range??500;
-    width=Math.max(width,(range+100)/(lookAhead?.72:.5)*Math.max(1,viewport.width/Math.max(1,viewport.playableHeight)));
+  if (level === 3) {
+    const range = WEAPONS[actor.weapon ?? ""]?.range ?? 500;
+    // Centered framing must fit reach on both sides and along the shorter axis.
+    width = Math.max(width, (range + 100) * 2 * Math.max(1, viewport.width / Math.max(1, viewport.playableHeight)));
   }
-  const height = width * viewport.playableHeight / Math.max(1, viewport.width);
-  return {
-    x: actor.x + (lookAhead ? Math.cos(actor.aim) * width * .22 : 0),
-    y: actor.y + (lookAhead ? Math.sin(actor.aim) * height * .22 : 0),
-    visibleWidth: width,
-    smoothingMs: 160,
-  };
+  return { x: actor.x, y: actor.y, visibleWidth: width, smoothingMs: 160 };
+}
+
+/** Smooth only actual target movement. Terrain bounds never constrain the view. */
+export function followCamera(current: {x:number;y:number}, target: {x:number;y:number}, elapsedMs:number, smoothingMs:number, snap=false): {x:number;y:number} {
+  const blend = snap || smoothingMs <= 0 ? 1 : 1 - Math.exp(-Math.max(0, Math.min(100, elapsedMs)) / smoothingMs);
+  return {x:current.x + (target.x-current.x)*blend, y:current.y + (target.y-current.y)*blend};
 }

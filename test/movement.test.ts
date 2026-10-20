@@ -94,10 +94,14 @@ describe("movement", () => {
     expect(a).toEqual(b);
   });
 
-  it("dies on leaving the bottom of the world", () => {
+  it("loses health gradually after falling below the world", () => {
     const w = world({ mode: "ffa" });
     const p = player(w, -1, { x: 500, y: 2000 });
     run(w, 1);
+    expect(p.alive).toBe(true);
+    run(w, 74);
+    expect(p.hp).toBe(95);
+    run(w, 285);
     expect(p.alive).toBe(false);
     expect(p.deaths).toBe(1);
   });

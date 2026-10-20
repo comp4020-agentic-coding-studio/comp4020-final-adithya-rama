@@ -1,3 +1,4 @@
+import { followCamera } from "./camera.ts";
 import { playArea } from "./play-area.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
 import { PLAYER_CROUCH_H, PLAYER_H } from "../shared/constants.ts";
@@ -351,14 +352,8 @@ export class Renderer {
     this.scale = s;
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
-    const halfW = sw / s / 2;
-    const halfH = playableHeight / s / 2;
-    const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
-    const elapsed=this.cameraAt?Math.min(100,Math.max(0,now-this.cameraAt)):0;
-    const duration=camera.smoothingMs??58;
-    const blend=!this.cameraAt||camera.snap||duration<=0?1:1-Math.exp(-elapsed/duration);
-    this.cam.x += (clamp(camera.x, halfW, map.width - halfW) - this.cam.x) * blend;
-    this.cam.y += (clamp(camera.y, halfH, map.height - halfH) - this.cam.y) * blend;
+    const elapsed = this.cameraAt ? now-this.cameraAt : 0;
+    this.cam = followCamera(this.cam, camera, elapsed, camera.smoothingMs ?? 58, !this.cameraAt || camera.snap);
     this.cameraAt=now;
     let ox = 0;
     let oy = 0;
