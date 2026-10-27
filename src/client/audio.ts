@@ -137,10 +137,12 @@ export class GameAudio {
     if(this.destroyed||this.muted)return;
     const now=performance.now();
     if(e.t==="shot") {
-      // A shotgun sends one trace per pellet; sound fires once per discharge.
-      // Independent shooters and different dual weapons never silence each other.
-      const key=e.by+":"+e.w;if(now-(this.shots.get(key)??-Infinity)<18)return;
-      this.shots.set(key,now);if(this.shots.size>256)this.shots.clear();
+      // A shotgun's pellets share one discharge. Same-weapon dual guns have
+      // separate authoritative identities, even when delivered in one snapshot.
+      const key=e.by+":"+e.w+":"+(e.discharge??"legacy");
+      if(e.discharge===undefined?now-(this.shots.get(key)??-Infinity)<18:this.shots.has(key))return;
+      this.shots.set(key,now);
+      if(this.shots.size>256)this.shots.delete(this.shots.keys().next().value!);
       const mix=e.by===local?{gain:1,pan:0}:spatialMix(e.x1,e.y1,this.listener);
       const shot=SHOT_SOUNDS[e.w];
       if(shot&&this.play(shot.clip,shot.gain*mix.gain,mix.pan,shot.rate,shot.lowpass))return;
@@ -163,7 +165,13 @@ export class GameAudio {
       if(e.killer===local)this.tone(630,315,.055,"sine",.08);
     } else if(e.t==="explode") {
       const mix=spatialMix(e.x,e.y,this.listener);
-      this.noise(.75,.72*mix.gain,950,mix.pan);this.tone(95,25,.55,"sine",.6*mix.gain,mix.pan);
+      if(e.effect==="emp") {
+        this.tone(360,1350,.22,"triangle",.22*mix.gain,mix.pan);
+        this.tone(1500,180,.32,"sine",.12*mix.gain,mix.pan);
+        this.noise(.07,.12*mix.gain,6500,mix.pan);
+      } else {
+        this.noise(.75,.72*mix.gain,950,mix.pan);this.tone(95,25,.55,"sine",.6*mix.gain,mix.pan);
+      }
     } else if(e.t==="shield") {
       const mix=this.at(e.id,local);this.noise(.035,.19*mix.gain,8000,mix.pan);this.tone(1550,670,.15,"triangle",.12*mix.gain,mix.pan);
     } else if(e.t==="reload"&&e.id===local) {

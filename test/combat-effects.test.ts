@@ -1,7 +1,7 @@
 import {describe,it,expect} from "vitest";
 import type {Graphics} from "pixi.js";
 import {drawFlame,drawSaw,flameLobes,MAX_SAW_TRACKS,MAX_SAW_TRAIL,SawTrails} from "../src/client/combat-effects.ts";
-import {rocketDebris,advanceDebris} from "../src/client/death.ts";
+import {explosionDebris,advanceDebris} from "../src/client/death.ts";
 import type {ProjectileSnap} from "../src/shared/types.ts";
 function graphics(){
   const calls:Array<{method:string;args:unknown[]}>=[];
@@ -64,18 +64,18 @@ describe("saw presentation follows authoritative motion",()=>{
   });
 });
 
-describe("directional rocket breakup",()=>{
+describe("directional explosive breakup",()=>{
   const victim={id:1,x:200,y:200,vx:0,vy:0,height:44},colors={armor:0x335566,skin:0xccaa88,helmet:0x778899};
   it("throws fragments away from the blast and retains momentum from a flying victim",()=>{
-    const left=rocketDebris(victim,colors,false,{x:100,y:180}),right=rocketDebris(victim,colors,false,{x:300,y:180});
+    const left=explosionDebris(victim,colors,false,{x:100,y:180}),right=explosionDebris(victim,colors,false,{x:300,y:180});
     expect(left.every(p=>p.vx>0)).toBe(true);expect(right.every(p=>p.vx<0)).toBe(true);
-    const moving=rocketDebris({...victim,vx:200},colors,false,{x:100,y:180});
+    const moving=explosionDebris({...victim,vx:200},colors,false,{x:100,y:180});
     expect(moving[0].vx-left[0].vx).toBeCloseTo(50);
   });
   it("spreads limbs up and down immediately, and retains exterior-flight deaths beyond the terrain rectangle",()=>{
-    const parts=rocketDebris(victim,colors,false);
+    const parts=explosionDebris(victim,colors,false);
     expect(parts.some(p=>p.vy>0)).toBe(true);expect(parts.some(p=>p.vy<0)).toBe(true);
-    const outside=rocketDebris({...victim,x:-120},colors,false);
+    const outside=explosionDebris({...victim,x:-120},colors,false);
     expect(advanceDebris(outside,10,{width:1000,height:600,solids:[],platforms:[]})).not.toHaveLength(0);
   });
 });

@@ -85,3 +85,14 @@ export function drawSaw(g:Graphics,p:Pick<ProjectileSnap,"id"|"x"|"y"|"vx"|"vy">
   }
   g.circle(p.x,p.y,2.4*scale).fill(0xe6b25a);
 }
+/** Cosmetic shake falls to zero outside the local impact neighbourhood. */
+export function explosionShake(x:number,y:number,radius:number,camera:{x:number;y:number}):number {
+  if(![x,y,radius,camera.x,camera.y].every(Number.isFinite))return 0;
+  const reach=Math.max(260,radius*2.5),proximity=Math.max(0,1-Math.hypot(x-camera.x,y-camera.y)/reach);
+  return 9*proximity*proximity;
+}
+
+/** The same cosmetic particles drift on Lunarcy instead of falling under Earth gravity. */
+export function cosmeticPosition(origin:{x:number;y:number;vx:number;vy:number},seconds:number,space:boolean) {
+  return {x:origin.x+origin.vx*seconds,y:origin.y+origin.vy*seconds+(space?0:120*seconds*seconds)};
+}

@@ -40,10 +40,44 @@ for(const mobile of [false,true]) {
   }
   async function slot(n:number) {if(mobile)await page.getByRole("button",{name:"Slot "+n,exact:true}).click();else await page.keyboard.press("Digit"+n);await sleep(150);}
   const probe=()=>page.evaluate(()=>((window as any).__jetRenderProbe.config));
+  async function throwDown() {
+    if(mobile) {
+      const rect=await page.locator('[data-control="aim"]').boundingBox();assert.ok(rect);
+      const cx=rect.x+rect.width/2,cy=rect.y+rect.height/2;
+      await cdp.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{id:1,x:cx,y:cy,radiusX:2,radiusY:2}]});
+      await cdp.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{id:1,x:cx,y:cy+rect.width*.2,radiusX:2,radiusY:2}]});
+      await sleep(100);await cdp.send("Input.dispatchTouchEvent",{type:"touchEnd",touchPoints:[]});
+      await page.getByRole("button",{name:"Throw",exact:true}).click();
+    }else{
+      await page.keyboard.down("ArrowDown");await sleep(80);await page.keyboard.up("ArrowDown");
+      await page.keyboard.down("KeyG");await sleep(80);await page.keyboard.up("KeyG");
+    }
+  }
+  async function grenadeKill(reducedBlood:boolean) {
+    await until(()=>!!(actor(you).f&PF.ALIVE)&&!(actor(you).f&PF.PROTECTED)&&!!(actor(enemy).f&PF.ALIVE)&&!(actor(enemy).f&PF.PROTECTED),"both pilots ready for frag",30000);
+    await until(()=>!snap?.projectiles.some(p=>p.k==="saw-launcher"),"old saw has expired");
+    const home=actor(you).x,direction=home>900?-1:1;
+    await move(home+direction*32);
+    const initialHp=[actor(you).hp,actor(enemy).hp],first=events.length;
+    const before=Number((await probe()).explosiveDeaths?.frag??0);
+    await throwDown();
+    await until(()=>events.slice(first).filter(e=>e.t==="kill"&&e.w==="frag").length===2,"frag eliminates both nearby pilots");
+    const peer=await target.waitFor("snap",m=>m.events.some(e=>e.t==="kill"&&e.w==="frag"&&e.victim===enemy));
+    const signature=(source:GameEvent[])=>source.filter((e):e is Extract<GameEvent,{t:"kill"}>=>e.t==="kill"&&e.w==="frag").map(e=>({victim:e.victim,blast:e.blast})).sort((a,b)=>a.victim-b.victim);
+    assert.deepEqual(signature(events.slice(first)),signature(peer.events),"independent peer agrees on frag victims and blast positions");
+    await page.waitForFunction(previous=>Number((window as any).__jetRenderProbe?.config.explosiveDeaths?.frag)>previous,before);
+    const rendered=await probe();
+    assert.equal(rendered.explosiveDeaths.frag-before,2);
+    assert.ok(rendered.deathDebris>0&&rendered.deathDebris<=96);
+    if(reducedBlood)assert.ok(rendered.deathDebris<=4,"blood reduction leaves equipment only");
+    else assert.ok(rendered.deathDebris>=18,"normal frag deaths separate anatomy");
+    await page.screenshot({path:out+"/"+(mobile?"phone":"desktop")+"-frag"+(reducedBlood?"-reduced":"")+".png"});
+    checks.push({mobile,frag:{initialHp,reducedBlood,pieces:rendered.deathDebris,peerAgreement:true,victims:signature(peer.events)}});
+  }
   try {
     await page.goto(base);await page.locator("#practice").waitFor();
     await page.request.patch(base+"/api/me",{data:{prefs:{reducedShake:true,reducedBlood:false,lowFlash:false,muted:true,aimAssist:false}}});
-    const response=await page.request.post(base+"/api/rooms",{data:{name:"Combat visual acceptance",isPublic:false,settings:{mode:"tdm",map:"test-range",bots:0,randomSpawns:false,mapPickups:false,durationMin:2,loadout:["smaw","flamethrower","saw-launcher"],unlimitedAmmo:true}}});
+    const response=await page.request.post(base+"/api/rooms",{data:{name:"Combat visual acceptance",isPublic:false,settings:{mode:"tdm",map:"test-range",bots:0,randomSpawns:false,mapPickups:false,durationMin:5,throwables:["frag","emp"],loadout:["smaw","flamethrower","saw-launcher"],unlimitedAmmo:true}}});
     assert.equal(response.status(),201);const{code}=await response.json();
     await page.goto(base+"/r/"+code+"?renderProbe=1");await page.getByRole("button",{name:"Join room",exact:true}).click();await page.locator("#start").waitFor();
     await target.visit();await target.http("/api/me",{method:"PATCH",body:{name:"Effects Target"}});await target.connect();await target.waitFor("welcome");
@@ -52,7 +86,7 @@ for(const mobile of [false,true]) {
     await page.locator("#start:not(:disabled)").click();const match=await target.waitFor("match");enemy=match.you!;
     await until(()=>!!snap?.players.find(p=>p.id===you),"first gameplay snapshot");
     await page.locator(".match-loading").waitFor({state:"hidden"});
-    const x=actor(you).x,direction=x>900?-1:1;
+    let x=actor(you).x,direction=x>900?-1:1;
     await move(x+direction*220);await until(()=>!(actor(enemy).f&PF.PROTECTED),"spawn protection");
     await shoot(direction,180);
     await until(()=>events.some(e=>e.t==="kill"&&e.victim===enemy&&e.w==="smaw"),"rocket eliminates target");
@@ -61,7 +95,9 @@ for(const mobile of [false,true]) {
     await page.waitForFunction(()=>Number((window as any).__jetRenderProbe?.config.peakDeathDebris)>0);
     await page.screenshot({path:out+"/"+(mobile?"phone":"desktop")+"-rocket.png"});
     const rocket=await probe();assert.ok(rocket.peakDeathDebris>=9);assert.ok(rocket.peakDeathDebris<=96);
-    await until(()=>!!(actor(enemy).f&PF.ALIVE)&&!(actor(enemy).f&PF.PROTECTED),"target respawns");
+    await grenadeKill(false);
+    await until(()=>!!(actor(you).f&PF.ALIVE)&&!(actor(you).f&PF.PROTECTED)&&!!(actor(enemy).f&PF.ALIVE)&&!(actor(enemy).f&PF.PROTECTED),"pilots respawn after frag");
+    x=actor(you).x;direction=x>900?-1:1;
     await move(x+direction*125);await slot(2);
     const hp=actor(enemy).hp;await shoot(direction,650,"flame");
 
@@ -75,6 +111,21 @@ for(const mobile of [false,true]) {
     await page.getByRole("button",{name:"Resume",exact:true}).click();
     await sleep(100);const reduced=await probe();assert.equal(reduced.effects.lowFlash,true);assert.equal(reduced.effects.reducedBlood,true);
     checks.push({mobile,match:match.matchId,rocketDebris:rocket.peakDeathDebris,flamePulses:flame.peakFlames,saws:saw.peakSaws,peakFx:saw.peakFx,reduced:reduced.effects});
+    await grenadeKill(true);
+    await until(()=>!!(actor(you).f&PF.ALIVE)&&!(actor(you).f&PF.PROTECTED)&&!!(actor(enemy).f&PF.ALIVE)&&!(actor(enemy).f&PF.PROTECTED),"pilots ready for EMP");
+    const empX=actor(you).x;await move(empX+(empX>900?-32:32));
+    if(mobile)await page.getByRole("button",{name:"Type",exact:true}).click();
+    else {await page.keyboard.down("KeyT");await sleep(80);await page.keyboard.up("KeyT");}
+    await until(()=>actor(you).throwable==="emp","EMP selected");
+    const empStart=events.length;
+    await throwDown();
+    await until(()=>events.slice(empStart).some(e=>e.t==="explode"&&e.effect==="emp"),"EMP electrical pulse");
+    await page.waitForFunction(()=>Number((window as any).__jetRenderProbe?.config.effects?.emp)>0);
+    const emp=await probe();assert.equal(emp.deathDebris,0);assert.equal(emp.explosiveDeaths.emp,undefined);
+    assert.ok(actor(you).f&PF.ALIVE);assert.ok(actor(enemy).f&PF.ALIVE);
+    await page.screenshot({path:out+"/"+(mobile?"phone":"desktop")+"-emp.png"});
+    checks.push({mobile,emp:{pulse:emp.effects.emp,debris:emp.deathDebris,lowFlash:emp.effects.lowFlash,health:[actor(you).hp,actor(enemy).hp]}});
+
   }catch(error){checks.push({mobile,error:String(error),players:(snap as WorldSnapshot|null)?.players.map(p=>({id:p.id,x:p.x,y:p.y,aim:p.aim,hp:p.hp,mag:p.mag,slot:p.a})),events:events.slice(-15)});throw error;}finally {
     try{await page.getByRole("button",{name:mobile?"Menu":"Menu / Esc",exact:true}).click();await page.getByRole("button",{name:"End round now",exact:true}).click({timeout:3000});await page.getByText("Results saved to your match history.",{exact:true}).waitFor({timeout:5000});await page.getByRole("button",{name:"Leave room",exact:true}).click();}catch{}
     target.quit();await context.close();

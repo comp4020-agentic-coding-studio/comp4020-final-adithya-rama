@@ -3,7 +3,7 @@ export const AVATAR_CHOICES = {
   body: ["male", "female"],
   outfit: ["armour", "flight-suit", "jacket", "dress"],
   helmet: ["pilot", "visor", "cap", "mohawk", "none", "beret"],
-  hair: ["cropped", "bob", "ponytail", "braids", "curly", "bald"],
+  hair: ["cropped", "bob", "ponytail", "braids", "curly", "bald", "side-part", "undercut", "waves", "high-bun", "afro", "locs"],
   hairColor: ["black", "brown", "blond", "auburn", "silver", "violet"],
   facialHair: ["none", "moustache", "beard", "goatee"],
   eyebrows: ["natural", "arched", "bold", "angled", "none"],
@@ -27,8 +27,8 @@ export function avatarOf(value: unknown): Avatar {
   ])) as Avatar;
 }
 export const PILOT_PRESETS: {name:string; avatar:Avatar}[] = [
-  {name:"Vanguard",avatar:{...DEFAULT_AVATAR,facialHair:"moustache",helmet:"beret"}},
-  {name:"Nova",avatar:{...DEFAULT_AVATAR,body:"female",outfit:"flight-suit",helmet:"none",hair:"ponytail",hairColor:"violet",glasses:"aviator",emblem:"star"}},
-  {name:"Rook",avatar:{...DEFAULT_AVATAR,helmet:"none",hair:"curly",face:"dark",facialHair:"beard",glasses:"round",outfit:"jacket"}},
-  {name:"Vesper",avatar:{...DEFAULT_AVATAR,body:"female",helmet:"none",hair:"bob",hairColor:"silver",outfit:"dress",glasses:"none",emblem:"skull"}},
+  {name:"Vanguard",avatar:{...DEFAULT_AVATAR,facialHair:"moustache",helmet:"beret",hair:"side-part",glasses:"none",eyebrows:"natural"}},
+  {name:"Nova",avatar:{...DEFAULT_AVATAR,body:"female",outfit:"flight-suit",helmet:"none",hair:"ponytail",hairColor:"brown",glasses:"none",eyebrows:"arched",emblem:"star"}},
+  {name:"Rook",avatar:{...DEFAULT_AVATAR,helmet:"none",hair:"undercut",face:"dark",facialHair:"beard",glasses:"none",eyebrows:"bold",outfit:"jacket"}},
+  {name:"Vesper",avatar:{...DEFAULT_AVATAR,body:"female",helmet:"none",hair:"waves",hairColor:"auburn",outfit:"dress",glasses:"none",eyebrows:"natural",emblem:"skull"}},
 ];

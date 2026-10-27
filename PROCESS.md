@@ -484,3 +484,24 @@ passed the normal container/CI/deployment workflow. Live independent guests then
 confirmed shield/headshot outcomes, desktop/phone effects and creator persistence.
 The original guest and exact historical match digest survived the deployment;
 additive eyebrow defaults did not rewrite the private acceptance baseline.
+
+## 28 October follow-up: checking related cases instead of a single example
+
+Adithya reported that ordinary grenade deaths lacked rocket-style breakup and
+that the character customization artwork remained poor. These reports exposed
+limits in the earlier checks: they verified a rocket example and functioning
+selection/persistence, rather than every lethal explosive cause or satisfactory
+art. The integrator split the follow-up into a combat event audit, shared
+character artwork and effect implementation, then integrated preview controls.
+
+The audit traced the catalogue through simulation, events, drawing and audio.
+It found the rocket-only death whitelist, missing visual shield contact, universal
+explosion shake, same-weapon dual audio collapse, generic EMP fireballs and
+terrestrial small-particle gravity on the space map. Regression checks cover
+those causes and exclusions. A shared drawing catalogue now keeps hair, brows,
+faces and accessories consistent between the enlarged editor and the game;
+contact sheets and actual browser views complement the data tests. Remaining
+throw/bounce and bullet-wall feedback gaps are documented rather than labelled
+complete. See the [follow-up record](docs/CHARACTER_EFFECTS_2026_10_28.md) for
+local and live results as they become available. No new human playtest outcome
+is claimed.

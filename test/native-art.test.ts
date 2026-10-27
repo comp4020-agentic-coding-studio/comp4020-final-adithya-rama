@@ -28,6 +28,16 @@ describe("native combat presentation",()=>{
       }
     }
   });
+  it("draws two gloved hands when both equipment slots are empty",()=>{
+    for(const h of [PLAYER_H,PLAYER_CROUCH_H])for(const aim of [0,Math.PI]){
+      const {g,calls}=graphics();
+      drawPilot(g,{x:100,y:200,h,color:0x889966,avatar:avatarOf(null),aim,walk:0,airborne:false,jetting:false,alpha:1,recoil:0,weapon:null,otherWeapon:null,now:0,hit:false});
+      const gloves=calls.filter(c=>c.method==="roundRect"&&c.args[2]===6&&c.args[3]===5);
+      expect(gloves).toHaveLength(2);
+      expect(Number(gloves[0].args[0])).toBeLessThan(100);expect(Number(gloves[1].args[0])).toBeGreaterThan(100);
+      for(const hand of gloves)expect(Number(hand.args[1])+Number(hand.args[3])).toBeLessThanOrEqual(200);
+    }
+  });
   it("draws every weapon at cardinal/diagonal angles with independent charge/reload state and finite geometry",()=>{
     const icons=new Set<string>();
     for(const id of Object.keys(WEAPONS)) {

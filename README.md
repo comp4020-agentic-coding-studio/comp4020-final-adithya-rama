@@ -5,6 +5,8 @@ cover, switch weapons, and bring your own team's flag into the opposing goal.
 Classic Mini Militia v4 is the reference for the feel; Jet Skirmish uses original
 maps, characters, visual effects and branding, with credited CC0 audio. All equipment is available from the start.
 
+The pilot workshop has 12 hairstyles, five eyebrow styles and a large face/full-body preview. Its original face artwork is shared with the in-game pilot. The [character and combat feedback record](docs/CHARACTER_EFFECTS_2026_10_28.md) tracks this revision and its verification.
+
 **[Play Jet Skirmish](https://comp4020-final-adithya-rama.fly.dev/)**
 
 **Development build.** The [feature checklist](docs/FEATURES.md) distinguishes

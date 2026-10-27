@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { advanceDebris,appendDebris,DeathCamera,isRocketDeath,MAX_DEATH_DEBRIS,rocketDebris,type DeathDebris } from "../src/client/death.ts";
+import { advanceDebris,appendDebris,DeathCamera,isExplosiveDeath,MAX_DEATH_DEBRIS,explosionDebris,type DeathDebris } from "../src/client/death.ts";
 const victim={id:3,x:40,y:70,vx:0,vy:0,height:44};
 const colors={armor:0x3399ff,skin:0xbb8866,helmet:0x788878};
 const map={width:1000,height:600,solids:[{x:0,y:200,w:1000,h:400}],platforms:[]};
@@ -40,24 +40,29 @@ describe("death camera",()=>{
   });
 });
 
-describe("bounded stylized rocket debris",()=>{
-  it("distinguishes rockets from grenades and ordinary gunfire",()=>{
-    expect(isRocketDeath("smaw")).toBe(true);
-    for(const id of ["frag","rg6","ak47","machete","fall"])expect(isRocketDeath(id)).toBe(false);
+describe("bounded stylized explosive debris",()=>{
+  it("classifies all physical blasts by their authoritative cause, separating direct saw cuts and electrical damage",()=>{
+    const impact={x:20,y:40};
+    for(const id of ["smaw","frag","rg6","mine","saw-launcher"]) {
+      expect(isExplosiveDeath(id,impact),id).toBe(true);
+      expect(isExplosiveDeath(id),id+" without a blast").toBe(false);
+    }
+    for(const id of ["ak47","machete","fall","gas","flamethrower","emp","emp-gun","flash","phasr","unknown"])expect(isExplosiveDeath(id,impact),id).toBe(false);
+    expect(isExplosiveDeath("frag",{x:NaN,y:0})).toBe(false);
   });
   it("creates distinct head, torso, limbs and boots with a short blood burst",()=>{
-    const parts=rocketDebris(victim,colors,false);
+    const parts=explosionDebris(victim,colors,false);
     expect(parts.filter(p=>p.kind!=="blood")).toHaveLength(9);
     expect(parts.filter(p=>p.kind==="blood")).toHaveLength(10);
     expect(new Set(parts.map(p=>p.kind))).toEqual(new Set(["helmet","head","vest","arm","leg","boot","blood"]));
     expect(parts.every(p=>Number.isFinite(p.vx)&&Number.isFinite(p.vy)&&p.ttl<=3250)).toBe(true);
   });
-  it("suppresses rocket breakup when reduced effects are requested",()=>{
-    expect(rocketDebris(victim,colors,true)).toEqual([]);
+  it("suppresses explosive breakup when reduced effects are requested",()=>{
+    expect(explosionDebris(victim,colors,true)).toEqual([]);
   });
   it("strictly bounds simultaneous effects and expires them after a stalled frame",()=>{
     let parts:DeathDebris[]=[];
-    for(let n=0;n<20;n++)parts=appendDebris(parts,rocketDebris({...victim,id:n},colors,false));
+    for(let n=0;n<20;n++)parts=appendDebris(parts,explosionDebris({...victim,id:n},colors,false));
     expect(parts).toHaveLength(MAX_DEATH_DEBRIS);
     expect(advanceDebris(parts,10000,map)).toEqual([]);
   });

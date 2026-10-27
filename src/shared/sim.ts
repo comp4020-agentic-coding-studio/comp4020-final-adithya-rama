@@ -641,13 +641,15 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
   if (def.behavior === "melee") { melee(w, p, def.damage, def.range, def.id); return; }
   slot.mag--;
   const { x: ox, y: oy } = muzzleOf(p);
+  // Same-slot pellets share a discharge; simultaneous dual guns do not.
+  const discharge = w.tick * 3 + p.slots.indexOf(slot);
   if (def.behavior === "projectile") {
     w.projectiles.push({ id: w.nextId++, kind: def.id, weapon: def.id, owner: p.id,
       x: ox, y: oy, vx: Math.cos(p.aim) * def.projectileSpeed!, vy: Math.sin(p.aim) * def.projectileSpeed!,
       explodeTick: w.tick + (def.id === "rg6" ? ticks(1800) : ticks(def.range / def.projectileSpeed! * 1000)), bounces: 0, traveled: 0 });
     // Launch audio and muzzle feedback use the same authoritative discharge event.
     // This short segment is not a hitscan hit; the projectile resolves damage later.
-    w.events.push({ t: "shot", by: p.id, w: def.id, x1: Math.round(ox), y1: Math.round(oy),
+    w.events.push({ t: "shot", by: p.id, w: def.id, discharge, x1: Math.round(ox), y1: Math.round(oy),
       x2: Math.round(ox + Math.cos(p.aim) * 32), y2: Math.round(oy + Math.sin(p.aim) * 32), hit: false });
   } else {
     const rewound = def.behavior !== "flame" ? historyAt(w, viewTick) : null;
@@ -686,7 +688,7 @@ function fire(w: World, p: Player, slot: SlotState, viewTick: number | undefined
         if (def.behavior !== "beam") { dist = hit.distance; break; }
       }
       suppressNearShot(w, p, ox, oy, ox + dx * dist, oy + dy * dist);
-      w.events.push({ t: "shot", by: p.id, w: def.id, x1: Math.round(ox), y1: Math.round(oy),
+      w.events.push({ t: "shot", by: p.id, w: def.id, discharge, x1: Math.round(ox), y1: Math.round(oy),
         x2: Math.round(ox + dx * dist), y2: Math.round(oy + dy * dist), hit: landed });
     }
   }
@@ -1064,7 +1066,7 @@ function explode(w: World, pr: Projectile, direct: Player | null = null): void {
       until: w.tick + ticks(td.durationMs!), nextDamageTick: w.tick });
     return;
   }
-  w.events.push({ t: "explode", x: Math.round(pr.x), y: Math.round(pr.y), r: radius });
+  w.events.push({ t: "explode", x: Math.round(pr.x), y: Math.round(pr.y), r: radius, effect: td?.effect === "emp" ? "emp" : "blast" });
   // A direct rocket impact is distinct from splash and never double-counted.
   const impact = { x: pr.x, y: pr.y };
   if (direct && wd?.id === "smaw") applyDamage(w, direct, pr.owner, wd.damage * w.settings.damage, wd.id, impact);
@@ -1101,7 +1103,7 @@ function explode(w: World, pr: Projectile, direct: Player | null = null): void {
       other.vy = Math.max(-650, Math.min(650, other.vy + (length === 1 && dx === 0 && dy === 0 ? -1 : dy / length) * impulse));
       other.onGround = false;
     }
-    applyDamage(w, other, pr.owner, dmg * w.settings.damage, wd?.id ?? td.id, impact);
+    applyDamage(w, other, pr.owner, dmg * w.settings.damage, wd?.id ?? td.id, td?.effect === "emp" ? undefined : impact);
   }
 }
 

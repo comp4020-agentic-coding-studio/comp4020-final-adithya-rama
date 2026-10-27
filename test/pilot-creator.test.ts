@@ -20,6 +20,21 @@ describe("visual pilot workshop",()=>{
     expect(el.querySelector('[data-category="hairColor"]')!.getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(el.querySelector('[data-category="hairColor"]'));
   });
+  it("zooms into face details without changing saved equipment and allows full-pilot inspection",()=>{
+    const el=form(),before=avatarFromForm(new FormData(el));
+    el.querySelector<HTMLButtonElement>('[data-category="hair"]')!.click();
+    expect(el.querySelector('.creator-stage')!.getAttribute("data-view")).toBe("face");
+    expect(el.querySelector('#avatar-preview svg')!.getAttribute("viewBox")).toBe("25 0 65 58");
+    expect(el.querySelector('[data-preview-note]')!.textContent).toContain("headgear");
+    expect(avatarFromForm(new FormData(el))).toEqual(before);
+    el.querySelector<HTMLButtonElement>('button[data-view="full"]')!.click();
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    expect(el.querySelector('#avatar-preview svg')!.getAttribute("viewBox")).toBe("0 0 120 130");
+    el.querySelector<HTMLButtonElement>('[data-category="eyebrows"]')!.click();
+    expect(el.querySelector('button[data-view="face"]')!.getAttribute("aria-pressed")).toBe("true");
+    el.querySelector<HTMLButtonElement>('[data-category="outfit"]')!.click();
+    expect(el.querySelector('.creator-stage')!.getAttribute("data-view")).toBe("full");
+  });
   it("applies complete presets, exposes brows in option art and previews the submitted identity",()=>{
     const el=form();el.querySelector<HTMLButtonElement>('[data-preset="1"]')!.click();
     expect(avatarFromForm(new FormData(el))).toEqual(PILOT_PRESETS[1].avatar);

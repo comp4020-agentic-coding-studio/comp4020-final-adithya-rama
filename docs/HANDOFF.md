@@ -1,3 +1,11 @@
+# Current follow-up: 28 October character art and explosive causes
+
+Read [the follow-up record](CHARACTER_EFFECTS_2026_10_28.md) and
+[completeness audit](COMBAT_COMPLETENESS_AUDIT_2026_10_28.md). Shared SVG/Pixi head
+geometry replaces the earlier face artwork; head categories offer close-up
+inspection. Physical-blast kills now cover every relevant weapon/throwable, with
+shield/EMP/distance feedback corrections. Preserve the earlier directional
+combat rules. Verification status is recorded separately from implementation.
 # Current handoff: 28 October combat and visual creator
 
 Read [the current revision](COMBAT_WORKSHOP_2026_10_28.md) and

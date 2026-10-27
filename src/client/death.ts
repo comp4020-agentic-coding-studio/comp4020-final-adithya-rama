@@ -1,4 +1,5 @@
 import type { MapDefinition } from "../shared/types.ts";
+import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
 import { rayRect, playerTravelBounds } from "../shared/physics.ts";
 
 export interface CameraPoint { x:number; y:number }
@@ -38,11 +39,23 @@ export interface DeathDebris {
   settled:boolean;
 }
 export const MAX_DEATH_DEBRIS=96;
-export function isRocketDeath(weapon:string):boolean {return weapon==="smaw";}
+/** A lethal physical blast is authoritative; a weapon name alone is not evidence.
+ * Saw flight cuts and its terminal explosion share an ID but need different effects.
+ * EMP has a radial damage origin too, yet is electrical rather than a physical blast. */
+export function isExplosiveDeath(weapon:string,impact?:CameraPoint):boolean {
+  if(!impact||!Number.isFinite(impact.x)||!Number.isFinite(impact.y))return false;
+  const firearm=WEAPONS[weapon],throwable=THROWABLES[weapon];
+  return (firearm?.blastRadius??0)>0||throwable?.effect==="blast"||throwable?.effect==="mine";
+}
 
-export function rocketDebris(
+/** The blood preference hides anatomy consistently for every explosive cause. */
+export function visibleDeathDebris(parts:DeathDebris[],reducedBlood:boolean):DeathDebris[] {
+  return reducedBlood?parts.filter(part=>part.kind==="helmet"||part.kind==="vest"):parts;
+}
+
+export function explosionDebris(
   victim:{id:number;x:number;y:number;vx:number;vy:number;height:number},
-  colors:{armor:number;skin:number;helmet:number},
+  colors:{armor:number;skin:number;helmet?:number},
   reduced:boolean,
   impact?:CameraPoint,
 ):DeathDebris[] {
@@ -50,7 +63,7 @@ export function rocketDebris(
   let seed=(victim.id*1664525+Math.round(victim.x)*1013904223+Math.round(victim.y))>>>0;
   const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
   const body:Array<{kind:DebrisKind;ox:number;oy:number;radius:number;color:number}>=[
-    {kind:"helmet",ox:0,oy:-victim.height+3,radius:7,color:colors.helmet},
+    ...(colors.helmet===undefined?[]:[{kind:"helmet" as const,ox:0,oy:-victim.height+3,radius:7,color:colors.helmet}]),
     {kind:"head",ox:0,oy:-victim.height+10,radius:7,color:colors.skin},
     {kind:"vest",ox:0,oy:-victim.height*.52,radius:8,color:colors.armor},
     {kind:"arm",ox:-8,oy:-victim.height*.49,radius:4,color:colors.skin},

@@ -1,6 +1,7 @@
 import { followCamera } from "./camera.ts";
-import { drawFlame, drawSaw, SawTrails } from "./combat-effects.ts";
+import { drawFlame, drawSaw, SawTrails, cosmeticPosition, explosionShake } from "./combat-effects.ts";
 import { raycastMap } from "../shared/physics.ts";
+import { shieldPanel } from "../shared/combat-geometry.ts";
 import { playArea } from "./play-area.ts";
 import { nameplateIdentity, nameplateText, placeNameplates, type PlateBounds } from "./nameplates.ts";
 import { Application, Container, Graphics, Text } from "pixi.js";
@@ -8,7 +9,7 @@ import { PLAYER_CROUCH_H, PLAYER_H, TICK_RATE } from "../shared/constants.ts";
 import { THROWABLES, WEAPONS } from "../shared/weapons.ts";
 import type { AreaSnap, FlagState, MapDefinition, PickupSnap, ProjectileSnap, Team } from "../shared/types.ts";
 import { avatarOf, drawThrowable, drawWeapon, drawPilot, weaponLength, type Avatar, SKIN } from "./art.ts";
-import { advanceDebris, appendDebris, isRocketDeath, rocketDebris, type DeathDebris } from "./death.ts";
+import { advanceDebris, appendDebris, isExplosiveDeath, explosionDebris, visibleDeathDebris, type DeathDebris } from "./death.ts";
 import { drawBackdropLayer, drawScenery, drawTerrain, drawConcealment } from "./environment-art.ts";
 
 
@@ -82,7 +83,7 @@ export interface RenderPlayer {
 }
 
 interface Fx {
-  kind: "tracer" | "boom" | "spark" | "slash" | "muzzle" | "case" | "smoke" | "blood" | "stain" | "regen" | "flash" | "flame";
+  kind: "tracer" | "boom" | "spark" | "slash" | "muzzle" | "case" | "smoke" | "blood" | "stain" | "regen" | "flash" | "flame" | "emp" | "shield";
   x1: number;
   y1: number;
   x2: number;
@@ -286,7 +287,16 @@ export class Renderer {
 
   addExplosion(x: number, y: number, r: number): void {
     this.fx.push({ kind: "boom", x1: x, y1: y, x2: r, y2: 0, color: 0xff9a3c, born: performance.now(), ttl: 450 });
-    if (!this.reducedShake) this.shake = Math.max(this.shake, 9);
+    if (!this.reducedShake) this.shake = Math.max(this.shake, explosionShake(x,y,r,this.cam));
+  }
+
+  addEmpPulse(x:number,y:number,r:number):void {
+    this.fx.push({kind:"emp",x1:x,y1:y,x2:r,y2:0,color:0x91d4e7,born:performance.now(),ttl:450});
+  }
+
+  addShieldBlock(p:{x:number;y:number;aim:number;crouch:boolean}):void {
+    const h=p.crouch?PLAYER_CROUCH_H:PLAYER_H,panel=shieldPanel({x:p.x-11,y:p.y-h,w:22,h},p.aim);
+    this.fx.push({kind:"shield",x1:panel.x,y1:panel.y,x2:panel.angle,y2:panel.length,color:0xa0d5dd,born:performance.now(),ttl:170});
   }
 
   addSlash(x: number, y: number): void {
@@ -296,18 +306,23 @@ export class Renderer {
   addDeath(p:Pick<RenderPlayer,"id"|"x"|"y"|"vx"|"vy"|"crouch"|"team"|"color"|"avatar">,weapon:string,impact?:{x:number;y:number}):void {
     const now=performance.now(),h=p.crouch?PLAYER_CROUCH_H:PLAYER_H;
     const avatar=avatarOf(p.avatar),armor=p.color;
-    if(isRocketDeath(weapon)) {
-      this.debris=appendDebris(this.debris,rocketDebris(
+    const explosive=isExplosiveDeath(weapon,impact);
+    if(explosive) {
+      this.debris=appendDebris(this.debris,visibleDeathDebris(explosionDebris(
         {id:p.id,x:p.x,y:p.y,vx:p.vx??0,vy:p.vy??0,height:h},
-        {armor,skin:SKIN[avatar.face],helmet:avatar.helmet==="cap"?0x89966b:0x788878},
+        {armor,skin:SKIN[avatar.face],helmet:avatar.helmet==="none"||avatar.helmet==="mohawk"?undefined:avatar.helmet==="cap"?0x89966b:0x788878},
         false,impact,
-      ).filter(part=>!this.reducedBlood||part.kind==="helmet"||part.kind==="vest"));
+      ),this.reducedBlood));
+      if(this.probe) {
+        const causes=this.probe.config.explosiveDeaths as Record<string,number>??{};
+        causes[weapon]=(causes[weapon]??0)+1;this.probe.config.explosiveDeaths=causes;
+      }
     } else if(!this.reducedBlood) {
       for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-h*.55,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
     }
     if(!this.reducedBlood) {
       const floor=[...(this.map?.solids??[]),...(this.map?.platforms??[])].filter(r=>r.y>=p.y-2&&r.y<p.y+100&&p.x>=r.x&&p.x<=r.x+r.w).sort((a,b)=>a.y-b.y)[0];
-      if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:isRocketDeath(weapon)?3800:2500});
+      if(floor)this.fx.push({kind:"stain",x1:p.x,y1:floor.y+2,x2:0,y2:0,color:0x7f4635,born:now,ttl:explosive?3800:2500});
     }
   }
 
@@ -315,7 +330,7 @@ export class Renderer {
     const elapsed=this.debrisAt?now-this.debrisAt:0;
     this.debrisAt=now;
     if(!this.map)return;
-    if(this.reducedBlood)this.debris=this.debris.filter(p=>p.kind==="helmet"||p.kind==="vest");
+    this.debris=visibleDeathDebris(this.debris,this.reducedBlood);
     this.debris=advanceDebris(this.debris,elapsed,this.map);
     const g=this.fxG;
     for(const p of this.debris) {
@@ -432,7 +447,7 @@ export class Renderer {
         const a=f.x2,c=Math.cos(a),ss=Math.sin(a),pts=[0,-4,8,-3,15,-8,11,0,20,2,8,5,2,3];
         fg.poly(pts.map((v,i)=>i%2?v*c+pts[i-1]*ss+f.y1:v*c-pts[i+1]*ss+f.x1)).fill({color:this.lowFlash?0xbb9655:f.color,alpha:this.lowFlash?.45*(1-t):1-t});
       } else if(f.kind==="case"||f.kind==="blood") {
-        const dt=t*f.ttl/1000,x=f.x1+f.x2*dt,y=f.y1+f.y2*dt+120*dt*dt;
+        const dt=t*f.ttl/1000,{x,y}=cosmeticPosition({x:f.x1,y:f.y1,vx:f.x2,vy:f.y2},dt,map.physics==="space");
         if(f.kind==="case")fg.poly([x-2,y,x+2,y-1,x+3,y+2,x-1,y+3]).fill({color:f.color,alpha:1-t});
         else fg.ellipse(x,y,2.8*(1-t),1.9*(1-t)).fill({color:f.color,alpha:.85*(1-t)});
       } else if(f.kind==="stain") {
@@ -445,6 +460,22 @@ export class Renderer {
         fg.rect(f.x1-4,y-1.4,8,2.8).fill({color:f.color,alpha:a});
       } else if(f.kind==="spark") {
         for(let i=0;i<5;i++){const a=i*1.4,rr=3+12*t;fg.moveTo(f.x1+Math.cos(a)*rr,f.y1+Math.sin(a)*rr).lineTo(f.x1+Math.cos(a)*(rr+5),f.y1+Math.sin(a)*(rr+5)).stroke({width:2,color:f.color,alpha:1-t});}
+      } else if(f.kind==="shield") {
+        const c=Math.cos(f.x2),ss=Math.sin(f.x2),span=f.y2*.42,alpha=(this.lowFlash?.35:.8)*(1-t);
+        fg.moveTo(f.x1-ss*span,f.y1+c*span).lineTo(f.x1+ss*span,f.y1-c*span).stroke({width:3,color:this.lowFlash?0x7c9caa:0xcbeced,alpha});
+        for(let i=0;i<4;i++) {
+          const a=f.x2+(i-1.5)*.48,rr=4+12*t;
+          fg.moveTo(f.x1+Math.cos(a)*rr,f.y1+Math.sin(a)*rr).lineTo(f.x1+Math.cos(a)*(rr+4),f.y1+Math.sin(a)*(rr+4)).stroke({width:1.4,color:f.color,alpha});
+        }
+      } else if(f.kind==="emp") {
+        const rr=f.x2*(.15+.85*t),alpha=(this.lowFlash?.3:.65)*(1-t),color=this.lowFlash?0x678999:0x91d4e7;
+        fg.circle(f.x1,f.y1,rr).stroke({width:2,color,alpha});
+        fg.circle(f.x1,f.y1,rr*.76).stroke({width:1,color,alpha:alpha*.4});
+        for(let i=0;i<6;i++) {
+          const a=i*Math.PI/3+t*.4,c=Math.cos(a),ss=Math.sin(a),r=rr*.65;
+          fg.moveTo(f.x1+c*r,f.y1+ss*r).lineTo(f.x1+c*(r+6)-ss*4,f.y1+ss*(r+6)+c*4)
+            .lineTo(f.x1+c*(r+10)+ss*3,f.y1+ss*(r+10)-c*3).lineTo(f.x1+c*(r+17),f.y1+ss*(r+17)).stroke({width:1.5,color,alpha});
+        }
       } else if(f.kind==="boom"||f.kind==="flash") {
         const rr=f.x2*(.25+.75*Math.sqrt(t)),flash=f.kind==="flash",brightness=this.lowFlash?.45:1;
         fg.circle(f.x1,f.y1,rr).stroke({width:flash?4:3,color:this.lowFlash?0xc09d64:flash?0xfff9df:0xffd17d,alpha:.65*(1-t)*brightness});
@@ -462,7 +493,7 @@ export class Renderer {
     this.drawDebris(now);
     if(this.probe) {
       const flames=this.fx.filter(f=>f.kind==="flame").length;
-      this.probe.config.effects={flames,saws:this.sawTrails.tracks.size,fx:this.fx.length,lowFlash:this.lowFlash,reducedBlood:this.reducedBlood};
+      this.probe.config.effects={flames,saws:this.sawTrails.tracks.size,shields:this.fx.filter(f=>f.kind==="shield").length,emp:this.fx.filter(f=>f.kind==="emp").length,fx:this.fx.length,lowFlash:this.lowFlash,reducedBlood:this.reducedBlood};
       this.probe.config.peakFlames=Math.max(Number(this.probe.config.peakFlames??0),flames);
       this.probe.config.peakSaws=Math.max(Number(this.probe.config.peakSaws??0),this.sawTrails.tracks.size);
       this.probe.config.peakFx=Math.max(Number(this.probe.config.peakFx??0),this.fx.length);

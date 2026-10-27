@@ -249,7 +249,8 @@ export class GameSession {
         r.addFlashbang(e.x,e.y,e.r);
         break;
       case "explode":
-        r.addExplosion(e.x, e.y, e.r);
+        if(e.effect==="emp")r.addEmpPulse(e.x,e.y,e.r);
+        else r.addExplosion(e.x, e.y, e.r);
         break;
       case "melee":
         r.addSlash(e.x, e.y);
@@ -280,6 +281,11 @@ export class GameSession {
         break;
       }
       case "wave": this.killfeed.push({html:`<b>Wave ${e.wave}</b> — hold your ground`,at:performance.now()});break;
+      case "shield": {
+        const actor=this.latest?.players.find(p=>p.id===e.id);
+        if(actor)r.addShieldBlock({x:actor.x,y:actor.y,aim:actor.aim,crouch:!!(actor.f&PF.CROUCH)});
+        break;
+      }
       case "hurt":
         if (e.id === this.you && !this.hooks.reducedShake()) r.shake = Math.max(r.shake, 4);
         break;

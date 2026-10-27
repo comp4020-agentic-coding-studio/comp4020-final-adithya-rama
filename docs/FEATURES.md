@@ -1,5 +1,14 @@
 # Feature checklist
 
+## 28 October follow-up: character art and complete explosive causes
+
+Implemented and tested locally; deployment verification pending: shared portrait/game head art,
+12 distinct hairstyles, refined brows and face detail, face/full preview controls,
+physical-blast death classification, directional shield contact feedback,
+distance-aware shake, zero-gravity particles, electrical EMP and distinct dual
+shot audio. [Current validation status](CHARACTER_EFFECTS_2026_10_28.md). Missing
+throw/bounce and bullet-wall contact feedback remains explicit in the audit.
+
 ## 28 October: directional combat and visual creator
 
 Implemented and locally tested, with live browser acceptance recorded: 360-degree physical shield coverage, headshot-only lethal sniper, explicit rocket impact and stronger distance/cover blast damage, radius-correct saw ricochets, bounded combat effects, and a visual creator with large animated preview and saved eyebrows. [Current evidence and deployment status](COMBAT_WORKSHOP_2026_10_28.md). Earlier dated records remain historical.

@@ -3,47 +3,34 @@ import { shieldPanel, shieldCorners } from "../shared/combat-geometry.ts";
 import { WEAPONS } from "../shared/weapons.ts";
 import { drawWeapon } from "./weapon-art.ts";
 import { avatarOf, type Avatar } from "../shared/avatar.ts";
+import {SKIN,shade,headSvg,drawHead} from "./pilot-head.ts";
+export {HAIR,SKIN,AVATAR_PORTRAIT_VIEWBOX} from "./pilot-head.ts";
 export { avatarOf, DEFAULT_AVATAR, type Avatar } from "../shared/avatar.ts";
-export const HAIR = {black:0x22252e,brown:0x674733,blond:0xe6bf64,auburn:0xab5139,silver:0xd8dce6,violet:0x9d72d3};
-export const SKIN = { light: 0xf3ceac, medium: 0xbc8159, dark: 0x744d3c, robot: 0xb8d7df };
-export function avatarSvg(a: Avatar, color:number): string {
-  a=avatarOf(a);
-  const skin="#"+SKIN[a.face].toString(16).padStart(6,"0");
-  const body="#"+(Number.isFinite(color)?Math.round(color)&0xffffff:0x3c8de0).toString(16).padStart(6,"0");
-  const hair="#"+HAIR[a.hairColor].toString(16).padStart(6,"0");
-  const hairShape=a.hair==="bald"?"":a.hair==="curly"?'<path d="M34 30Q25 15 40 13Q43 1 55 10Q65 1 75 13Q89 15 79 31Z" fill="'+hair+'"/>':a.hair==="bob"?'<path d="M32 45V26Q34 6 57 9Q81 8 81 30L74 43L69 22L45 25L44 48Z" fill="'+hair+'"/>':'<path d="M34 29Q32 7 57 10Q80 7 80 28L66 21L52 26L43 23L40 32Z" fill="'+hair+'"/>';
-  const hairBack=a.hair==="ponytail"?'<path d="M37 24Q12 20 17 51L31 67L25 42L40 36Z" fill="'+hair+'"/>':a.hair==="braids"?'<path d="M38 26L30 39L36 48L30 58L35 71M73 27L80 40L74 49L81 60L76 71" fill="none" stroke="'+hair+'" stroke-width="10"/>':"";
-  const helmet=a.helmet==="none"?"":a.helmet==="beret"?'<path d="M31 27Q29 13 54 11L79 17L82 28L37 33Z" fill="'+body+'"/><path d="M37 30H77" stroke="#273b38" stroke-width="5"/>':a.helmet==="mohawk"
-    ? '<path d="M39 26L43 8L51 15L58 3L64 13L70 8L75 29" fill="'+hair+'"/>'
-    : '<path d="M34 30V25Q35 11 54 11H59Q78 12 79 28V32Z" fill="'+(a.helmet==="cap"?"#89966b":a.helmet==="visor"?"#506d84":"#788878")+'"/><path d="M40 20Q55 12 70 20" fill="none" stroke="#bdc8b4" stroke-width="3"/><path d="M32 28H80V34H32Z" fill="#43564a"/>'+
-      (a.helmet==="cap"?'<path d="M66 29H89V34H67" fill="#66784f"/>':'<rect x="30" y="31" width="11" height="15" rx="4" fill="#4c6054"/><circle cx="35" cy="37" r="2.5" fill="#b9c7ad" stroke="none"/>');
-  const emblem=a.emblem==="bolt"
-    ? '<path d="M59 58L48 71H55L52 81L66 65H59L63 58Z" fill="#ffe8af" stroke="none"/>'
-    : a.emblem==="star"
-      ? '<path d="M57 59L60 66L68 67L62 72L64 80L57 76L50 80L52 72L46 67L54 66Z" fill="#ffe8af" stroke="none"/>'
-      : '<path d="M49 65Q49 58 57 58Q65 58 65 65V70L62 73V78H52V73L49 70Z" fill="#eae8d3" stroke="none"/><path d="M51 66h4v4h-4zm8 0h4v4h-4zm-4 7h4v3h-4" fill="#354d41" stroke="none"/>';
-  const outfit=a.outfit==="dress"?'<path d="M42 68H73L88 104H29Z" fill="'+body+'"/><path d="M45 91H76" stroke="#f6dc9e" stroke-width="3"/>':a.outfit==="jacket"?'<path d="M38 49L53 58L48 90H36ZM76 49L62 58L65 90H81Z" fill="'+body+'"/><path d="M56 52V91" stroke="#e8d8ad"/>':a.outfit==="flight-suit"?'<path d="M39 51H78V87H38Z" fill="'+body+'"/><path d="M57 52V87M39 61H77" stroke="#dfded1" stroke-width="3"/>':"";
-  const facial=a.facialHair==="none"?"":a.facialHair==="moustache"?'<path d="M60 40Q65 36 69 40Q74 36 78 41L74 44L68 42L63 44Z" fill="'+hair+'"/>':a.facialHair==="goatee"?'<path d="M63 44H74L70 53H65Z" fill="'+hair+'"/>':'<path d="M44 40L55 46L73 43L76 47L65 55L52 52Z" fill="'+hair+'"/>';
-  const brow=a.eyebrows==="none"?"":a.eyebrows==="arched"?'M56 28Q61 23 66 28M70 28Q74 24 78 28':a.eyebrows==="angled"?'M55 25L66 29M70 29L78 25':a.eyebrows==="bold"?'M55 27H66M70 27H79':'M57 28L65 27M71 27L77 28';
-  const brows=brow?'<path d="'+brow+'" stroke="'+hair+'" stroke-width="'+(a.eyebrows==="bold"?3.5:2)+'" fill="none"/>':"";
-  const glasses=a.glasses==="none"?'<circle cx="68" cy="35" r="2" fill="#253b35"/>':a.glasses==="round"?'<circle cx="61" cy="35" r="5" fill="#a7dbdf" fill-opacity=".65"/><circle cx="74" cy="35" r="5" fill="#a7dbdf" fill-opacity=".65"/><path d="M66 35H69"/>':a.glasses==="aviator"?'<path d="M54 31H78L75 41L68 37L61 41Z" fill="#554b36"/><path d="M56 33H76" stroke="#e5bf76"/>':'<rect x="56" y="32" width="21" height="8" rx="3" fill="#253b35"/><path d="M59 34H69" stroke="#daece0" stroke-width="1.7"/>';
+export function avatarSvg(raw: Avatar, color:number): string {
+  const a=avatarOf(raw),tint=Number.isFinite(color)?Math.round(color)&0xffffff:0x3c8de0;
+  const hex=(n:number)=>"#"+(n&0xffffff).toString(16).padStart(6,"0");
+  const fabric=hex(shade(tint,-22)),shadow=hex(shade(tint,-59)),highlight=hex(shade(tint,24)),skin=hex(SKIN[a.face]);
+  const emblem=a.emblem==="star"?'<path d="M60 61L62 66L67 66L63 70L64 75L60 72L55 75L56 70L52 66L58 66Z" fill="#dfcda0"/>':a.emblem==="bolt"?'<path d="M61 60L54 69L59 69L57 76L66 65L61 65L64 60Z" fill="#dfcda0"/>':'<path d="M54 66Q54 60 60 60Q66 60 66 66L64 70L64 74L56 74L56 70Z" fill="#dfcda0"/><path d="M56 65L59 65L59 68L56 68ZM62 65L65 65L65 68L62 68ZM59 70L61 70L61 73L59 73Z" fill="#30424a"/>';
+  const torso=a.outfit==="armour"?
+    '<path d="M40 49L50 44L70 46L81 54L76 87L42 87Z" fill="'+fabric+'"/><path d="M47 51L58 48L72 52L75 72L67 83L48 80L44 67Z" fill="'+shadow+'"/><path d="M48 53L58 51L70 55L70 65L48 65Z" fill="'+highlight+'"/><path d="M45 72L57 74L72 71M47 77L68 79" fill="none" stroke="#adc1b2" stroke-opacity=".5"/><path d="M43 49L48 48L49 80L44 81ZM73 51L77 53L73 81L69 82Z" fill="#6e7d6b"/>':
+    a.outfit==="flight-suit"?'<path d="M42 48L52 44L69 46L79 53L75 87L43 87Z" fill="'+fabric+'"/><path d="M44 57L50 53L53 84L44 84ZM69 51L76 55L72 84L67 82Z" fill="'+shadow+'"/><path d="M59 49L59 86M46 60L73 60" stroke="#c6c8b3" stroke-width="1.5"/><path d="M45 71L54 71L54 78L45 78ZM64 71L73 71L73 78L64 78Z" fill="'+highlight+'"/>':
+    a.outfit==="jacket"?'<path d="M40 50L50 44L58 53L67 45L79 52L78 89L40 89Z" fill="'+fabric+'"/><path d="M51 47L59 55L67 48L67 85L51 85Z" fill="#b3b29d"/><path d="M49 44L58 54L51 62L46 58L50 69L47 89L39 87L41 50ZM69 45L60 54L66 62L72 58L67 69L70 89L79 87L78 52Z" fill="'+shadow+'"/><path d="M43 72L49 73M70 74L76 73" stroke="#c8bd98" stroke-width="1.5"/>':
+    '<path d="M44 48L52 45L59 51L68 46L76 51L72 71L84 103Q63 109 36 103L46 72Z" fill="'+fabric+'"/><path d="M51 53L55 71L47 101M68 52L65 72L73 102M60 76L61 104" stroke="'+shadow+'" stroke-width="3" fill="none"/><path d="M43 96Q61 101 78 96" stroke="'+highlight+'" fill="none"/><path d="M46 70L71 70L72 75L45 75Z" fill="#4a5148"/>';
   return '<svg role="img" aria-label="Customized '+a.body+' pilot, '+a.outfit+', '+a.hair+' hair" viewBox="0 0 120 130">'+
-    '<ellipse cx="60" cy="120" rx="39" ry="6" fill="#102b3340"/>'+
-    '<g class="avatar-rig" stroke="#21322e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">'+
-    '<path d="M42 89L40 110M69 90L76 108" fill="none" stroke-width="16"/><path d="M42 89L40 110M69 90L76 108" fill="none" stroke="#566858" stroke-width="10"/>'+
-    '<path d="M32 106H47L51 113V117H29V112Z" fill="#34433a"/><path d="M69 104H82L89 111V115H66V110Z" fill="#34433a"/><path d="M32 113H47M70 111H85" stroke="#98a690" stroke-width="2"/>'+
-    '<g class="avatar-exhaust"><path d="M22 86L18 101L24 98L27 116L33 98L32 86" fill="#f08b38" stroke="none"/><path d="M25 87L25 105L30 89" fill="#ffed9b" stroke="none"/></g>'+
-    '<rect x="18" y="45" width="16" height="39" rx="6" fill="#687d73"/><rect x="28" y="44" width="13" height="42" rx="5" fill="#7d9386"/><path d="M22 51V76M32 49V77" stroke="#b1c4ab" stroke-width="3"/><path d="M19 82H36V89H20Z" fill="#33493f"/>'+
-    '<rect x="35" y="45" width="47" height="51" rx="12" fill="'+body+'"/><path d="M36 52L47 46H66L80 53L76 88H40Z" fill="#536453" fill-opacity=".6"/>'+
-    '<path d="M41 52L47 85M73 52L68 85" fill="none" stroke="#c5c6a3" stroke-width="4"/>'+
-    '<path d="M35 52Q35 45 42 45L47 52L43 59H35ZM70 49Q80 44 84 53L85 59H75Z" fill="'+body+'"/>'+
-    '<rect x="33" y="88" width="50" height="10" rx="3" fill="#394b3d"/><rect x="39" y="79" width="13" height="15" rx="2" fill="#9aa084"/><rect x="65" y="79" width="12" height="15" rx="2" fill="#9aa084"/><path d="M41 84H50M67 84H75" stroke="#c1c5a4" stroke-width="2"/><rect x="55" y="90" width="8" height="6" rx="1" fill="#c9c6a0"/>'+
-    outfit+emblem+hairBack+
-    '<rect x="49" y="38" width="16" height="12" rx="4" fill="'+skin+'"/><ellipse cx="57" cy="32" rx="'+(a.body==="female"?19:21)+'" ry="20" fill="'+skin+'"/><path d="M77 33L82 37L76 41" fill="'+skin+'"/><circle cx="37" cy="37" r="5" fill="'+skin+'"/>'+
-    (a.face==="robot"?'<path d="M44 38V45H66M49 41H59M49 45H59" fill="none" stroke="#607f79" stroke-width="2"/>':'<path d="M62 44Q68 46 73 42" fill="none" stroke="#684f40" stroke-width="1.7"/>')+
-    hairShape+helmet+facial+brows+'<g class="avatar-eyes">'+glasses+'</g>'+
-    '<path d="M73 64L82 73L96 68" fill="none" stroke-width="13"/><path d="M73 64L82 73L96 68" fill="none" stroke="'+skin+'" stroke-width="8"/><circle cx="95" cy="68" r="6" fill="#455b4b"/>'+
-    '<path d="M88 59H111V67H99L98 75H91L92 67H86Z" fill="#a4b9c0"/><path d="M107 61H116V66H107Z" fill="#34433a"/><path d="M91 62H104" stroke="#d9e3d4" stroke-width="2"/>'+
+    '<ellipse cx="61" cy="121" rx="33" ry="4" fill="#0c202b" opacity=".28"/>'+
+    '<g class="avatar-rig" stroke="#233039" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">'+
+    '<g class="avatar-exhaust" stroke="none"><path d="M25 85L23 101L28 98L30 115L37 97L35 86" fill="#e98742"/><path d="M29 86L30 105L34 89" fill="#f6d986"/></g>'+
+    '<path d="M23 48L29 43L40 47L41 85L24 87Z" fill="#485e61"/><path d="M25 49L29 47L31 79L26 81Z" fill="#91a9a2"/><path d="M32 48L37 49L37 79L33 80Z" fill="#6f8b85"/><path d="M23 82L39 81L39 89L25 91Z" fill="#293f49"/><path d="M27 86L35 85" stroke="#b6c7aa"/>'+
+    '<path d="M45 84L59 86L56 101L52 113L42 112L42 100ZM62 85L76 84L76 99L82 111L71 115L65 102Z" fill="#4c615b"/><path d="M47 90L50 100L47 108M68 88L69 99L75 108" stroke="#859588" stroke-width="2" fill="none"/>'+
+    '<path d="M42 99L53 100L52 107L42 107ZM68 99L77 97L80 104L71 107Z" fill="#3b5052"/><path d="M44 101L51 102M70 101L76 101" stroke="#8fa199"/>'+
+    '<path d="M41 108L53 110L55 115L54 120L34 120L34 116ZM71 109L81 108L88 115L89 119L69 121L67 117Z" fill="#283c44"/><path d="M35 117L52 117M71 118L86 116" stroke="#9baa9e"/><path d="M42 111L49 112M74 111L79 111" stroke="#768b83"/>'+torso+
+    '<path d="M39 50Q44 45 49 48L50 57L43 63L35 60Z" fill="'+fabric+'"/><path d="M72 49Q79 47 83 53L83 60L76 63L71 57Z" fill="'+fabric+'"/><path d="M39 52L46 50M75 52L80 54" stroke="'+highlight+'" stroke-width="1.5"/>'+
+    (a.outfit!=="dress"?'<path d="M40 84L76 84L77 91L40 91Z" fill="#35484a"/><path d="M44 78L53 78L54 89L43 89ZM65 78L74 78L75 89L64 89Z" fill="#84917b"/><path d="M45 82L51 82M66 82L72 82" stroke="#bfcaac"/><path d="M56 85L63 85L63 90L56 90Z" fill="#c7b683"/>':'')+
+    '<g stroke="none">'+emblem+'</g>'+
+    '<path d="M36 58L44 59L43 73L51 79L47 85L35 77L32 69Z" fill="'+skin+'"/><path d="M34 64L41 65" stroke="#b7c5b1" stroke-width="3"/><path d="M45 76L52 79L54 84L49 89L43 83Z" fill="#3c5356"/>'+
+    '<g transform="translate(58 33) scale(.82)" stroke-width="1.1">'+headSvg(a,tint)+'</g>'+
+    '<path d="M76 61L83 68L97 65L99 72L82 78L74 71Z" fill="'+skin+'"/><path d="M77 62L81 66L78 71L73 67Z" fill="'+fabric+'"/><path d="M92 65L98 64L102 68L99 75L94 76L91 71Z" fill="#3c5356"/>'+
+    '<path d="M91 61L98 61L97 74L92 75L90 72Z" fill="#35454c"/><path d="M88 56L109 56L113 60L112 64L90 65L87 62Z" fill="#9eacaf"/><path d="M91 57L107 57" stroke="#d1ded7"/><path d="M109 59L118 59L118 63L109 63Z" fill="#2d4049"/><path d="M97 66L103 66L102 70L97 71" fill="none"/><path d="M91 58L94 58M96 58L99 58" stroke="#4e666d"/>'+
     '</g></svg>';
 }
 
@@ -56,7 +43,7 @@ export interface PilotPose {
 /** Feet and the gun grip use the same stance height/muzzle ratio as combat. */
 export function drawPilot(g:Graphics,p:PilotPose):void {
   const {x,y,h,alpha,avatar}=p,top=y-h,f=Math.cos(p.aim)>=0?1:-1;
-  const ink=0x21322e,skin=SKIN[avatar.face],hair=HAIR[avatar.hairColor],crouched=h<35;
+  const ink=0x21322e,skin=SKIN[avatar.face],crouched=h<35;
   const color=p.hit?0xffddd0:p.color,hip=y-h*.25;
   const step=p.airborne?3:p.walk*(crouched?2.5:4.7),headR=crouched?7.2:9;
   const shape=(xx:number,yy:number,w:number,hh:number,c:number,rad=3)=>
@@ -99,47 +86,17 @@ export function drawPilot(g:Graphics,p:PilotPose):void {
   if(avatar.emblem==="star")g.star(x,emblemY,5,3.5,1.6).fill({color:0xffe8af,alpha});
   else if(avatar.emblem==="bolt")g.poly([x+2,emblemY-4,x-3,emblemY+1,x,emblemY+1,x-1,emblemY+4,x+4,emblemY-1,x+1,emblemY-1]).fill({color:0xffe8af,alpha});
   else {g.circle(x,emblemY,2.8).fill({color:0xeae8d3,alpha});g.rect(x-2,emblemY+1,4,2).fill({color:0xeae8d3,alpha});}
+  // Empty inventory is a real stance: keep relaxed arms after dropping equipment.
+  if(!p.weapon&&!p.otherWeapon)for(const side of [-1,1]) {
+    const sx=x+side*9,sy=shoulder+3,ex=x+side*(crouched?15:13),ey=hip-4;
+    const wristX=x+side*(crouched?13:11),wristY=hip+1;
+    g.moveTo(sx,sy).lineTo(ex,ey).lineTo(wristX,wristY).stroke({color:ink,width:7,alpha,cap:"round",join:"round"});
+    g.moveTo(sx,sy).lineTo(ex,ey).lineTo(wristX,wristY).stroke({color:skin,width:4.5,alpha,cap:"round",join:"round"});
+    g.moveTo(sx,sy-1).lineTo(sx+side*2,sy+2).stroke({color,width:6,alpha,cap:"round"});
+    shape(wristX-3,wristY-2,6,5,0x3c5356,1.5);
+  }
   const headX=x+(crouched?f*3:0),headY=top+headR+1;
-  if(avatar.hair==="ponytail")g.poly([headX-f*6,top+6,headX-f*14,top+8,headX-f*15,top+20,headX-f*9,top+17]).fill({color:hair,alpha}).stroke({color:ink,width:1,alpha});
-  if(avatar.hair==="braids")for(const side of [-1,1])for(let i=0;i<5;i++)g.circle(headX+side*(headR-1)+Math.sin(i*2)*1.2,headY+i*3,2.5).fill({color:hair,alpha});
-  shape(headX-3,headY+headR-3,6,6,skin,2);
-  g.ellipse(headX,headY,headR*(avatar.body==="female"?.9:1),headR).fill({color:skin,alpha}).stroke({width:1.5,color:ink,alpha});
-  g.circle(headX+f*headR,headY+1,2).fill({color:skin,alpha});
-  g.circle(headX-f*(headR-1),headY+2,2.5).fill({color:skin,alpha}).stroke({width:1,color:ink,alpha});
-  g.moveTo(headX+f*2,headY+headR-2).lineTo(headX+f*6,headY+headR-3).stroke({color:0x684f40,width:1,alpha});
-  if(avatar.hair!=="bald") {
-    g.poly([headX-headR,headY,headX-headR,top+2,headX,top-1,headX+headR,top+3,headX+headR,top+7,headX+2,top+5,headX-4,top+8]).fill({color:hair,alpha});
-    if(avatar.hair==="bob")shape(headX-f*headR-3,top+5,6,headR+8,hair,2);
-    if(avatar.hair==="curly")for(let i=0;i<5;i++)g.circle(headX-headR+i*headR/2,top+2+Math.sin(i)*2,4).fill({color:hair,alpha});
-  }
-  if(avatar.helmet==="mohawk") {
-    g.poly([headX-6,top+3,headX-3,top-5,headX,top-2,headX+3,top-7,headX+6,top+3]).fill({color:hair,alpha}).stroke({width:1.3,color:ink,alpha});
-  } else if(avatar.helmet==="beret") {
-    g.poly([headX-headR-2,top+5,headX-headR,top,headX+2,top-3,headX+headR+2,top+2,headX+headR,top+6]).fill({color,alpha}).stroke({width:1.4,color:ink,alpha});
-  } else if(avatar.helmet!=="none") {
-    const helmet=avatar.helmet==="cap"?0x89966b:avatar.helmet==="visor"?0x506d84:0x788878;
-    g.roundRect(headX-headR-1,top-1,headR*2+2,headR+2,4).fill({color:helmet,alpha}).stroke({width:1.5,color:ink,alpha});
-    g.moveTo(headX-headR+3,top+2).lineTo(headX+headR-2,top+2).stroke({width:2,color:0xbdc8b4,alpha});
-    if(avatar.helmet==="cap")g.rect(headX+f*(headR-2)-(f<0?8:0),top+headR-2,10,3).fill({color:helmet,alpha});
-    else shape(headX-f*(headR+1)-2,headY-1,5,8,0x4c6054,2);
-  }
-  if(avatar.eyebrows!=="none") {
-    const browY=headY-2.5,browX=headX+f*4;
-    const rise=avatar.eyebrows==="angled"?f*2:avatar.eyebrows==="arched"?-1.3:0;
-    g.moveTo(browX-3,browY-rise).lineTo(browX,browY-(avatar.eyebrows==="arched"?2:0)).lineTo(browX+3,browY+rise).stroke({color:hair,width:avatar.eyebrows==="bold"?2:1.2,alpha});
-  }
-  const eyeX=headX+(f>0?0:-headR+1),eyeY=headY;
-  if(avatar.glasses==="none")g.circle(headX+f*4,eyeY+1,1.2).fill({color:ink,alpha});
-  else if(avatar.glasses==="round") {
-    g.circle(headX+f*4,eyeY+1,3).fill({color:0xa7dbdf,alpha:.6*alpha}).stroke({color:ink,width:1,alpha});
-    g.moveTo(headX-f*headR,eyeY).lineTo(headX+f,eyeY).stroke({color:ink,width:1,alpha});
-  } else {
-    g.roundRect(eyeX,eyeY,headR,avatar.glasses==="aviator"?4.5:3.5,1.4).fill({color:avatar.glasses==="aviator"?0x554b36:avatar.helmet==="visor"||avatar.face==="robot"?0xb7e7e1:0x253b35,alpha});
-    g.moveTo(eyeX+1,eyeY+1).lineTo(eyeX+headR-2,eyeY+1).stroke({width:1,color:avatar.glasses==="aviator"?0xe5bf76:0xdaece0,alpha:.85*alpha});
-  }
-  if(avatar.facialHair==="moustache")g.moveTo(headX+f,headY+4).lineTo(headX+f*4,headY+3).lineTo(headX+f*7,headY+5).stroke({color:hair,width:2.5,alpha});
-  else if(avatar.facialHair==="beard")g.poly([headX-headR+2,headY+3,headX-3,headY+7,headX+headR-1,headY+4,headX+4,headY+headR+2,headX-4,headY+headR]).fill({color:hair,alpha});
-  else if(avatar.facialHair==="goatee")g.poly([headX+f,headY+6,headX+f*6,headY+6,headX+f*4,headY+headR+2]).fill({color:hair,alpha});
+  drawHead(g,avatar,color,headX,headY,headR/22,f,alpha);
 
   const held=(id:string,offhand:boolean)=>{
     if(id==="riot-shield") {

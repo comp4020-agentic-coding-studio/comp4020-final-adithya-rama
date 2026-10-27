@@ -13,13 +13,20 @@ try {
   const stage=await page.locator(".creator-stage").boundingBox(),editor=await page.locator(".creator-editor").boundingBox();
   assert.ok(stage&&editor);
   if(!phone){assert.ok(stage.x>editor.x+editor.width-1);assert.ok(stage.height>450);}
+  await page.screenshot({path:`${out}/${phone?"phone":"desktop"}-full-pilot.png`});
+  await page.locator('[data-category="hair"]').click();
+  assert.equal(await page.locator('.creator-stage').getAttribute('data-view'),'face');
+  const preservedHelmet=await page.locator('input[name="helmet"]:checked').inputValue();
+  await page.locator('button[data-view="full"]').click();
+  assert.equal(await page.locator('#avatar-preview svg').getAttribute('viewBox'),'0 0 120 130');
+  assert.equal(await page.locator('input[name="helmet"]:checked').inputValue(),preservedHelmet);
   const chosen:Record<string,string>={};
   for(const [key,choices] of Object.entries(AVATAR_CHOICES)) {
    await page.locator(`[data-category="${key}"]`).click();
    for(const value of choices){await page.locator(`input[name="${key}"][value="${value}"]`).check();assert.ok(await page.locator(`input[name="${key}"][value="${value}"]`).isChecked());}
    chosen[key]=choices.at(-1)!;
   }
-  for(const [key,value] of Object.entries({helmet:"none",hair:"bob",eyebrows:"angled",glasses:"none"})) {
+  for(const [key,value] of Object.entries({helmet:"none",hair:"bob",eyebrows:"angled",glasses:"none",face:"medium"})) {
    await page.locator(`[data-category="${key}"]`).click();await page.locator(`input[name="${key}"][value="${value}"]`).check();chosen[key]=value;
   }
   await page.locator('[data-category="eyebrows"]').click();

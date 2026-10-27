@@ -617,7 +617,7 @@ body:has(.touch) .grenade-chip b{font-size:11px}
 .appearance-choice input:checked + .appearance-tile { border-color:#c9eb9b; background:radial-gradient(ellipse at 50% 65%,#4f7053,#243e3a); color:#f2f9e7; }
 .appearance-choice input:focus-visible + .appearance-tile { outline:3px solid #edf9ce; outline-offset:3px; }
 .choice-art { display:block; height:75px; width:100%; overflow:hidden; }
-.choice-art svg { width:100%; height:100%; }
+.choice-art svg { width:100%; height:100%; display:block; overflow:hidden; }
 .choice-check { position:absolute; top:4px; right:6px; color:#c9eb9b; visibility:hidden; }
 input:checked + .appearance-tile .choice-check { visibility:visible; }
 .creator-stage { min-width:0; position:sticky; top:0; display:flex; flex-direction:column; align-items:center; padding:1.7rem .6rem 1rem; text-align:center; border-radius:20px; border:1px solid #94ba9135; overflow:hidden; background:radial-gradient(ellipse at 50% 55%,#52664b 0,#284245 40%,#142a33 75%); }
@@ -629,6 +629,11 @@ input:checked + .appearance-tile .choice-check { visibility:visible; }
 .creator-stage .avatar-exhaust { opacity:0; }
 .creator-stage[data-pose=flight] .avatar-exhaust { opacity:1; }
 .creator-stage[data-pose=flight] .avatar-rig { animation:pilot-flight 1.8s ease-in-out infinite; }
+.creator-views { position:relative; z-index:1; display:flex; gap:.25rem; margin:.65rem 0 0; padding:.2rem; border:1px solid #b3d1c330; border-radius:10px; background:#10252c88; }
+.creator-views button { min-height:36px; padding:.35rem .75rem; font-size:.75rem; border-radius:7px; background:transparent; border:1px solid transparent; color:#a6c2b6; }
+.creator-views button[aria-pressed=true] { color:#e1f6c7; background:#3e5c4e; border-color:#86aa7366; }
+.creator-stage[data-view=face] .avatar-preview { overflow:hidden; clip-path:inset(0 round 20px); }
+.creator-stage[data-view=face] .avatar-preview .avatar-rig { animation:pilot-portrait 4s ease-in-out infinite; transform-origin:58px 30px; }
 .creator-stage > b { font-size:1.3rem; overflow-wrap:anywhere; max-width:100%; }
 .creator-stage-note { font-size:.68rem; letter-spacing:.15em; text-transform:uppercase; color:#b8cba9; margin:.4rem 0 .8rem; }
 .creator-stage p { max-width:280px; margin:.7rem 0 0; min-height:2.7em; }
@@ -647,13 +652,16 @@ input:checked + .appearance-tile .choice-check { visibility:visible; }
 .profile-drawer #profile-form > .creator-save { position:sticky; bottom:0; z-index:2; background:#c9eb9b; color:#17291e; box-shadow:0 0 0 6px #152a30; min-height:46px; }
 @keyframes pilot-breathe { 0%,100% {transform:translateY(0) rotate(-.6deg)} 50% {transform:translateY(-1.7px) rotate(.7deg)} }
 @keyframes pilot-flight { 0%,100% {transform:rotate(-7deg) translateY(-4px)} 50% {transform:rotate(-5deg) translateY(-8px)} }
+@keyframes pilot-portrait { 0%,100% {transform:translateY(0)} 50% {transform:translateY(-.4px)} }
 @keyframes pilot-blink { 0%,43%,46%,100% {transform:scaleY(1)} 44%,45% {transform:scaleY(.08)} }
 @media(max-width:720px) {
  .profile-drawer { width:calc(100vw - 18px); padding:1rem; max-height:96dvh; }
  .creator-layout { display:flex; flex-direction:column-reverse; gap:1rem; }
  .creator-stage { position:relative; width:100%; box-sizing:border-box; padding:.6rem; }
  .profile-drawer .avatar-preview { height:230px; width:100%; }
- .creator-stage > .eyebrow { position:absolute; left:.7rem; top:.8rem; }
+ .creator-stage > .eyebrow { align-self:flex-start; margin:.3rem 0 .2rem; }
+ .creator-views { align-self:flex-start; margin:.2rem 0; }
+ .creator-views button { min-height:38px; }
  .creator-stage > b { font-size:1.05rem; }
  .creator-stage-note { display:none; }
  .creator-stage p { font-size:.7rem; min-height:0; margin-top:.5rem; }
