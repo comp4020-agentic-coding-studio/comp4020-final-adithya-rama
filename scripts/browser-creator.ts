@@ -26,7 +26,7 @@ try {
    for(const value of choices){await page.locator(`input[name="${key}"][value="${value}"]`).check();assert.ok(await page.locator(`input[name="${key}"][value="${value}"]`).isChecked());}
    chosen[key]=choices.at(-1)!;
   }
-  for(const [key,value] of Object.entries({helmet:"none",hair:"bob",eyebrows:"angled",glasses:"none",face:"medium"})) {
+  for(const [key,value] of Object.entries({helmet:"none",hair:"waves",eyebrows:"angled",glasses:"none",face:"medium"})) {
    await page.locator(`[data-category="${key}"]`).click();await page.locator(`input[name="${key}"][value="${value}"]`).check();chosen[key]=value;
   }
   await page.locator('[data-category="eyebrows"]').click();

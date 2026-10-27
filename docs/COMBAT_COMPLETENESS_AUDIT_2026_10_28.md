@@ -35,6 +35,18 @@ Throw/release animation, grenade bounce/rotation/contact sound, explicit bullet
 wall-contact effects, generic melee-slash direction and separate headshot labels
 remain recorded presentation limitations. They are not silently marked complete.
 
+Nonlethal hit particles currently follow a decrease in snapshot HP rather than an
+authoritative damage-cause field. Consequently EMP and poison damage can still
+produce the same small generic blood puff as physical hits, unless reduced blood
+is enabled. Electrical detonation and death classification are now distinct;
+this remaining cosmetic distinction is recorded, not claimed fixed.
+
+The final integration review found no release-blocking defect in the shared
+SVG/Pixi path catalogue and bounded appearance cache, creator controls preserving
+saved appearance, optional event-field compatibility, shield visibility filtering,
+or physical-blast classification and preference handling. This is a source review;
+it does not replace the separately recorded browser and deployment evidence.
+
 ## Concrete omissions found at the start of this audit
 
 | Priority | Evidence in the audited code | Consequence | Suggested bounded correction |

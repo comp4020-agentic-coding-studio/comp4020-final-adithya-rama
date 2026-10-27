@@ -505,3 +505,11 @@ throw/bounce and bullet-wall feedback gaps are documented rather than labelled
 complete. See the [follow-up record](docs/CHARACTER_EFFECTS_2026_10_28.md) for
 local and live results as they become available. No new human playtest outcome
 is claimed.
+
+The [character/effects release](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/1b8f02d1dfe689560a29ad9a6d2a439e2099dbf0)
+passed its container checks and Fly deployment. Desktop/touch live acceptance
+confirmed saved new hairstyles, real grenade breakup observed by an independent
+guest, reduced-blood equipment-only fragments and electrical EMP without debris.
+The exact original match-history digest survived; `/readme/` published the revised
+workshop description. The final audit preserves the remaining cosmetic gaps,
+including cause-agnostic small blood puffs for nonlethal EMP/poison damage.

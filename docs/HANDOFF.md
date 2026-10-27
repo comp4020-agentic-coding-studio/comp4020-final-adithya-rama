@@ -5,7 +5,7 @@ Read [the follow-up record](CHARACTER_EFFECTS_2026_10_28.md) and
 geometry replaces the earlier face artwork; head categories offer close-up
 inspection. Physical-blast kills now cover every relevant weapon/throwable, with
 shield/EMP/distance feedback corrections. Preserve the earlier directional
-combat rules. Verification status is recorded separately from implementation.
+combat rules. Gameplay commit `1b8f02d` passed deployment workflow 40553494882; desktop/phone creator and explosive-effects acceptance passed live, and the original guest history survived. See the record for commands, evidence and remaining cosmetic limits.
 # Current handoff: 28 October combat and visual creator
 
 Read [the current revision](COMBAT_WORKSHOP_2026_10_28.md) and

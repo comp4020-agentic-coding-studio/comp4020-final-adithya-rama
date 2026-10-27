@@ -2,7 +2,7 @@
 
 ## 28 October follow-up: character art and complete explosive causes
 
-Implemented and tested locally; deployment verification pending: shared portrait/game head art,
+Implemented, tested locally and verified live: shared portrait/game head art,
 12 distinct hairstyles, refined brows and face detail, face/full preview controls,
 physical-blast death classification, directional shield contact feedback,
 distance-aware shake, zero-gravity particles, electrical EMP and distinct dual

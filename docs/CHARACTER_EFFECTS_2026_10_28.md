@@ -64,8 +64,35 @@ Local production verification passed on 28 October (AEDT):
   exact historic match-detail digest; no baseline was replaced.
 
 The build retains a Vite advisory about the main chunk exceeding 500 kB
-(about 164 kB gzip). Deployment and live acceptance are pending. Artwork sheets
+(about 164 kB gzip). The gameplay release is `1b8f02d1dfe689560a29ad9a6d2a439e2099dbf0`; its [container checks and Fly deployment](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/40553494882) passed. Live gameplay acceptance passed as recorded below. Artwork sheets
 and automated checks do not establish the user's visual satisfaction.
+
+## Live acceptance
+
+Verified on 28 October 2026, approximately 04:48–04:50 AEDT, against
+`https://comp4020-final-adithya-rama.fly.dev/`:
+
+- The public site served `index-D-gfVKOH.js`; `/readme/` returned 200 and included
+  the new workshop description. Deployment workflow 40553494882 succeeded.
+- `APP_URL=… REPORT_TAG=character-effects-live node scripts/browser-creator.ts`
+  passed both marking viewports. A newly added waves hairstyle and eyebrow
+  choice survived save/reload; every tile could be selected. No browser errors.
+- `APP_URL=… REPORT_TAG=explosive-consistency-live node scripts/browser-combat-effects.ts`
+  passed desktop and touch checks. Actual frag throws killed two full-health
+  pilots, with 38 rendered pieces and independent peer agreement. Reduced blood
+  left four equipment pieces. EMP produced one pulse, no debris and two surviving
+  91-HP pilots. Rocket, flame and saw paths remained working. Peak FX was 58;
+  no browser errors. Private acceptance rounds were ended and saved normally.
+- `scripts/live-persistence.ts verify post-character-effects` used read-only
+  requests. The original guest, preferences, aggregates and exact completed
+  match-detail digest survived:
+  `43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
+- Post-check health: no active rooms, database queue zero, 126 MB RSS and sampled
+  simulation p95 0.514 ms. This short live check is not a 30-minute load test.
+
+Screenshots and JSON reports are in ignored `test-results/character-effects-live/`
+and `test-results/explosive-consistency-live/`. Temporary local servers were
+stopped. Existing course tags and personal reflections were preserved.
 
 ## Remaining presentation work
 
