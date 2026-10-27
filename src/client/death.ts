@@ -1,5 +1,5 @@
 import type { MapDefinition } from "../shared/types.ts";
-import { rayRect } from "../shared/physics.ts";
+import { rayRect, playerTravelBounds } from "../shared/physics.ts";
 
 export interface CameraPoint { x:number; y:number }
 export interface CameraActor extends CameraPoint { id:number; alive:boolean; connected?:boolean }
@@ -28,7 +28,7 @@ export class DeathCamera {
   }
 }
 
-export type DebrisKind="helmet"|"vest"|"arm"|"boot"|"blood";
+export type DebrisKind="helmet"|"head"|"vest"|"arm"|"leg"|"boot"|"blood";
 export interface DeathDebris {
   kind:DebrisKind;
   x:number;y:number;vx:number;vy:number;
@@ -44,26 +44,35 @@ export function rocketDebris(
   victim:{id:number;x:number;y:number;vx:number;vy:number;height:number},
   colors:{armor:number;skin:number;helmet:number},
   reduced:boolean,
+  impact?:CameraPoint,
 ):DeathDebris[] {
   if(reduced)return [];
   let seed=(victim.id*1664525+Math.round(victim.x)*1013904223+Math.round(victim.y))>>>0;
   const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
   const body:Array<{kind:DebrisKind;ox:number;oy:number;radius:number;color:number}>=[
-    {kind:"helmet",ox:0,oy:-victim.height+8,radius:7,color:colors.helmet},
+    {kind:"helmet",ox:0,oy:-victim.height+3,radius:7,color:colors.helmet},
+    {kind:"head",ox:0,oy:-victim.height+10,radius:7,color:colors.skin},
     {kind:"vest",ox:0,oy:-victim.height*.52,radius:8,color:colors.armor},
     {kind:"arm",ox:-8,oy:-victim.height*.49,radius:4,color:colors.skin},
     {kind:"arm",ox:8,oy:-victim.height*.49,radius:4,color:colors.skin},
+    {kind:"leg",ox:-5,oy:-victim.height*.25,radius:5,color:colors.armor},
+    {kind:"leg",ox:5,oy:-victim.height*.25,radius:5,color:colors.armor},
     {kind:"boot",ox:-6,oy:-5,radius:4,color:0x34433a},
     {kind:"boot",ox:6,oy:-5,radius:4,color:0x34433a},
   ];
-  for(let i=0;i<8;i++)body.push({kind:"blood",ox:(random()-.5)*10,oy:-victim.height*.55,radius:1.6,color:0x9d493b});
-  return body.map((p,i)=>({
+  for(let i=0;i<10;i++)body.push({kind:"blood",ox:(random()-.5)*10,oy:-victim.height*.55,radius:1.6,color:0x9d493b});
+  const source=impact??{x:victim.x,y:victim.y-victim.height*.48};
+  return body.map((p,i)=>{
+    const dx=victim.x+p.ox-source.x,dy=victim.y+p.oy-source.y;
+    const distance=Math.hypot(dx,dy),a=distance>2?Math.atan2(dy,dx):(i/body.length)*Math.PI*2;
+    const speed=150+random()*170;
+    return ({
     ...p,x:victim.x+p.ox,y:victim.y+p.oy,
-    vx:victim.vx*.2+(i%2?-1:1)*(65+random()*100),
-    vy:Math.min(0,victim.vy*.15)-110-random()*180,
+    vx:victim.vx*.25+Math.cos(a)*speed+(random()-.5)*55,
+    vy:victim.vy*.15+Math.sin(a)*speed-80,
     angle:random()*Math.PI*2,spin:(random()-.5)*12,
-    age:0,ttl:p.kind==="blood"?1400:2600+random()*300,settled:false,
-  }));
+    age:0,ttl:p.kind==="blood"?1700:2900+random()*350,settled:false,
+  });});
 }
 export function appendDebris(current:DeathDebris[],added:DeathDebris[]):DeathDebris[] {
   return [...current,...added].slice(-MAX_DEATH_DEBRIS);
@@ -106,5 +115,6 @@ export function advanceDebris(parts:DeathDebris[],elapsedMs:number,map:Pick<MapD
       }
     }
   }
-  return parts.filter(p=>p.age<p.ttl&&p.x>-80&&p.x<map.width+80&&p.y<map.height+80);
+  const bounds=playerTravelBounds(map);
+  return parts.filter(p=>p.age<p.ttl&&p.x>bounds.x-80&&p.x<bounds.x+bounds.w+80&&p.y>bounds.y-80&&p.y<bounds.y+bounds.h+80);
 }

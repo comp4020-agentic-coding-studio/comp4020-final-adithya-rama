@@ -98,6 +98,11 @@ export class Input {
   setTouch(bits:number,aim:number|null):void {this.touchHeld=bits;this.touchAim=aim;if(aim!==null)this.aimSource="touch";}
   tapTouch(bit:number):void {if(this.enabled)this.tapBits|=bit;}
   clearTouch():void {this.touchHeld=0;this.touchAim=null;this.tapBits=0;}
+  /** Sample aim and fire together; rendering may not have run since the latest input. */
+  sampleFrame(origin:{x:number;y:number}):{b:number;aim:number} {
+    const aim=this.updateAim(origin);
+    return {b:this.sampleButtons(),aim};
+  }
   sampleButtons():number {const buttons=this.buttons();this.tapBits=0;return buttons;}
   onClear(listener:()=>void):()=>void {this.clearListeners.add(listener);return ()=>{this.clearListeners.delete(listener);};}
   clear():void {

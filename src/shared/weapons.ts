@@ -31,20 +31,20 @@ export const WEAPONS: Record<string, WeaponDefinition> = {
     { spread: .055, reloadMs: 1800, range: 875, zoom: 1.2, color: 0xc79461 }),
   m14: gun("m14", "M14", "precision", 43, 440, 14, 42,
     { auto: false, behavior: "projectile", projectileSpeed: 1600, projectileGravity: 0, spread: .006, reloadMs: 1900, range: 1200, zoom: 1.65, color: 0xa98c6e }),
-  m93ba: gun("m93ba", "M93BA", "precision", 100, 1250, 5, 20,
-    { auto: false, spread: 0, reloadMs: 2500, range: 1500, headshotMultiplier: 1.5, zoom: 2, heavy: true, color: 0x99a7bd }),
+  m93ba: gun("m93ba", "M93BA", "precision", 60, 1250, 5, 20,
+    { auto: false, spread: 0, reloadMs: 2500, range: 1500, headshotMultiplier: 2, zoom: 2, heavy: true, color: 0x99a7bd }),
   spas12: gun("spas12", "SPAS-12", "shotgun", 11, 720, 6, 24,
     { auto: false, pellets: 7, spread: .2, reloadMs: 2000, range: 325, color: 0x3b3f44 }),
   aa20: gun("aa20", "AA-20", "shotgun", 8, 330, 12, 36,
     { pellets: 6, spread: .27, reloadMs: 2400, range: 480, heavy: true, color: 0x737474 }),
   minigun: gun("minigun", "Minigun", "heavy", 8, 50, 100, 200,
     { chargeMs: 650, spread: .12, reloadMs: 3300, range: 750, heavy: true, color: 0x89909c }),
-  smaw: gun("smaw", "SMAW", "heavy", 125, 1000, 1, 5,
+  smaw: gun("smaw", "SMAW", "heavy", 160, 1000, 1, 5,
     { auto: false, reloadMs: 2300, range: 1600, heavy: true, behavior: "projectile",
-      projectileSpeed: 950, projectileGravity: 0, blastRadius: 140, color: 0x72845d }),
-  rg6: gun("rg6", "RG6", "heavy", 95, 650, 6, 18,
+      projectileSpeed: 950, projectileGravity: 0, blastRadius: 170, color: 0x72845d }),
+  rg6: gun("rg6", "RG6", "heavy", 140, 650, 6, 18,
     { auto: false, reloadMs: 2800, range: 1000, heavy: true, behavior: "projectile",
-      projectileSpeed: 620, projectileGravity: 1, blastRadius: 120, bounce: .38, color: 0xaaba6c }),
+      projectileSpeed: 620, projectileGravity: 1, blastRadius: 150, bounce: .38, color: 0xaaba6c }),
   "saw-launcher": gun("saw-launcher", "Saw launcher", "heavy", 65, 700, 5, 15,
     { auto: false, chargeMs: 500, blastRadius: 90, reloadMs: 2400, range: 1250, heavy: true, behavior: "projectile",
       projectileSpeed: 780, projectileGravity: 0, bounce: 1, color: 0xe0dccc }),
@@ -60,8 +60,8 @@ export const WEAPONS: Record<string, WeaponDefinition> = {
     { auto: false, reloadMs: 0, range: 0, oneHanded: true, behavior: "shield", color: 0x64a3bd }),
 };
 export const THROWABLES: Record<string, ThrowableDefinition> = {
-  frag: { id: "frag", name: "Fragmentation grenade", fuseMs: 2200, radius: 135,
-    maxDamage: 110, minDamage: 15, throwSpeed: 640, bounce: .42, effect: "blast" },
+  frag: { id: "frag", name: "Fragmentation grenade", fuseMs: 2200, radius: 155,
+    maxDamage: 170, minDamage: 0, throwSpeed: 640, bounce: .42, effect: "blast" },
   flash: { id: "flash", name: "Flashbang", fuseMs: 1400, radius: 360,
     maxDamage: 0, minDamage: 0, throwSpeed: 620, bounce: .38, effect: "flash", durationMs: 3000 },
   gas: { id: "gas", name: "Poison smoke", fuseMs: 1600, radius: 135,
@@ -69,7 +69,7 @@ export const THROWABLES: Record<string, ThrowableDefinition> = {
   emp: { id: "emp", name: "EMP grenade", fuseMs: 1500, radius: 180,
     maxDamage: 10, minDamage: 0, throwSpeed: 630, bounce: .4, effect: "emp", durationMs: 4000 },
   mine: { id: "mine", name: "Proximity mine", fuseMs: 120000, radius: 115,
-    maxDamage: 110, minDamage: 15, throwSpeed: 470, bounce: 0, effect: "mine", armMs: 900 },
+    maxDamage: 110, minDamage: 0, throwSpeed: 470, bounce: 0, effect: "mine", armMs: 900 },
 };
 export const IMPLEMENTED_WEAPONS = Object.keys(WEAPONS);
 export const IMPLEMENTED_THROWABLES = Object.keys(THROWABLES);
@@ -78,7 +78,7 @@ export const IMPLEMENTED_THROWABLES = Object.keys(THROWABLES);
 export function weaponRangeLabel(id: string): string {
   const w = WEAPONS[id];
   if (!w) return "Empty";
-  if (w.behavior === "shield") return "Frontal cover";
+  if (w.behavior === "shield") return "Aim-directed cover";
   if (w.behavior === "melee") return "One-hit melee";
   return w.range <= 550 ? "Close range" : w.range <= 900 ? "Mid range" : w.range <= 1200 ? "Long range" : "Very long range";
 }
@@ -86,13 +86,13 @@ export function weaponRangeLabel(id: string): string {
 export function weaponHandling(id: string): string {
   const w = WEAPONS[id];
   if (!w) return "";
-  if (w.behavior === "shield") return "Pairs with machete; selecting a gun drops it";
+  if (w.behavior === "shield") return "Aim shield in any direction; pairs with machete; a gun drops it";
   if (w.behavior === "melee") return "One clean strike; pair with a shield";
   if (w.burstCount) return "Three shots per press; aim-fire hold repeats";
   if (w.autoRefill) return "Refills automatically when empty";
   if (id === "emp-gun") return "Travelling pulse disables thrust and disarms mines";
   if (id === "m14") return "Finite-speed precision bullet";
-  if (id === "m93ba") return "One-shot at standard health/damage; shields still block";
+  if (id === "m93ba") return "Lethal headshot; two body hits at standard health/damage";
   if (id === "saw-launcher") return "Charge, pierce, ricochet and burst";
   if (w.chargeMs) return "Spin up before sustained fire";
   return w.oneHanded ? "Dual-wield compatible" : w.heavy ? "Two-handed heavy; slower movement" : "Two-handed";

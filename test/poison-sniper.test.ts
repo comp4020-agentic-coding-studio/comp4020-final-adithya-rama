@@ -3,14 +3,14 @@ import { applyDamage, freshSlot, respawn } from "../src/shared/sim.ts";
 import { Btn } from "../src/shared/types.ts";
 import { hold, player, run, world } from "./helpers.ts";
 
-describe("lethal dedicated sniper and universal poison hazard",()=>{
+describe("headshot-focused dedicated sniper and universal poison hazard",()=>{
   it.each([.5,1,2] as const)("sniper respects the room damage multiplier %s",damage=>{
     const w=world({mode:"ffa",damage}),a=player(w,-1,{x:200,y:900}),b=player(w,-1,{x:500,y:900});
     a.slots=[freshSlot("m93ba"),null,null];
     run(w,1,()=>hold(a.id,Btn.FIRE));
-    expect(b.hp).toBe(Math.max(0,100-100*damage));
+    expect(b.hp).toBe(Math.max(0,100-60*damage));
     expect(a.slots[0]!.mag).toBe(4);
-    expect(a.kills).toBe(damage>=1?1:0);
+    expect(a.kills).toBe(damage>=2?1:0);
   });
   it.each([false,true])("poison damages owner, ally and enemy with friendly fire %s",friendlyFire=>{
     const w=world({mode:"tdm",friendlyFire});

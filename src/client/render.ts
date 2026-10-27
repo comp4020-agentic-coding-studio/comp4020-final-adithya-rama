@@ -1,4 +1,5 @@
 import { followCamera } from "./camera.ts";
+import { drawFlame, drawSaw, SawTrails } from "./combat-effects.ts";
 import { raycastMap } from "../shared/physics.ts";
 import { playArea } from "./play-area.ts";
 import { nameplateIdentity, nameplateText, placeNameplates, type PlateBounds } from "./nameplates.ts";
@@ -81,7 +82,7 @@ export interface RenderPlayer {
 }
 
 interface Fx {
-  kind: "tracer" | "boom" | "spark" | "slash" | "muzzle" | "case" | "smoke" | "blood" | "stain" | "regen" | "flash";
+  kind: "tracer" | "boom" | "spark" | "slash" | "muzzle" | "case" | "smoke" | "blood" | "stain" | "regen" | "flash" | "flame";
   x1: number;
   y1: number;
   x2: number;
@@ -120,6 +121,7 @@ export class Renderer {
   private fx: Fx[] = [];
   private debris:DeathDebris[]=[];
   private debrisAt=0;
+  private sawTrails=new SawTrails();
   private map: MapDefinition | null = null;
   private scale = 1;
   private cam = { x: 0, y: 0 };
@@ -127,6 +129,7 @@ export class Renderer {
   shake = 0;
   reducedShake = false;
   reducedBlood = false;
+  lowFlash = false;
   sightGuide = true;
   private probe:RenderProbe|null=null;
   private resizeQuality:(()=>void)|null=null;
@@ -181,7 +184,7 @@ export class Renderer {
 
   setMap(map: MapDefinition, showObjectives = false): void {
     this.map = map;
-    this.debris=[];this.debrisAt=0;this.cameraAt=0;
+    this.debris=[];this.debrisAt=0;this.cameraAt=0;this.sawTrails.clear();this.fx=[];
     this.actors.clear();
     for(const label of this.labels.values())label.root.visible=false;
     drawConcealment(this.concealmentG,map);
@@ -263,6 +266,11 @@ export class Renderer {
     const mx=x1+Math.cos(a)*len,my=y1+Math.sin(a)*len;
     const color=weapon==="phasr"?0xb0f3de:weapon==="flamethrower"?0xffa647:weapon==="emp-gun"?0xbadfff:0xffedb0;
     const projectile=WEAPONS[weapon]?.behavior==="projectile";
+    if(weapon==="flamethrower") {
+      const reach=Math.hypot(x2-x1,y2-y1),start=Math.min(len,reach*.25);
+      this.fx.push({kind:"flame",x1:x1+Math.cos(a)*start,y1:y1+Math.sin(a)*start,x2,y2,color,born:now,ttl:180});
+      return;
+    }
     if(!projectile)this.fx.push({kind:"tracer",x1:mx,y1:my,x2,y2,color,born:now,ttl:85});
     this.fx.push({kind:"muzzle",x1:mx,y1:my,x2:a,y2:0,color,born:now,ttl:85});
     this.fx.push({kind:"smoke",x1:mx,y1:my,x2:Math.cos(a)*14,y2:-23,color:0xd0d5bd,born:now,ttl:420});
@@ -285,14 +293,14 @@ export class Renderer {
     this.fx.push({ kind: "slash", x1: x, y1: y, x2: x, y2: y, color: 0xffffff, born: performance.now(), ttl: 160 });
   }
 
-  addDeath(p:Pick<RenderPlayer,"id"|"x"|"y"|"vx"|"vy"|"crouch"|"team"|"color"|"avatar">,weapon:string):void {
+  addDeath(p:Pick<RenderPlayer,"id"|"x"|"y"|"vx"|"vy"|"crouch"|"team"|"color"|"avatar">,weapon:string,impact?:{x:number;y:number}):void {
     const now=performance.now(),h=p.crouch?PLAYER_CROUCH_H:PLAYER_H;
     const avatar=avatarOf(p.avatar),armor=p.color;
     if(isRocketDeath(weapon)) {
       this.debris=appendDebris(this.debris,rocketDebris(
         {id:p.id,x:p.x,y:p.y,vx:p.vx??0,vy:p.vy??0,height:h},
         {armor,skin:SKIN[avatar.face],helmet:avatar.helmet==="cap"?0x89966b:0x788878},
-        this.reducedShake,
+        false,impact,
       ).filter(part=>!this.reducedBlood||part.kind==="helmet"||part.kind==="vest"));
     } else if(!this.reducedBlood) {
       for(let i=0;i<7;i++)this.fx.push({kind:"blood",x1:p.x,y1:p.y-h*.55,x2:(i-3)*19,y2:-35-i*5,color:0xa14f3b,born:now,ttl:650});
@@ -307,8 +315,7 @@ export class Renderer {
     const elapsed=this.debrisAt?now-this.debrisAt:0;
     this.debrisAt=now;
     if(!this.map)return;
-    if(this.reducedShake)this.debris=[];
-    else if(this.reducedBlood)this.debris=this.debris.filter(p=>p.kind==="helmet"||p.kind==="vest");
+    if(this.reducedBlood)this.debris=this.debris.filter(p=>p.kind==="helmet"||p.kind==="vest");
     this.debris=advanceDebris(this.debris,elapsed,this.map);
     const g=this.fxG;
     for(const p of this.debris) {
@@ -324,12 +331,18 @@ export class Renderer {
       if(p.kind==="helmet") {
         polygon([-7,3,-7,-2,-4,-6,4,-6,7,-2,7,3],p.color);
         polygon([-7,0,7,0,7,3,-7,3],0x43564a);
+      } else if(p.kind==="head") {
+        polygon([-5,-6,4,-6,6,-2,6,4,2,7,-4,5,-6,1],p.color);
+        polygon([-4,-2,5,-2,5,0,-4,0],0x34483d);
       } else if(p.kind==="vest") {
         polygon([-7,-7,-4,-9,4,-9,7,-7,7,6,-7,6],p.color);
         polygon([-5,1,5,1,5,6,-5,6],0x65785b);
       } else if(p.kind==="arm") {
         polygon([-3,-7,3,-7,3,3,-3,3],p.color);
         polygon([-4,2,4,2,4,6,-4,6],0x455b4b);
+      } else if(p.kind==="leg") {
+        polygon([-4,-7,4,-7,3,8,-3,8],p.color);
+        polygon([-4,-1,4,-1,4,3,-4,3],0x45564c);
       } else polygon([-4,-4,2,-4,2,0,6,0,6,4,-4,4],p.color);
     }
     if(this.probe) {
@@ -384,13 +397,13 @@ export class Renderer {
     this.drawFlags(flags,players,now);
     this.drawAreas(areas,now,serverTick);
 
+    for(const contact of this.sawTrails.update(projectiles,now))this.fx.push({kind:"spark",x1:contact.x,y1:contact.y,x2:0,y2:0,color:0xf0c477,born:now,ttl:170});
     const pg = this.projG;
     pg.clear();
     for (const pr of projectiles) {
       if(["frag","flash","gas","emp","mine"].includes(pr.k)) drawThrowable(pg,pr.k,pr.x,pr.y,1,pr.armed);
       else if(pr.k==="saw-launcher" || pr.k==="saw") {
-        pg.star(pr.x,pr.y,10,12,7,now/70).fill(0xd6e4e6).stroke({width:2,color:0x5f7583});
-        pg.circle(pr.x,pr.y,3).fill(0xedb963);
+        drawSaw(pg,pr,now,this.sawTrails.tracks.get(pr.id)?.points??[],this.lowFlash);
       } else if(pr.k==="m14") {
         const a=Math.atan2(pr.vy,pr.vx),c=Math.cos(a),ss=Math.sin(a);
         pg.moveTo(pr.x-c*15,pr.y-ss*15).lineTo(pr.x,pr.y).stroke({width:2,color:0xffecc0});
@@ -410,12 +423,14 @@ export class Renderer {
     this.fx = this.fx.filter((f) => now - f.born < f.ttl&&(!this.reducedBlood||!["blood","stain"].includes(f.kind))).slice(-180);
     for (const f of this.fx) {
       const t = (now - f.born) / f.ttl;
-      if(f.kind==="tracer") {
+      if(f.kind==="flame") {
+        drawFlame(fg,f.x1,f.y1,f.x2,f.y2,t,this.lowFlash);
+      } else if(f.kind==="tracer") {
         fg.moveTo(f.x1,f.y1).lineTo(f.x2,f.y2).stroke({width:5,color:f.color,alpha:.16*(1-t)});
         fg.moveTo(f.x1,f.y1).lineTo(f.x2,f.y2).stroke({width:1.7,color:f.color,alpha:1-t});
       } else if(f.kind==="muzzle") {
         const a=f.x2,c=Math.cos(a),ss=Math.sin(a),pts=[0,-4,8,-3,15,-8,11,0,20,2,8,5,2,3];
-        fg.poly(pts.map((v,i)=>i%2?v*c+pts[i-1]*ss+f.y1:v*c-pts[i+1]*ss+f.x1)).fill({color:f.color,alpha:1-t});
+        fg.poly(pts.map((v,i)=>i%2?v*c+pts[i-1]*ss+f.y1:v*c-pts[i+1]*ss+f.x1)).fill({color:this.lowFlash?0xbb9655:f.color,alpha:this.lowFlash?.45*(1-t):1-t});
       } else if(f.kind==="case"||f.kind==="blood") {
         const dt=t*f.ttl/1000,x=f.x1+f.x2*dt,y=f.y1+f.y2*dt+120*dt*dt;
         if(f.kind==="case")fg.poly([x-2,y,x+2,y-1,x+3,y+2,x-1,y+3]).fill({color:f.color,alpha:1-t});
@@ -431,17 +446,28 @@ export class Renderer {
       } else if(f.kind==="spark") {
         for(let i=0;i<5;i++){const a=i*1.4,rr=3+12*t;fg.moveTo(f.x1+Math.cos(a)*rr,f.y1+Math.sin(a)*rr).lineTo(f.x1+Math.cos(a)*(rr+5),f.y1+Math.sin(a)*(rr+5)).stroke({width:2,color:f.color,alpha:1-t});}
       } else if(f.kind==="boom"||f.kind==="flash") {
-        const rr=f.x2*(.25+.75*Math.sqrt(t)),flash=f.kind==="flash";
-        fg.circle(f.x1,f.y1,rr).stroke({width:flash?4:3,color:flash?0xfff9df:0xffd17d,alpha:.8*(1-t)});
+        const rr=f.x2*(.25+.75*Math.sqrt(t)),flash=f.kind==="flash",brightness=this.lowFlash?.45:1;
+        fg.circle(f.x1,f.y1,rr).stroke({width:flash?4:3,color:this.lowFlash?0xc09d64:flash?0xfff9df:0xffd17d,alpha:.65*(1-t)*brightness});
         for(let i=0;i<7;i++){
           const a=i*6.283/7,dist=rr*.45;
-          fg.circle(f.x1+Math.cos(a)*dist,f.y1+Math.sin(a)*dist,rr*(.36-t*.12)).fill({color:flash?0xfff4d0:i%2?0xf0a256:0xb78457,alpha:(flash?.3:.5)*(1-t)});
+          fg.circle(f.x1+Math.cos(a)*dist,f.y1+Math.sin(a)*dist,rr*(.36-t*.12)).fill({color:this.lowFlash?0x9f7651:flash?0xfff4d0:i%2?0xf0a256:0xb78457,alpha:(flash?.3:.5)*(1-t)*brightness});
         }
-        fg.circle(f.x1,f.y1,rr*.28).fill({color:0xffefaa,alpha:.7*(1-t)});
+        if(!flash)for(let i=0;i<9;i++) {
+          const a=i*Math.PI*2/9,tip=rr*(.65+.2*Math.sin(i*4)),tail=tip*(.4+.4*t);
+          fg.moveTo(f.x1+Math.cos(a)*tail,f.y1+Math.sin(a)*tail).lineTo(f.x1+Math.cos(a)*tip,f.y1+Math.sin(a)*tip).stroke({width:2,color:this.lowFlash?0xc79058:0xffd489,alpha:Math.max(0,1-t*1.4)*brightness});
+        }
+        fg.circle(f.x1,f.y1,rr*.28).fill({color:this.lowFlash?0xb18d53:0xffefaa,alpha:.7*(1-t)*brightness});
       } else fg.moveTo(f.x1+Math.cos(-1)*22,f.y1+Math.sin(-1)*22).arc(f.x1,f.y1,22,-1,1).stroke({width:3,color:f.color,alpha:1-t});
     }
     this.drawDebris(now);
-    if(this.probe) {this.probe.drawCpuMs.push(performance.now()-drawStarted);if(this.probe.drawCpuMs.length>1200)this.probe.drawCpuMs.shift();}
+    if(this.probe) {
+      const flames=this.fx.filter(f=>f.kind==="flame").length;
+      this.probe.config.effects={flames,saws:this.sawTrails.tracks.size,fx:this.fx.length,lowFlash:this.lowFlash,reducedBlood:this.reducedBlood};
+      this.probe.config.peakFlames=Math.max(Number(this.probe.config.peakFlames??0),flames);
+      this.probe.config.peakSaws=Math.max(Number(this.probe.config.peakSaws??0),this.sawTrails.tracks.size);
+      this.probe.config.peakFx=Math.max(Number(this.probe.config.peakFx??0),this.fx.length);
+      this.probe.drawCpuMs.push(performance.now()-drawStarted);if(this.probe.drawCpuMs.length>1200)this.probe.drawCpuMs.shift();
+    }
   }
 
   private drawBackdrop(map:MapDefinition,sw:number,sh:number):void {

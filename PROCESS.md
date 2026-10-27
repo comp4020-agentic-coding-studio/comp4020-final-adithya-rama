@@ -451,3 +451,30 @@ from head multipliers. An obsolete harmless-allied-gas spawn test now uses a
 frag grenade, while new tests explicitly require allied poison to be dangerous.
 The [combat follow-up record](docs/COMBAT_FOLLOWUP_VALIDATION.md) documents the
 authored tuning, animation and local/live acceptance procedure.
+
+## 28 October: combat corrections and a visual character workshop
+
+Adithya corrected the previous sniper decision after playing: headshots should
+be lethal, while body shots should need a follow-up. He also identified shield
+coverage, weak explosions, saw rebounds and the dropdown creator as incomplete.
+The integrator assigned separate reference/test, visual effects and creator work,
+then reviewed their integration against shared authoritative collision and data.
+
+The research distinguished the carried shield from Classic's crouch cover and
+recorded version uncertainty. Partial blast shielding is our requested design,
+not a recovered original formula. Review caught a visible/collision saw-radius
+mismatch and an immune shield contact delaying regeneration; both were corrected
+and covered by regressions. Tests that assumed one-shot-body snipers now exercise
+headshots or two actual body hits rather than removing the original checks.
+
+The creator is now a visual workshop with a large animated pilot and persisted
+eyebrows. Browser verification checks real choices, failed saves, reloads and
+reduced motion. Combat browser checks use normal inputs and independent guests;
+no fabricated damage stands in for multiplayer evidence. See the
+[revision record](docs/COMBAT_WORKSHOP_2026_10_28.md) for measured status and limits.
+
+Phone acceptance additionally found a first-frame aiming defect: a touch gesture
+could fire a rocket using the previous aim before the next render updated it.
+The fix samples current aim and fire together before constructing the input
+packet. Regression coverage includes touch, numpad and mouse, and the phone
+browser now checks the first authoritative rocket's direction.

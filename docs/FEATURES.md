@@ -1,5 +1,10 @@
 # Feature checklist
 
+## 28 October: directional combat and visual creator
+
+Implemented with local verification: 360-degree physical shield coverage, headshot-only lethal sniper, explicit rocket impact and stronger distance/cover blast damage, radius-correct saw ricochets, bounded combat effects, and a visual creator with large animated preview and saved eyebrows. [Current evidence and deployment status](COMBAT_WORKSHOP_2026_10_28.md). Earlier dated records remain historical.
+
+
 ## October 21: Crit 10 and player feedback
 
 Current evidence is in [CRIT_10_VALIDATION.md](CRIT_10_VALIDATION.md).
@@ -15,7 +20,7 @@ Implementation and release verification are recorded separately there.
       Lunarcy and original own-flag return bounds preserved.
 - [x] Compact translucent three-slot inventory.
 - [x] Server-validated Random spawns setting, default on, with safety and variety.
-- [x] M93BA one-shot body damage at standard settings; poison harms its owner,
+- [x] M93BA two-body-hit / one exposed standing-head hit at standard settings (28 October amendment); poison harms its owner,
       allies and opponents regardless of friendly fire. Animated poison bloom,
       swirling smoke, rising bubbles and skull cue.
       See [combat follow-up validation](COMBAT_FOLLOWUP_VALIDATION.md) for evidence.
@@ -129,7 +134,7 @@ assertions belong to simulation tests; an observed shot alone is not that proof.
 | PHASR beam | tested locally | penetrates players, stops at walls; automatic refill |
 | EMP gun | tested locally | travelling pulse, flight disable and mine disarming |
 | Machete | tested locally | one valid strike kills; range, walls, protection and friendly-fire checks still apply |
-| Riot shield | tested locally | physical front panel blocks intersecting direct fire; head/rear stay exposed; blast, flame and gas bypass it |
+| Riot shield | tested locally | aim-oriented plate blocks intersecting bullets and attenuates covered splash; exposed angles, direct rockets, flame and gas remain counters |
 | Fragmentation | tested locally | blast falloff and wall occlusion |
 | Flashbang | tested locally | distance/cover attenuation, temporary sight impairment, bot disruption |
 | Poison smoke | tested locally | visible lingering damage area |

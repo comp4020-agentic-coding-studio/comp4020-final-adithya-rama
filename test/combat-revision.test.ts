@@ -31,27 +31,27 @@ describe("physical shields and one-hit machetes", () => {
     expect(w.events.some((e) => e.t === "shield" && e.id === b.id)).toBe(true);
   });
 
-  it("leaves the head above the panel exposed to a lethal sniper hit", () => {
+  it("an exposed crown above the finite plate still allows a lethal headshot", () => {
     const { w, a, b } = duel();
-    const muzzle = muzzleOf(a), head = { x: b.x, y: b.y - 39 };
+    const muzzle = muzzleOf(a), head = { x: b.x, y: b.y - 43 };
     run(w, 1, () => hold(a.id, Btn.FIRE, Math.atan2(head.y - muzzle.y, head.x - muzzle.x)));
     expect(b.alive).toBe(false); expect(a.kills).toBe(1);
     expect(w.events.some((e) => e.t === "shield")).toBe(false);
   });
 
-  it("a chest sniper hit is lethal, and a rear path bypasses the panel", () => {
+  it("a rear path bypasses the panel but a chest sniper hit needs a followup", () => {
     const { w, a, b } = duel();
     b.aim = 0;
     run(w, 1, () => hold(a.id, Btn.FIRE));
-    expect(b.hp).toBe(0); expect(b.alive).toBe(false);
+    expect(b.hp).toBe(40); expect(b.alive).toBe(true);
     expect(w.events.some((e) => e.t === "shield")).toBe(false);
   });
 
-  it("an overhead head path remains exposed even when the shield aims upward", () => {
+  it("an upward shield intercepts the overhead head path", () => {
     const { w, a, b } = duel();
     a.x = b.x; a.y = 750; b.aim = -Math.PI / 2;
     run(w, 1, () => hold(a.id, Btn.FIRE, Math.PI / 2));
-    expect(b.alive).toBe(false);
+    expect(b.hp).toBe(100); expect(w.events.some(e => e.t === "shield")).toBe(true);
   });
 
   it("uses the historical panel pose together with the historical body for lag compensation", () => {
@@ -75,11 +75,11 @@ describe("physical shields and one-hit machetes", () => {
     expect(flame.b.hp).toBeLessThan(100);
   });
 
-  it("a saw disc is stopped by the physical panel", () => {
+  it("a saw disc reflects off the physical panel without cutting its holder", () => {
     const { w, a, b } = duel("saw-launcher");
     run(w, 48, () => hold(a.id, Btn.FIRE));
-    expect(b.hp).toBeGreaterThan(0); expect(b.hp).toBeLessThan(100); expect(w.projectiles).toHaveLength(0);
-    expect(w.events.some((e) => e.t === "explode")).toBe(true);
+    expect(b.hp).toBe(100); expect(w.projectiles).toHaveLength(1);
+    expect(w.projectiles[0].vx).toBeLessThan(0);
     expect(w.events.some((e) => e.t === "shield")).toBe(true);
   });
 
@@ -194,17 +194,17 @@ describe("authored weapon range", () => {
     return { w, a, b };
   }
   it("Classic PC retains full chest damage through maximum range and stops beyond it", () => {
-    expect(openShot(300).b.hp).toBe(0);
+    expect(openShot(300).b.hp).toBe(40);
     const distant = openShot(WEAPONS.m93ba.range - 20);
-    expect(distant.b.hp).toBe(0);
+    expect(distant.b.hp).toBe(40);
     expect(openShot(WEAPONS.m93ba.range + 30).b.hp).toBe(100);
   });
   it("an exposed headshot remains proportional to configured health", () => {
     const { w, a, b } = duel();
-    b.hp = b.maxHp = 200;
+    b.hp = b.maxHp = 200; b.slots = [freshSlot("mini-eagle"), null, null];
     const m = muzzleOf(a);
     run(w, 1, () => hold(a.id, Btn.FIRE, Math.atan2(b.y - 39 - m.y, b.x - m.x)));
-    expect(b.hp).toBe(50); expect(b.alive).toBe(true);
+    expect(b.hp).toBe(80); expect(b.alive).toBe(true);
   });
   it("weapon projectiles stop at remaining traveled range even with unusually high velocity", () => {
     const w = world(), owner = player(w, -1, { x: 100, y: 900 });

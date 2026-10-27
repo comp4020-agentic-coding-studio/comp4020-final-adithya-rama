@@ -288,7 +288,7 @@ export interface PickupSnap {
 
 export type GameEvent =
   | { t: "shot"; by: number; w: string; x1: number; y1: number; x2: number; y2: number; hit: boolean }
-  | { t: "kill"; killer: number | null; attacker?: number | null; victim: number; w: string }
+  | { t: "kill"; killer: number | null; attacker?: number | null; victim: number; w: string; blast?: { x: number; y: number } }
   | { t: "explode"; x: number; y: number; r: number }
   | { t: "melee"; by: number; x: number; y: number }
   | { t: "hurt"; id: number; amount: number }

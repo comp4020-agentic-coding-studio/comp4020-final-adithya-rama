@@ -45,12 +45,12 @@ describe("bounded stylized rocket debris",()=>{
     expect(isRocketDeath("smaw")).toBe(true);
     for(const id of ["frag","rg6","ak47","machete","fall"])expect(isRocketDeath(id)).toBe(false);
   });
-  it("creates six recognizable armor/limb pieces and eight small blood particles",()=>{
+  it("creates distinct head, torso, limbs and boots with a short blood burst",()=>{
     const parts=rocketDebris(victim,colors,false);
-    expect(parts.filter(p=>p.kind!=="blood")).toHaveLength(6);
-    expect(parts.filter(p=>p.kind==="blood")).toHaveLength(8);
-    expect(new Set(parts.map(p=>p.kind))).toEqual(new Set(["helmet","vest","arm","boot","blood"]));
-    expect(parts.every(p=>Number.isFinite(p.vx)&&p.vy<0&&p.ttl<=2900)).toBe(true);
+    expect(parts.filter(p=>p.kind!=="blood")).toHaveLength(9);
+    expect(parts.filter(p=>p.kind==="blood")).toHaveLength(10);
+    expect(new Set(parts.map(p=>p.kind))).toEqual(new Set(["helmet","head","vest","arm","leg","boot","blood"]));
+    expect(parts.every(p=>Number.isFinite(p.vx)&&Number.isFinite(p.vy)&&p.ttl<=3250)).toBe(true);
   });
   it("suppresses rocket breakup when reduced effects are requested",()=>{
     expect(rocketDebris(victim,colors,true)).toEqual([]);
@@ -85,6 +85,6 @@ describe("bounded stylized rocket debris",()=>{
   it("settles blood on contact and discards pieces outside the world",()=>{
     const p=part({kind:"blood",y:190,vy:500});
     advanceDebris([p],80,map);expect(p.settled).toBe(true);expect(p.vx).toBe(0);expect(p.vy).toBe(0);
-    expect(advanceDebris([part({x:-100})],0,map)).toEqual([]);
+    expect(advanceDebris([part({x:-10000})],0,map)).toEqual([]);
   });
 });

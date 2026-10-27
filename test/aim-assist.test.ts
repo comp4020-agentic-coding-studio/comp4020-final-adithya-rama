@@ -69,6 +69,6 @@ describe("gentle optional aim assistance",()=>{
       run(w,1,()=>hold(a.id,Btn.FIRE,angle));
       return b.hp;
     }
-    expect(shot(false)).toBe(100);expect(shot(true)).toBe(0);
+    expect(shot(false)).toBe(100);expect(shot(true)).toBe(40);
   });
 });

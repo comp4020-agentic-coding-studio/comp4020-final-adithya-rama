@@ -11,7 +11,7 @@ import { capacityOptions, botOptions, spaceRules, syncRuleFields } from "./rule-
 import { WEAPONS, THROWABLES, weaponRangeLabel, weaponHandling } from "../shared/weapons.ts";
 import { ACTION_LABELS, BINDABLE_CODE, bindingsOf, DEFAULT_BINDINGS, keyLabel } from "./input.ts";
 import { avatarOf, avatarSvg, weaponIcon, weaponName } from "./art.ts";
-import { AVATAR_CHOICES, AVATAR_LABELS, PILOT_PRESETS, type Avatar } from "../shared/avatar.ts";
+import {appearanceFields,creatorPresets,creatorPreview,avatarFromForm,bindCreator} from "./pilot-creator.ts";
 import { TEAM_COLORS, TEAM_NAMES } from "./render.ts";
 import { GameAudio } from "./audio.ts";
 let previewAudio:GameAudio|null=null;
@@ -131,8 +131,8 @@ function renderHome(): void {
         </details>
       </section>
       <dialog id="profile-drawer" class="app-dialog profile-drawer"><section class="profile"><button type="button" data-close-profile class="drawer-close" aria-label="Close pilot profile">×</button>
-        <span class="eyebrow">MAKE YOUR MARK</span><h2>Create your pilot</h2><p class="muted small">Your look, your callsign. Every style has the same health and hitbox.</p><div id="avatar-preview" class="avatar-preview">${avatarSvg(avatarOf(profile.prefs.avatar),profile.color)}</div>
-        <div class="pilot-presets" aria-label="Starting looks">${PILOT_PRESETS.map((p,i)=>`<button type="button" data-preset="${i}">${avatarSvg(p.avatar,profile.color)}<span>${p.name}</span></button>`).join("")}</div><form id="profile-form" class="stack">
+        <span class="eyebrow">MAKE YOUR MARK</span><h2>Create your pilot</h2><p class="muted small">Pick a style. Make it yours.</p>
+        <form id="profile-form" class="stack"><div class="creator-layout"><div class="creator-editor">
           <label>Name <input name="name" required maxlength="16" value="${esc(profile.name)}"></label>
           <fieldset class="swatches"><legend>Colour</legend>
             ${PALETTE.map(
@@ -140,18 +140,14 @@ function renderHome(): void {
                 `<label style="--c:${hex(c)}"><input type="radio" name="color" value="${c}" ${c === profile.color ? "checked" : ""}><span class="sr">${hex(c)}</span></label>`,
             ).join("")}
           </fieldset>
-          <div class="avatar-fields">
-            ${(Object.keys(AVATAR_CHOICES) as (keyof Avatar)[]).map(avatarSelect).join("")}
-
-
-          </div>
-          <label class="check"><input type="checkbox" name="aimAssist" ${profile.prefs.aimAssist!==false?"checked":""}> Gentle aim assist</label><small class="muted">A small nudge near a visible enemy. You aim and fire; no target lock. Change this in the field menu too.</small><label class="check"><input type="checkbox" name="sightGuide" ${profile.prefs.sightGuide!==false?"checked":""}> Dotted sight guide</label><label class="check"><input type="checkbox" name="muted" ${profile.prefs.muted===true?"checked":""}> Mute sound</label>
+          ${creatorPresets(profile.color)}${appearanceFields(avatarOf(profile.prefs.avatar),profile.color)}</div>${creatorPreview(avatarOf(profile.prefs.avatar),profile.color,profile.name)}</div>
+          <details class="creator-settings"><summary>Sound & play settings</summary><div class="stack"><label class="check"><input type="checkbox" name="aimAssist" ${profile.prefs.aimAssist!==false?"checked":""}> Gentle aim assist</label><small class="muted">A small nudge near a visible enemy. You aim and fire; no target lock. Change this in the field menu too.</small><label class="check"><input type="checkbox" name="sightGuide" ${profile.prefs.sightGuide!==false?"checked":""}> Dotted sight guide</label><label class="check"><input type="checkbox" name="muted" ${profile.prefs.muted===true?"checked":""}> Mute sound</label>
           <label>Sound volume <input type="range" name="volume" min="0" max="1" step=".05" value="${Number(profile.prefs.volume??.35)}"></label>
           <label class="check"><input type="checkbox" name="chatMuted" ${profile.prefs.chatMuted===true?"checked":""}> Mute room chat</label>
-          <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce shake & debris</label>
+          <label class="check"><input type="checkbox" name="reducedShake" ${reducedShake() ? "checked" : ""}> Reduce screen shake</label>
           <label class="check"><input type="checkbox" name="reducedBlood" ${profile.prefs.reducedBlood===true?"checked":""}> Hide blood</label>
           <label class="check"><input type="checkbox" name="lowFlash" ${profile.prefs.lowFlash===true?"checked":""}> Dark flashbang obscuration</label>
-          <button>Save</button>
+          </div></details><button type="submit" class="creator-save">Save</button>
         </form>
         <button id="bindings">Keyboard controls</button>
         <p class="stats"><span><b>${profile.matches}</b> matches</span><span><b>${profile.wins}</b> wins</span><span><b>${kd}</b> K/D</span><span><b>${profile.mvps}</b> MVPs</span></p>
@@ -216,7 +212,7 @@ function renderHome(): void {
   });
   app.querySelector<HTMLFormElement>("#profile-form")!.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const form=e.target as HTMLFormElement,submit=form.querySelector<HTMLButtonElement>('button')!;
+    const form=e.target as HTMLFormElement,submit=form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     if(submit.disabled)return;
     const fd = new FormData(form);
     submit.disabled=true;submit.textContent="Saving pilot…";
@@ -233,8 +229,7 @@ function renderHome(): void {
   app.querySelector("#range")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Weapon range",isPublic:false,settings:{mode:"training",map:"test-range",bots:0}}});autoStart=true;joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
   app.querySelector("#bindings")!.addEventListener("click",openBindings);
   app.querySelector("#survival")!.addEventListener("click",async()=>{try{const {code}=await api<{code:string}>("/api/rooms",{method:"POST",body:{name:"Survival squad",isPublic:true,settings:{mode:"survival",map:"outpost",capacity:4,bots:0}}});joinRoom(code);}catch(e){toast((e as Error).message,"error");}});
-  app.querySelector("#profile-form")!.addEventListener("input",e=>{const fd=new FormData(e.currentTarget as HTMLFormElement);app.querySelector("#avatar-preview")!.innerHTML=avatarSvg(avatarFromForm(fd),Number(fd.get("color")??profile.color));});
-  for(const button of app.querySelectorAll<HTMLButtonElement>("[data-preset]"))button.addEventListener("click",()=>{const form=app.querySelector<HTMLFormElement>("#profile-form")!;for(const [key,value] of Object.entries(PILOT_PRESETS[Number(button.dataset.preset)].avatar))(form.elements.namedItem(key) as HTMLSelectElement).value=value;form.dispatchEvent(new Event("input",{bubbles:true}));});
+  bindCreator(app.querySelector<HTMLFormElement>("#profile-form")!);
   for(const button of app.querySelectorAll<HTMLButtonElement>("[data-sound]"))button.addEventListener("click",async()=>{
     if(profile.prefs.muted===true){toast("Sound is muted. Enable sound in your pilot settings to listen.");return;}
     button.disabled=true;
@@ -662,12 +657,6 @@ async function boot(): Promise<void> {
 }
 
 
-function avatarFromForm(fd:FormData):Avatar { return avatarOf(Object.fromEntries(Object.keys(AVATAR_CHOICES).map(key=>[key,fd.get(key)]))); }
-function avatarSelect(name:keyof Avatar):string {
-  const values=AVATAR_CHOICES[name];
-  const chosen=avatarOf(profile.prefs.avatar)[name];
-  return '<label>'+AVATAR_LABELS[name]+'<select name="'+name+'">'+values.map(v=>'<option value="'+v+'" '+(v===chosen?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join("")+'</select></label>';
-}
 function dialog(title:string,body:string):HTMLDialogElement {
   for(const existing of document.querySelectorAll<HTMLDialogElement>("dialog[open]"))existing.close();
   document.querySelector("dialog:not(#profile-drawer)")?.remove();

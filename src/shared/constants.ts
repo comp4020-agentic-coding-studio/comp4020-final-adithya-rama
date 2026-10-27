@@ -1,4 +1,5 @@
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
+export const SAW_RADIUS = 10; // Shared collision and visible tooth radius.
 
 export const TICK_RATE = 60;
 export const DT = 1 / TICK_RATE;
@@ -63,7 +64,7 @@ export const HEALTH_REGEN_DELAY_TICKS = 6 * TICK_RATE;
 export const HEALTH_REGEN_INTERVAL_TICKS = TICK_RATE / 4;
 
 // Authored Classic PC movement/combat profile; persisted with new results.
-export const GAMEPLAY_VERSION = "classic-pc-2026-10-21";
+export const GAMEPLAY_VERSION = "classic-pc-2026-10-28";
 export const SPACE_ACCEL = 700;
 export const SPACE_SPEED = 430;
 export const CONCEAL_REVEAL_TICKS = 60;

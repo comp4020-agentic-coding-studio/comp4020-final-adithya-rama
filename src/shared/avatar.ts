@@ -6,6 +6,7 @@ export const AVATAR_CHOICES = {
   hair: ["cropped", "bob", "ponytail", "braids", "curly", "bald"],
   hairColor: ["black", "brown", "blond", "auburn", "silver", "violet"],
   facialHair: ["none", "moustache", "beard", "goatee"],
+  eyebrows: ["natural", "arched", "bold", "angled", "none"],
   glasses: ["goggles", "none", "round", "aviator"],
   face: ["light", "medium", "dark", "robot"],
   emblem: ["star", "bolt", "skull"],
@@ -13,11 +14,11 @@ export const AVATAR_CHOICES = {
 export type Avatar = { [K in keyof typeof AVATAR_CHOICES]: typeof AVATAR_CHOICES[K][number] };
 export const DEFAULT_AVATAR: Avatar = {
   body:"male", outfit:"armour", helmet:"pilot", hair:"cropped", hairColor:"brown",
-  facialHair:"none", glasses:"goggles", face:"medium", emblem:"bolt",
+  facialHair:"none", eyebrows:"natural", glasses:"goggles", face:"medium", emblem:"bolt",
 };
 export const AVATAR_LABELS: Record<keyof Avatar,string> = {
   body:"Body style", outfit:"Outfit", helmet:"Headgear", hair:"Hairstyle", hairColor:"Hair colour",
-  facialHair:"Facial hair", glasses:"Eyewear", face:"Skin / material", emblem:"Emblem",
+  facialHair:"Facial hair", eyebrows:"Eyebrows", glasses:"Eyewear", face:"Skin / material", emblem:"Emblem",
 };
 export function avatarOf(value: unknown): Avatar {
   const raw=value&&typeof value==="object"?value as Record<string,unknown>:{};

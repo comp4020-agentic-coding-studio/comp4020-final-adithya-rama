@@ -144,6 +144,7 @@ export class GameSession {
     }
     this.renderer.setMap(this.map,this.settings.mode==="flag"||this.settings.mode==="training"&&this.map.flagHomes.length===2);
     this.renderer.reducedShake = this.hooks.reducedShake();
+    this.renderer.lowFlash = this.hooks.prefs().lowFlash===true;
     this.renderer.reducedBlood = this.hooks.prefs().reducedBlood===true;
     this.renderer.sightGuide = this.hooks.prefs().sightGuide!==false;
     this.input = new Input(this.renderer.canvas, {
@@ -256,7 +257,7 @@ export class GameSession {
       case "kill": {
         const victim=this.latest?.players.find(p=>p.id===e.victim);
         const identity=this.roster.get(e.victim);
-        if(victim)r.addDeath({id:victim.id,x:victim.x,y:victim.y,vx:victim.vx,vy:victim.vy,crouch:!!(victim.f&PF.CROUCH),team:identity?.team??-1,color:identity?.color??0x888888,avatar:avatarOf(identity?.avatar)},e.w);
+        if(victim)r.addDeath({id:victim.id,x:victim.x,y:victim.y,vx:victim.vx,vy:victim.vy,crouch:!!(victim.f&PF.CROUCH),team:identity?.team??-1,color:identity?.color??0x888888,avatar:avatarOf(identity?.avatar)},e.w,e.blast);
         if(e.victim===this.you&&victim) {
           const attacker=e.attacker===undefined?e.killer:e.attacker;
           this.deathCamera.died({id:victim.id,x:victim.x,y:victim.y-PLAYER_H/2},attacker);
@@ -301,8 +302,14 @@ export class GameSession {
   private localTick(): void {
     this.input.enabled=!this.editingTouch&&this.els.menu.classList.contains("hidden")&&!document.querySelector("dialog[open]");
     if(this.you===null)return;
-    let b = this.input.sampleButtons();
     const me=this.latest?.players.find(p=>p.id===this.you);
+    const origin=me?this.renderer.worldToScreen(
+      (this.pred?.x??me.x)+(this.pred?this.smooth.x:0),
+      (this.pred?.y??me.y)+(this.pred?this.smooth.y:0)-heightOf({crouch:this.pred?.crouch??!!(me.f&PF.CROUCH)})*.68,
+    ):{x:innerWidth/2,y:innerHeight/2};
+    // Touch/numpad can aim and fire in the same event between render frames.
+    // Refresh aim before sending that first shot, rather than one render later.
+    let b = this.input.sampleFrame(origin).b;
     if(me && me.emp>0)b &= ~Btn.JET;
     const f: InputFrame = { seq: ++this.seq, b, aim: this.aimForShot(), view: Math.floor(this.renderTick()) };
     this.outbox.push(f);
@@ -514,7 +521,7 @@ export class GameSession {
         const reload=state?Math.max(0,state.reloadEnd-s.tick):0;
         const key=Object.entries(this.bindings).find(([,bit])=>bit===[Btn.SLOT1,Btn.SLOT2,Btn.SLOT3][i])?.[0];
         const charge=state&&def?.chargeMs?Math.min(1,(state.chargeTicks??0)/(def.chargeMs*TICK_RATE/1000)):0;
-        const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Frontal protection":"Close combat"):reload>0?(def?.autoRefill?"Refilling ":"Reloading ")+(reload/TICK_RATE).toFixed(1)+"s":charge>0&&charge<1?"Charging "+Math.round(charge*100)+"%":state.mag+" / "+(def?.autoRefill?"auto":this.settings.unlimitedAmmo?"∞":state.reserve);
+        const ammo=!state?"Pick up a weapon":def?.category==="equipment"?(w==="riot-shield"?"Aim-directed protection":"Close combat"):reload>0?(def?.autoRefill?"Refilling ":"Reloading ")+(reload/TICK_RATE).toFixed(1)+"s":charge>0&&charge<1?"Charging "+Math.round(charge*100)+"%":state.mag+" / "+(def?.autoRefill?"auto":this.settings.unlimitedAmmo?"∞":state.reserve);
         return `<div class="weapon-card slot ${active?"selected on":offhand?"offhand on":""} ${w?"":"empty"}" data-slot="${i}" title="${w?esc(weaponRangeLabel(w)+" · "+weaponHandling(w)):"Pick up a weapon"}" aria-label="Slot ${i+1}: ${esc(def?.name??"Empty")}${active?", selected":offhand?", dual offhand":""}"><div class="weapon-card-top"><kbd>${key?esc(keyLabel(key)):"—"}</kbd><span>${active?"SELECTED":offhand?"DUAL":"SLOT "+(i+1)}</span></div><div class="weapon-thumbnail">${w?weaponIcon(w):'<span>＋</span>'}</div><b class="weapon-name">${esc(def?.name??"Empty slot")}</b>${w?'<small class="weapon-role" title="'+esc(weaponHandling(w))+'">'+esc(weaponRangeLabel(w))+(def?.oneHanded&&def.category!=="equipment"?' · Dual-ready':'')+'</small>':""}<span class="ammo ${reload?"reloading":""}">${ammo}</span>${reload&&def?'<i class="reload-progress" style="--reload:'+Math.max(0,Math.min(1,1-reload/(def.reloadMs*TICK_RATE/1000)))+'"></i>':""}</div>`;
       };
       const falling=isFallingBelowMap({y:me.y,vy:me.vy,jetting:!!(me.f&PF.JETTING),onGround:!!(me.f&PF.GROUND)},this.map)&&!!(me.f&PF.ALIVE);
@@ -595,7 +602,7 @@ export class GameSession {
         ${this.hooks.isHost() ? `<button data-act="rules">Next-round rules</button><button data-act="end">End round now</button>` : ""}
         <button data-act="leave" class="danger">Leave room</button>
       </div>
-      <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce shake &amp; debris</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
+      <div class="checks"><label class="check"><input data-audio type="checkbox" ${this.audio.muted?"":"checked"}> Sound</label><label class="check"><input data-shake type="checkbox" ${this.hooks.reducedShake()?"checked":""}> Reduce screen shake</label><label class="check"><input data-chat-mute type="checkbox" ${this.hooks.prefs().chatMuted===true?"checked":""}> Mute chat</label></div>
       <label>Sound volume <input data-volume type="range" min="0" max="1" step=".05" value="${this.audio.volume}"></label>
       <div class="checks"><label class="check"><input data-blood type="checkbox" ${this.hooks.prefs().reducedBlood===true?"checked":""}> Hide blood</label><label class="check"><input data-flash type="checkbox" ${this.hooks.prefs().lowFlash===true?"checked":""}> Dark flashbang obscuration</label></div>
       <section class="room-chat"><h3>Room chat</h3><ol data-chat-log class="chat-log" aria-live="polite"></ol><form data-chat-form class="row"><label class="grow"><span class="sr">Message</span><input name="message" maxlength="240" placeholder="Message your room" autocomplete="off"></label><button>Send</button></form></section>
@@ -627,7 +634,7 @@ export class GameSession {
     menu.querySelector<HTMLInputElement>("[data-volume]")!.addEventListener("change",e=>{this.audio.volume=Number((e.target as HTMLInputElement).value);void this.hooks.savePrefs({volume:this.audio.volume});});
     menu.querySelector<HTMLInputElement>("[data-shake]")!.addEventListener("change",e=>{this.renderer.reducedShake=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedShake:this.renderer.reducedShake});});
     menu.querySelector<HTMLInputElement>("[data-blood]")!.addEventListener("change",e=>{this.renderer.reducedBlood=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({reducedBlood:this.renderer.reducedBlood});});
-    menu.querySelector<HTMLInputElement>("[data-flash]")!.addEventListener("change",e=>{void this.hooks.savePrefs({lowFlash:(e.target as HTMLInputElement).checked});});
+    menu.querySelector<HTMLInputElement>("[data-flash]")!.addEventListener("change",e=>{this.renderer.lowFlash=(e.target as HTMLInputElement).checked;void this.hooks.savePrefs({lowFlash:this.renderer.lowFlash});});
     menu.querySelector<HTMLInputElement>("[data-chat-mute]")!.addEventListener("change",e=>{void this.hooks.savePrefs({chatMuted:(e.target as HTMLInputElement).checked});});
     menu.querySelector<HTMLFormElement>("[data-chat-form]")!.addEventListener("submit",e=>{e.preventDefault();const el=menu.querySelector<HTMLInputElement>('input[name="message"]')!;if(el.value.trim())this.net.send({t:"chat",text:el.value.trim()});el.value="";});
     this.renderChat();

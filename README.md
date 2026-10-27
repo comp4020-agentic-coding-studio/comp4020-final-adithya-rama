@@ -148,13 +148,19 @@ and more accurate bursts. Frag, flashbang and poison smoke are the standard
 throwables. Poison damages everyone in the cloud, including its thrower and
 teammates, even with friendly fire off. Its swirling green smoke, bubbles and
 skull mark the danger area. Spawn protection and solid cover still apply.
-The M93BA sniper deals 100 body damage: one unshielded hit kills at standard
-health/damage settings. Custom multipliers can change that; the faster M14 is
-a separate marksman rifle. Start with four grenades and automatically collect nearby grenades
+The M93BA deals 60 body damage and 120 on an exposed standing head: two body
+hits or one headshot at standard settings. Room multipliers and crouch cover
+still apply. The M14 is a separate marksman rifle. Aim the shield in any
+direction, including above your head: its physical plate stops bullets and
+reduces covered blast damage, but leaves exposed angles vulnerable. A direct
+rocket defeats it; nearby explosions weaken with distance and intervening
+cover. Frags are lethal at close range. Saw discs ricochet from terrain and
+shields, can cut their shooter on the return, and burst at their travel limit.
+Start with four grenades and automatically collect nearby grenades
 up to six; T changes type and G throws. F pairs compatible small guns. A shield
 pairs with a machete; switching to a firearm drops the shield. After a death,
 the camera follows your attacker until respawn. Health slowly recovers after six seconds without combat. Your pilot,
-preferences and history live in the profile panel. In a room, choose a team and
+preferences and history live in the profile panel. Customize your pilot with visual tiles and a large animated preview, including hairstyle, brows, outfit and eyewear. In a room, choose a team and
 mark yourself ready; the host can start once everyone is ready. Changed lobby
 rules clear readiness so the squad can review them. Practice includes movement,
 equipment and own-flag tasks. Survival restores the surviving squad and revives

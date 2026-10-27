@@ -77,7 +77,7 @@ describe("supported crouch and bounded collision", () => {
       run(w, 1, () => hold(b.id, Btn.CROUCH));
       const aim = lower ? Math.atan2(b.y - PLAYER_CROUCH_H + 2 - muzzleOf(a).y, b.x - a.x) : 0;
       run(w, 1, () => new Map([[a.id, { seq: 1, b: Btn.FIRE, aim }], [b.id, { seq: 1, b: Btn.CROUCH, aim: 0 }]]));
-      expect(b.hp).toBe(lower ? 100 : 200);
+      expect(b.hp).toBe(lower ? 140 : 200);
     }
   });
   it("rewound sniper damage uses historical crouch stance as well as its box", () => {
@@ -88,7 +88,7 @@ describe("supported crouch and bounded collision", () => {
     run(w, 1); expect(b.crouch).toBe(false);
     const aim = Math.atan2(874 - muzzleOf(a).y, b.x - a.x);
     run(w, 1, () => new Map([[a.id, { seq: 1, b: Btn.FIRE, aim, view }]]));
-    expect(b.hp).toBe(100);
+    expect(b.hp).toBe(140);
   });
   it("holstered weight has no penalty while an equipped shield/heavy does", () => {
     const slots = [freshSlot("mini-eagle"), freshSlot("smaw"), freshSlot("riot-shield")] as const;
@@ -281,6 +281,7 @@ describe("weapon firing state and finite travel", () => {
   it("grounded crouch reduces a floor blast and impulse obeys team/protection rules", () => {
     const damage = (crouch: boolean) => {
       const w = world({ mode: "ffa" }), p = player(w, -1, { x: 500, y: 900 });
+      p.hp = p.maxHp = 200; // Compare uncapped damage; a point-blank frag is now lethal at 100 HP.
       w.projectiles.push(projectile(900, "frag", -1, { x: 500, y: 899, vx: 0, vy: 0, explodeTick: 1 }));
       run(w, 1, () => hold(p.id, crouch ? Btn.CROUCH : 0)); return { hp: p.hp, vy: p.vy };
     };

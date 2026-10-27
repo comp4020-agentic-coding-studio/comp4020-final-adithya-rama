@@ -1,3 +1,15 @@
+# Current handoff: 28 October combat and visual creator
+
+Read [the current revision](COMBAT_WORKSHOP_2026_10_28.md) and
+[reference audit](COMBAT_REFERENCE_2026_10_28.md). Shield coverage now rotates
+with aim. M93BA is 60 body / 120 exposed standing head; rocket direct impact
+and per-person shield/terrain splash are separate. Saw collision and artwork
+share a 10-unit radius and swept rebounds. The pilot creator now uses visual
+choices, large animated preview and persisted eyebrows. Protocol 5 requires
+stale clients to reload. Validation and deployment status are in the revision.
+
+The following October 21 handoff is historical; its one-shot-body sniper and
+old creator descriptions are superseded. Preserve personal reflections and tags.
 # Integration handoff: October 21 Crit 10 revision
 
 Latest release pass: [pilot identity and aiming](PILOT_RELEASE_2026_10_21.md).

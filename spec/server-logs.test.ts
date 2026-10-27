@@ -81,7 +81,7 @@ describe("server logs tell people apart through real room actions", () => {
     w.map = { ...w.map, solids: [{ x: 0, y: 900, w: w.map.width, h: 100 }], platforms: [] };
     Object.assign(shooter, { x: 200, y: 900, vx: 0, vy: 0, onGround: true, protectUntil: 0 });
     Object.assign(target, { x: 400, y: 900, vx: 0, vy: 0, onGround: true, protectUntil: 0, hp: 80 });
-    room.handle(host.client, { t: "input", frames: [{ seq: 1, b: Btn.FIRE, aim: 0 }] }); room.step();
+    room.handle(host.client, { t: "input", frames: [{ seq: 1, b: Btn.FIRE, aim: Math.atan2(-9.08, 200) }] }); room.step();
     expect(target.alive).toBe(false);
     expect(events("kill")).toEqual([expect.objectContaining({ by: "Same pilot", byProfile: "id-host", byPlayer: shooter.id,
       victim: "Same pilot", victimProfile: "id-guest", victimPlayer: target.id, weapon: "m93ba", match: room.matchId })]);

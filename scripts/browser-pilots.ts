@@ -41,9 +41,11 @@ async function configure(page:Page,preset:number,name:string,tag:string){
   await page.locator("#profile-button").click();
   assert.ok(await page.locator('[name="aimAssist"]').isChecked(),"assistance starts on");
   assert.ok(await page.locator('[name="sightGuide"]').isChecked(),"sight guide starts on");
+  await page.locator(".creator-presets summary").click();
   await page.locator(`[data-preset="${preset}"]`).click();
+  await page.locator(".creator-presets summary").click();
   await page.locator('#profile-form [name="name"]').fill(name);
-  assert.equal(await page.locator('[name="body"]').inputValue(),PILOT_PRESETS[preset].avatar.body);
+  assert.equal(await page.locator('[name="body"]:checked').inputValue(),PILOT_PRESETS[preset].avatar.body);
   await page.screenshot({path:`${out}/${tag}-creator.png`});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.equal(await page.locator("#profile-drawer").evaluate(el=>el.scrollWidth>el.clientWidth+1),false);

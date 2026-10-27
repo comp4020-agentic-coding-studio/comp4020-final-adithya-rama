@@ -60,10 +60,14 @@ async function checkViewport(mobile:boolean){
     await until(()=>!(actor(e.you!).f&PF.PROTECTED),"enemy spawn protection expires");
     assert.equal(actor(e.you!).hp,100);
     await tap(direction===1?"ArrowRight":"ArrowLeft");await tap("KeyJ");
-    await until(()=>events.some(ev=>ev.t==="kill"&&ev.victim===e.you&&ev.killer===you),"single sniper hit kills");
-    assert.equal(events.filter(ev=>ev.t==="shot"&&ev.by===you&&ev.w==="m93ba").length,1);
+    await until(()=>actor(e.you!).hp===40,"first sniper body hit deals 60");
+    assert.ok(actor(e.you!).f&PF.ALIVE);
     assert.equal(actor(you).mag,4);
-    checks.push({mobile,sniper:"one shot killed a 100 HP unshielded opponent",match:e.matchId});
+    await sleep(1300); await tap("KeyJ");
+    await until(()=>events.some(ev=>ev.t==="kill"&&ev.victim===e.you&&ev.killer===you),"second body hit kills");
+    assert.equal(events.filter(ev=>ev.t==="shot"&&ev.by===you&&ev.w==="m93ba").length,2);
+    assert.equal(actor(you).mag,3);
+    checks.push({mobile,sniper:"first body hit leaves 40 HP; second kills",match:e.matchId});
     await until(()=>!!(actor(e.you!).f&PF.ALIVE)&&!(actor(e.you!).f&PF.PROTECTED),"opponent respawn");
     await Promise.all([move(ally,a.you!,x+direction*45),move(enemy,e.you!,x+direction*90)]);
     const ids=[you,a.you!,e.you!],before=ids.map(id=>actor(id).hp);

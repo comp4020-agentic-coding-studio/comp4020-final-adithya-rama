@@ -10,7 +10,7 @@ import { hold, player, run, world } from "./helpers.ts";
 
 describe("three carried weapons", () => {
   it("normalizes legacy presets and clamps every slot to the allowlist", () => {
-    expect(PROTOCOL_VERSION).toBe(4);
+    expect(PROTOCOL_VERSION).toBe(5);
     expect(defaultSettings().loadout).toEqual(["mini-eagle", "uzi", null]);
     expect(sanitizeSettings({ loadout: ["magnum", "m4"] }).loadout).toEqual(["magnum", "m4", null]);
     expect(sanitizeSettings({ weapons: ["uzi"], loadout: ["magnum", "m4", "uzi"] }).loadout).toEqual(["uzi", null, "uzi"]);

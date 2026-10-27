@@ -72,6 +72,19 @@ describe("desktop aiming and weapon controls",()=>{
     expect(input.updateAim({x:0,y:0})).toBeCloseTo(-Math.PI/3);
     expect(input.buttons()).toBe(Btn.LEFT);
   });
+  it("samples the first touch, numpad and mouse shot with its new aim before another render",()=>{
+    input.aim=0;input.setTouch(Btn.FIRE|Btn.CONTINUOUS_FIRE,Math.PI);
+    expect(input.sampleFrame({x:50,y:50})).toEqual({b:Btn.FIRE|Btn.CONTINUOUS_FIRE,aim:Math.PI});
+    input.clear();input.aim=0;key("Numpad8");
+    expect(input.sampleFrame({x:50,y:50})).toEqual({b:Btn.FIRE|Btn.CONTINUOUS_FIRE,aim:-Math.PI/2});
+    input.clear();input.aim=0;
+    canvas.dispatchEvent(new dom.window.MouseEvent("mousedown",{button:0,clientX:-50,clientY:50}));
+    expect(input.sampleFrame({x:50,y:50})).toEqual({b:Btn.FIRE,aim:Math.PI});
+    input.clearTouch();key("Digit2");
+    expect(input.sampleFrame({x:50,y:50}).b&Btn.SLOT2).toBe(Btn.SLOT2);
+    key("Digit2",false);
+    expect(input.sampleFrame({x:50,y:50}).b&Btn.SLOT2).toBe(0);
+  });
   it("selects three direct slots, cycles with Tab, and shows scores with B",()=>{
     for(const [code,bit] of [["Digit1",Btn.SLOT1],["Digit2",Btn.SLOT2],["Digit3",Btn.SLOT3],["Tab",Btn.SWITCH]] as const){
       expect(key(code).defaultPrevented).toBe(true);expect(input.sampleButtons()).toBe(bit);key(code,false);
