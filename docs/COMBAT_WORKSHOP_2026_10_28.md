@@ -87,3 +87,40 @@ Reports and screenshots are under ignored `test-results/`, with reproducible
 scripts committed. Publication/live verification is separate and recorded next.
 
 Final production-browser practice and two-profile pilot acceptance also passed: startup recovery, all 16 recorded sounds, full cosmetic rosters, real loading stages, saved settings with failure rollback, and committed results in both histories.
+
+## Published and verified on Fly
+
+Gameplay commit [`2a4b400`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2a4b40099f5a4fc5d00dfe6254fcd6c6f5dbbffb)
+passed [workflow 40548372485](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/actions/runs/40548372485),
+including production-container checks, secret scans and normal Fly deployment.
+The live site served `index-BSDSEi7w.js` and returned healthy with no active round
+before private acceptance began.
+
+Live browser acceptance on 28 October (AEDT):
+
+- Visual creator at desktop and phone: every option selectable, full saved
+  appearance/brows survive reload, save-error recovery and reduced motion pass.
+- Independent clients agree on shield blocking from the front and overhead,
+  60-damage exposed body hit and lethal uncovered headshot from 100 HP.
+  Diagonal and overhead plate screenshots confirm the rendered orientation.
+- Actual desktop and touch combat rounds verify rocket kills with 19 body/equipment
+  fragments, damaging flame streams, saw launch and low-flash/hidden-blood options.
+  Peak cosmetic effects 57 in each viewport, below the 180 cap; no browser errors.
+- Read-only verification of the original acceptance guest passes after deployment:
+  identity, preferences and aggregates retained with the natural-brow default;
+  one unchanged history row; exact saved match digest
+  `43c2db246e749f66f281c76f3cc2a094ee17733b3378de2bd47940d070bdfa5e`.
+  A pre-deploy run using the new schema initially failed because the old live
+  profile did not yet include eyebrows; a read-only old-schema comparison
+  confirmed that was the sole difference. The private baseline was never rewritten.
+
+Live reports: `test-results/creator-combat-live/`,
+`test-results/directional-combat-live/`, `test-results/combat-effects-live/`.
+These are automated live checks, separate from human balance acceptance.
+
+The live two-profile pilot regression also passed at 04:17 AEDT: both complete
+cosmetic rosters agreed, all sixteen recorded sound previews loaded, real loading
+stages completed, failed preference writes rolled back visibly, and both players
+retained their committed result and settings on returning. Report:
+`test-results/pilots-combat-live/report.json`. All private acceptance rooms were
+left after their results saved.

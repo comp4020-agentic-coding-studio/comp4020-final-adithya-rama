@@ -2,7 +2,7 @@
 
 ## 28 October: directional combat and visual creator
 
-Implemented with local verification: 360-degree physical shield coverage, headshot-only lethal sniper, explicit rocket impact and stronger distance/cover blast damage, radius-correct saw ricochets, bounded combat effects, and a visual creator with large animated preview and saved eyebrows. [Current evidence and deployment status](COMBAT_WORKSHOP_2026_10_28.md). Earlier dated records remain historical.
+Implemented and locally tested, with live browser acceptance recorded: 360-degree physical shield coverage, headshot-only lethal sniper, explicit rocket impact and stronger distance/cover blast damage, radius-correct saw ricochets, bounded combat effects, and a visual creator with large animated preview and saved eyebrows. [Current evidence and deployment status](COMBAT_WORKSHOP_2026_10_28.md). Earlier dated records remain historical.
 
 
 ## October 21: Crit 10 and player feedback

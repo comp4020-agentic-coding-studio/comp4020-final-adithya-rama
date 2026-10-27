@@ -478,3 +478,9 @@ could fire a rocket using the previous aim before the next render updated it.
 The fix samples current aim and fire together before constructing the input
 packet. Regression coverage includes touch, numpad and mouse, and the phone
 browser now checks the first authoritative rocket's direction.
+
+The [28 October gameplay commit](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2a4b40099f5a4fc5d00dfe6254fcd6c6f5dbbffb)
+passed the normal container/CI/deployment workflow. Live independent guests then
+confirmed shield/headshot outcomes, desktop/phone effects and creator persistence.
+The original guest and exact historical match digest survived the deployment;
+additive eyebrow defaults did not rewrite the private acceptance baseline.
