@@ -40,12 +40,7 @@ after restart. Completed results and partial checkpoints are different promises.
 
 Claude built the first connected foundation in
 [6f60466](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/6f60466),
-with a handoff in [f868182](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/f868182).
-Those stages landed together; I cannot present them as a neat series of smaller
-commits. I then used Codex to review and continue the work. Later tasks were
-split between simulation, server and visual work, with one integrator combining
-them. This let work proceed together, but shared types and assumptions still
-needed review. A second agent's approval was useful, not proof of correctness.
+with a handoff in [f868182](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/f868182). Those stages landed together; I cannot present them as a neat series of smaller commits. I then used Codex to review and had claude continue the work. Later tasks were split between simulation, server and visual work, with one integrator combining them. This let work proceed together, but shared types and assumptions still needed review. A second agent's approval was useful, not proof of correctness.
 
 ## Giving the agents something concrete
 
@@ -66,11 +61,7 @@ not remove the need to inspect what they produced.
 
 ## What watching people play changed
 
-My peers showed me problems I had stopped noticing. They struggled to acquire
-and switch weapons, tried to protect their heads with a shield that only faced
-sideways, and expected rockets to cause more damage. These observations gave me
-specific cases to explain to the agents, rather than another request to make
-the game better.
+My peers showed me problems I had stopped noticing. They struggled to acquire and switch weapons, tried to protect their heads with a shield that only faced sideways, expected rockets to cause more damage, and felt snipers were sometimes way too powerful. These observations gave me specific cases to explain to the agents, rather than another request to make the game better.
 
 I also changed my own decisions. I initially wanted movement to help set aim;
 later, moving left while shooting right made the problem obvious.
@@ -106,8 +97,7 @@ expanded explosive-cause tests and shared facial artwork between preview and
 game. Browser checks then used actual throws and independent guests. I kept
 human judgement separate from those results.
 
-This final rewrite also consolidates the current rules in
-[CLAUDE.md](CLAUDE.md) and a dated [quality contract](docs/QUALITY_CONTRACT.md).
+This rewrite also consolidates the current rules in [CLAUDE.md](CLAUDE.md) and a dated [quality contract](docs/QUALITY_CONTRACT.md).
 It corrects an outdated controls guide and strengthens the check that the full
 README reaches the running site. These are final-review improvements, not rules
 I am pretending existed throughout development. See
@@ -121,8 +111,4 @@ records later live browser and persistence checks. Their dates and limits matter
 They do not prove every future change is safe. Peer feedback was informal; I did
 not run a controlled usability study or measure improvement rates.
 
-I want AI to help row the boat while I remain responsible for its direction.
-That also means listening when players show my direction needs changing. I
-supplied this account and the argument; AI helped turn my account into these documents, find
-sources and check evidence. I preserved the three crit reflections as the
-record of what I understood then.
+I wanted AI to help row the boat while I remain responsible for its direction. That also means listening when players show my direction needs changing. I have also preserved the three crit reflections as the record of what I understood then.
