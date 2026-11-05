@@ -33,7 +33,7 @@ session cookies or deployment tokens in logs or commits.
 |---|---|---|
 | Move | A / D | left stick |
 | Jump | W | Jump |
-| Flight | Space, directed towards aim | left stick up |
+| Flight | Space; A/D steers independently of aim | left stick up |
 | Crouch / crawl | S, with A/D to crawl | left stick down / down-diagonal |
 | Deliberate one-way platform descent | Shift+S or remapped Descend | Descend |
 | Aim / fire | mouse / left click | right stick |
@@ -48,8 +48,9 @@ session cookies or deployment tokens in logs or commits.
 | Scoreboard / menu | B / Escape | Score / Menu |
 
 Holding a numpad direction fires at the selected weapon's normal cadence and
-resumes after automatic reload. R reloads early. A/D sets facing when there is
-no explicit aim; actual mouse movement takes over from keyboard aim. Physical
+resumes after automatic reload. R reloads early. Movement and flight do not change
+gun aim. Released keyboard/touch aim stays in its last direction; deliberate
+mouse movement takes over from keyboard aim. Physical
 numpad key codes work with Num Lock on or off. Menu Tab retains normal focus
 navigation. Dual wielding pairs the selected compatible weapon with another
 compatible carried slot; the third item stays carried.
