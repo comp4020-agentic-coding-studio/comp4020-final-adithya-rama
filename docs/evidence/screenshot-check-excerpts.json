@@ -1,0 +1,86 @@
+{
+  "compiledOn": "2026-11-05",
+  "kind": "Selected excerpts from historical automated live browser checks, not peer playtest observations",
+  "nameplates": {
+    "base": "https://comp4020-final-adithya-rama.fly.dev",
+    "at": "2026-10-20T15:43:26.601Z",
+    "script": "scripts/browser-nameplates.ts",
+    "sourceReport": "test-results/nameplates-live/report.json",
+    "sourceReportSha256": "d59705d4970aa1707e12584998221d75234baae2be1e06125be1f16d0737ff31",
+    "check": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scope": "Far",
+      "tags": [
+        {
+          "id": 1,
+          "text": "YOU \u00b7 Pilot-5366",
+          "color": 9433260,
+          "visible": true,
+          "fontPixels": 13,
+          "width": 135.6650390625,
+          "height": 29,
+          "x": 195,
+          "y": 363.0726102941176
+        },
+        {
+          "id": 2,
+          "text": "ALLY \u00b7 Friendly Pilot",
+          "color": 9433260,
+          "visible": true,
+          "fontPixels": 13,
+          "width": 160.34228515625,
+          "height": 29,
+          "x": 224.8235294117647,
+          "y": 329.0726102941176
+        },
+        {
+          "id": 3,
+          "text": "ENEMY \u00b7 Opposing Pilot",
+          "color": 16747409,
+          "visible": true,
+          "fontPixels": 13,
+          "width": 187.44042968749997,
+          "height": 29,
+          "x": 271.5355882352941,
+          "y": 295.0726102941176
+        }
+      ]
+    },
+    "errors": []
+  },
+  "shield": {
+    "base": "https://comp4020-final-adithya-rama.fly.dev",
+    "at": "2026-10-27T17:16:09.135Z",
+    "script": "scripts/browser-directional-combat.ts",
+    "sourceReport": "test-results/directional-combat-live/report.json",
+    "sourceReportSha256": "66540a47d2f85be2932ad9f1a216018cbedb08684b785f858b5a2fde873361b0",
+    "checks": [
+      {
+        "case": "frontal sniper blocked",
+        "hp": 100,
+        "agreed": true
+      },
+      {
+        "case": "exposed body takes 60",
+        "hp": 40,
+        "agreed": true
+      },
+      {
+        "case": "overhead headshot blocked",
+        "hp": 40,
+        "agreed": true
+      },
+      {
+        "case": "uncovered headshot kills at full health",
+        "hpBefore": 100,
+        "hpAfter": 0,
+        "agreed": true
+      }
+    ],
+    "errors": [],
+    "failure": null
+  }
+}

@@ -61,7 +61,12 @@ not remove the need to inspect what they produced.
 
 ## What watching people play changed
 
-My peers showed me problems I had stopped noticing. They struggled to acquire and switch weapons, tried to protect their heads with a shield that only faced sideways, expected rockets to cause more damage, and felt snipers were sometimes way too powerful. These observations gave me specific cases to explain to the agents, rather than another request to make the game better.
+My [playtest record](docs/PLAYTEST.md) now connects my recollection to two saved
+rounds on 21 October: five pilots in Outpost free-for-all, then four in Catacombs
+team deathmatch. Their results survived until 5 November. That supports shared
+play and persistence; it does not prove enjoyment or flag teamwork.
+
+Across my peer playtests, people showed me problems I had stopped noticing. They struggled to acquire and switch weapons, tried to protect their heads with a shield that only faced sideways, expected rockets to cause more damage, and felt snipers were sometimes way too powerful. These observations gave me specific cases to explain to the agents, rather than another request to make the game better.
 
 I also changed my own decisions. I initially wanted movement to help set aim;
 later, moving left while shooting right made the problem obvious.
@@ -72,6 +77,11 @@ sight of their pilot beyond the map and an obstructive inventory led to
 Difficulty telling teams apart led to readable ally/enemy labels in
 [7bd1e35](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/7bd1e35).
 
+<img src="docs/evidence/nameplates-phone-2026-10-21.png" width="260" alt="Phone game view with separate green ALLY and red ENEMY nameplates">
+
+*Automated live check, 21 October: explicit team labels remain separated at
+phone Far scope. This verifies a correction; it is not a peer-playtest photo.*
+
 My sniper correction went too far: I asked for lethal body shots in
 [3463a0d](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/3463a0d),
 then rejected that balance. [2a4b400](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/2a4b400)
@@ -79,6 +89,12 @@ restored two body hits and lethal exposed headshots, alongside directional
 shield and blast tests. I should not describe every correction as the model
 getting my instructions wrong. Sometimes my instructions were wrong for the
 experience I wanted.
+
+![An upward-facing shield between the pilot and an overhead attacker](docs/evidence/shield-overhead-2026-10-28.png)
+
+*Automated live check, 28 October: the overhead shot leaves health unchanged at
+40 after an earlier body hit. The [evidence record](docs/evidence/README.md)
+links both images to their checks and limitations.*
 
 ## Making corrections last
 
@@ -97,7 +113,7 @@ expanded explosive-cause tests and shared facial artwork between preview and
 game. Browser checks then used actual throws and independent guests. I kept
 human judgement separate from those results.
 
-This rewrite also consolidates the current rules in [CLAUDE.md](CLAUDE.md) and a dated [quality contract](docs/QUALITY_CONTRACT.md).
+This rewrite also consolidates the current rules in [CLAUDE.md](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/blob/main/CLAUDE.md) and a dated [quality contract](docs/QUALITY_CONTRACT.md).
 It corrects an outdated controls guide and strengthens the check that the full
 README reaches the running site. These are final-review improvements, not rules
 I am pretending existed throughout development. See

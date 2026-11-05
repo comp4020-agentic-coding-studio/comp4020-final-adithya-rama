@@ -50,7 +50,8 @@ These promises are mapped to [agent rules](https://github.com/comp4020-agentic-c
 and [checks](docs/QUALITY_CONTRACT.md). Flight feel, readable artwork and enjoyment
 still need people. During crits I saw peers struggle to acquire and switch
 weapons, defend from above and understand rocket damage. Their reactions changed
-my priorities. I have not measured learning time or long-term enjoyment;
+my priorities; the [playtest record](docs/PLAYTEST.md) connects observations to
+corrections. I have not measured learning time or long-term enjoyment;
 [test records](docs/CHARACTER_EFFECTS_2026_10_28.md) establish narrower behaviours.
 
 ## Start playing

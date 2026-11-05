@@ -1,0 +1,146 @@
+{
+  "recordedOn": "2026-11-05",
+  "source": "Read-only SELECT queries against the production Fly SQLite database; this is saved match data, not an event-log transcript.",
+  "queriedAt": "2026-11-05T05:14:33.950Z",
+  "reportedSession": "Adithya recalled 21 October 2026 around 11 am AEDT and confirmed that these two rounds sound like his peer session.",
+  "identityHandling": "Names, profile IDs and participant keys omitted. Pilot A-E are document-local aliases preserving shared identity across the two results. bot=false means a client participant, not independent proof of a human.",
+  "build": "Exact deployed game commit is not stored in these match records and has not been reconstructed.",
+  "queryScopeUTC": {
+    "from": "2026-10-20T13:00:00.000Z",
+    "to": "2026-10-21T13:00:00.000Z"
+  },
+  "projection": "matches: id, room_code, mode, map, status, started_at, ended_at, parsed result reason/teamScores; participants: team, bot, kills, deaths, assists, deliveries, score; identity used transiently for aliases only. No sessions, tokens or private preferences queried.",
+  "matches": [
+    {
+      "match": "121bff17-bcca-42ee-aeca-1896461121c1",
+      "room": "Z9JXV",
+      "mode": "ffa",
+      "map": "outpost",
+      "status": "completed",
+      "startedAt": "2026-10-21T00:02:32.674Z",
+      "endedAt": "2026-10-21T00:07:32.673Z",
+      "reason": "time",
+      "teamScores": [
+        0,
+        0
+      ],
+      "startedAtAEDT": "2026-10-21T11:02:32.674000+11:00",
+      "endedAtAEDT": "2026-10-21T11:07:32.673000+11:00",
+      "participants": [
+        {
+          "team": -1,
+          "bot": false,
+          "kills": 7,
+          "deaths": 10,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 14,
+          "pilot": "Pilot A"
+        },
+        {
+          "team": -1,
+          "bot": false,
+          "kills": 6,
+          "deaths": 11,
+          "assists": 4,
+          "deliveries": 0,
+          "score": 16,
+          "pilot": "Pilot B"
+        },
+        {
+          "team": -1,
+          "bot": false,
+          "kills": 11,
+          "deaths": 12,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 22,
+          "pilot": "Pilot C"
+        },
+        {
+          "team": -1,
+          "bot": false,
+          "kills": 8,
+          "deaths": 7,
+          "assists": 4,
+          "deliveries": 0,
+          "score": 20,
+          "pilot": "Pilot D"
+        },
+        {
+          "team": -1,
+          "bot": false,
+          "kills": 14,
+          "deaths": 7,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 28,
+          "pilot": "Pilot E"
+        }
+      ]
+    },
+    {
+      "match": "53510061-0637-474b-88d0-5d3085cc59a5",
+      "room": "Z9JXV",
+      "mode": "tdm",
+      "map": "catacombs",
+      "status": "completed",
+      "startedAt": "2026-10-21T00:09:23.791Z",
+      "endedAt": "2026-10-21T00:14:23.785Z",
+      "reason": "time",
+      "teamScores": [
+        20,
+        7
+      ],
+      "startedAtAEDT": "2026-10-21T11:09:23.791000+11:00",
+      "endedAtAEDT": "2026-10-21T11:14:23.785000+11:00",
+      "participants": [
+        {
+          "team": 0,
+          "bot": false,
+          "kills": 8,
+          "deaths": 3,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 16,
+          "pilot": "Pilot A"
+        },
+        {
+          "team": 0,
+          "bot": false,
+          "kills": 12,
+          "deaths": 5,
+          "assists": 1,
+          "deliveries": 0,
+          "score": 25,
+          "pilot": "Pilot D"
+        },
+        {
+          "team": 1,
+          "bot": false,
+          "kills": 5,
+          "deaths": 10,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 10,
+          "pilot": "Pilot C"
+        },
+        {
+          "team": 1,
+          "bot": false,
+          "kills": 2,
+          "deaths": 10,
+          "assists": 0,
+          "deliveries": 0,
+          "score": 4,
+          "pilot": "Pilot E"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "No shot/movement replay, flag pickup sequence, browser/device/network data, participant experience level or direct quotations are present.",
+    "These two selected rounds are FFA and team deathmatch, not Flag Delivery.",
+    "Database results corroborate participation/outcomes/persistence; observations and interpretations are attributed separately to Adithya."
+  ]
+}
