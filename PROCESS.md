@@ -77,10 +77,10 @@ sight of their pilot beyond the map and an obstructive inventory led to
 Difficulty telling teams apart led to readable ally/enemy labels in
 [7bd1e35](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/7bd1e35).
 
-<img src="docs/evidence/nameplates-phone-2026-10-21.png" width="260" alt="Phone game view with separate green ALLY and red ENEMY nameplates">
+![Desktop game view with separate green ALLY and red ENEMY nameplates](docs/evidence/nameplates-desktop-2026-10-21.png)
 
 *Automated live check, 21 October: explicit team labels remain separated at
-phone Far scope. This verifies a correction; it is not a peer-playtest photo.*
+desktop Far scope. This verifies a correction; it is not a peer-playtest photo.*
 
 My sniper correction went too far: I asked for lethal body shots in
 [3463a0d](https://github.com/comp4020-agentic-coding-studio/comp4020-final-adithya-rama/commit/3463a0d),

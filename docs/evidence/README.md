@@ -32,12 +32,12 @@ to the earlier automated rehearsal. The current Fly buffer contained 5 November
 events. Match data supplied the usable evidence; no missing event transcript
 has been reconstructed or fabricated.
 
-## Phone team labels
+## Desktop team labels
 
-![Readable ally and enemy labels at phone Far scope](nameplates-phone-2026-10-21.png)
+![Readable ally and enemy labels at desktop Far scope](nameplates-desktop-2026-10-21.png)
 
-- Original: `test-results/nameplates-live/390-Far.png`, copied byte-for-byte.
-- Size: 390×844; 89,175 bytes.
+- Original: `test-results/nameplates-live/1920-Far.png`, copied byte-for-byte.
+- Size: 1920×1080; 161,933 bytes.
 - SHA-256 is recorded below.
 - Source report: `test-results/nameplates-live/report.json`, 21 October at
   02:43 AEDT (`2026-10-20T15:43:26.601Z`), production Fly URL.
@@ -83,6 +83,6 @@ The copied files retain their original bytes. Hashes, in the same order as the
 images above:
 
 ```text
-74e44ce49def85cbe443d5ee56e7324fb100de550840ccf5ed8b820ce8178b63
+da9a6a319d6bd797c1ab2943a1421d903c1d4a09772e9de4c18d07d1c2adcf1a
 3d58964ade1b558de8fe97212d4dc40be46c91877baff23f74f9e1df8ff1a3a0
 ```

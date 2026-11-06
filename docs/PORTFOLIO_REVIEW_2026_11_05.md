@@ -124,3 +124,12 @@ Follow-up validation on 5 November:
 No gameplay code changed. This follow-up did not rerun the complete gameplay
 suite or create another human playtest. It was prepared locally; a new
 publication/deployment is not claimed here.
+
+## 6 November: desktop evidence images
+
+At Adithya's request, PROCESS and the evidence index now use the original
+1920×1080 desktop nameplate screenshot instead of the phone capture. The second
+shield screenshot was already 1920×1080. The selected report case, image size,
+hash and captions now match the desktop source. Both remain historical automated
+live checks, with no claim that they are photos of the peer session. The earlier
+5 November description records the original image choice, now superseded.

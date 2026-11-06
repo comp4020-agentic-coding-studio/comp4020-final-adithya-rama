@@ -1,5 +1,5 @@
 {
-  "compiledOn": "2026-11-05",
+  "compiledOn": "2026-11-06",
   "kind": "Selected excerpts from historical automated live browser checks, not peer playtest observations",
   "nameplates": {
     "base": "https://comp4020-final-adithya-rama.fly.dev",
@@ -9,43 +9,43 @@
     "sourceReportSha256": "d59705d4970aa1707e12584998221d75234baae2be1e06125be1f16d0737ff31",
     "check": {
       "viewport": {
-        "width": 390,
-        "height": 844
+        "width": 1920,
+        "height": 1080
       },
       "scope": "Far",
       "tags": [
         {
           "id": 1,
-          "text": "YOU \u00b7 Pilot-5366",
+          "text": "YOU · Pilot-135E",
           "color": 9433260,
           "visible": true,
           "fontPixels": 13,
-          "width": 135.6650390625,
+          "width": 134.6650390625,
           "height": 29,
-          "x": 195,
-          "y": 363.0726102941176
+          "x": 960,
+          "y": 492.04255319148933
         },
         {
           "id": 2,
-          "text": "ALLY \u00b7 Friendly Pilot",
+          "text": "ALLY · Friendly Pilot",
           "color": 9433260,
           "visible": true,
           "fontPixels": 13,
           "width": 160.34228515625,
           "height": 29,
-          "x": 224.8235294117647,
-          "y": 329.0726102941176
+          "x": 1050.5531914893618,
+          "y": 458.04255319148933
         },
         {
           "id": 3,
-          "text": "ENEMY \u00b7 Opposing Pilot",
+          "text": "ENEMY · Opposing Pilot",
           "color": 16747409,
           "visible": true,
           "fontPixels": 13,
-          "width": 187.44042968749997,
+          "width": 187.4404296875,
           "height": 29,
-          "x": 271.5355882352941,
-          "y": 295.0726102941176
+          "x": 1227.3429787234043,
+          "y": 492.04255319148933
         }
       ]
     },
